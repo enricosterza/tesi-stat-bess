@@ -92,11 +92,57 @@ TAG_OFFERTA: str = "OfferteOperatori"
 PURPOSE_ACQUISTO: str = "BID"   # offerta di acquisto  -> costruisce la curva di DOMANDA
 PURPOSE_VENDITA: str = "OFF"    # offerta di vendita   -> costruisce la curva di OFFERTA
 
+#: Zone virtuali di frontiera confinanti con NORD (decisione D-10: il perimetro di analisi
+#: e' NORD piu' queste zone, senza vincoli di capacita' di transito).
+#: ATTENZIONE - da verificare prima dell'uso: nel giorno pilota compaiono anche CORS, MALT,
+#: MONT e COAC, che sono frontiere di ALTRE zone (Corsica verso CNOR/SARD, Malta verso SICI)
+#: e non vanno incluse. Non compaiono zone per Austria e Slovenia, che pure confinano con
+#: NORD: e' il primo controllo da fare (vedi docs/DIARIO.md, voce su D-10).
+ZONE_FRONTIERA_NORD: list[str] = ["SVIZ", "FRAN"]
+
+#: Stati delle offerte che hanno effettivamente partecipato all'asta e che quindi
+#: compongono le curve di domanda e offerta (decisione D-06, significati confermati dal
+#: relatore il 03/08/2026):
+#:   ACC  accettata            REJ  rifiutata
+#:   PREJ paradossalmente rifiutata (offerte a blocchi in merito sul prezzo ma escluse dal
+#:        vincolo "tutto o niente": 20 righe nel giorno pilota, effetto non misurabile)
+#: Restano fuori REP (sostituita: la conterebbe due volte), REV (revocata), INC (incongrua).
+STATUS_IN_GARA: list[str] = ["ACC", "REJ", "PREJ"]
+
 #: Granularita' presenti nei dati. `PERIOD` va SEMPRE letto insieme a `GRANULARITY`:
 #: con PT15 vale 1-96, con PT30 1-48, con PT60 1-24. Filtrare su `PERIOD` senza filtrare
 #: la granularita' mescolerebbe quarti d'ora e ore.
 GRANULARITA_PERIODI: dict[str, int] = {"PT15": 96, "PT30": 48, "PT60": 24}
 GRANULARITA_DEFAULT: str = "PT15"
+
+#: Data in cui il MGP passa dal periodo orario al quarto d'ora. Verificata scandendo
+#: l'archivio: il 30/09/2025 le offerte sono al 100% PT60, il 01/10/2025 all'82,8% PT15.
+DATA_PASSAGGIO_PT15: str = "20251001"
+
+
+def granularita_prevalente(data: str) -> str:
+    """
+    Restituisce la granularita' nativa prevalente di un giorno di mercato (decisione D-12).
+
+    Parameters
+    ----------
+    data : str
+        Data in formato 'YYYYMMDD'.
+
+    Returns
+    -------
+    str
+        'PT60' per i giorni fino al 30/09/2025, 'PT15' dal 01/10/2025.
+
+    Perche' serve
+    -------------
+    Non esiste una granularita' unica valida per tutto il campione: nel 2025 i primi nove
+    mesi sono orari e gli ultimi tre a quarto d'ora. Ogni giorno va quindi elaborato alla
+    sua risoluzione nativa, e in ogni giorno resta una quota minoritaria di offerte
+    all'altra granularita' (4-5% dopo il passaggio), il cui trattamento e' la questione
+    aperta D-13.
+    """
+    return "PT15" if data >= DATA_PASSAGGIO_PT15 else "PT60"
 
 #: Durata in ore di un periodo, per convertire quantita' (MWh) in potenza (MW) e viceversa.
 DURATA_ORE: dict[str, float] = {"PT15": 0.25, "PT30": 0.5, "PT60": 1.0}

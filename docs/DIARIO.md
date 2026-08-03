@@ -375,14 +375,141 @@ decidere, non a raccogliere l'istruttoria.
 
 ---
 
+## 2026-08-03 — Risposte alle domande del ricevimento: D-06 e D-10 chiuse
+
+Le quattro questioni portate al ricevimento hanno avuto risposta. Di seguito le decisioni
+che ne derivano e le conseguenze operative.
+
+### D-06 (era aperta) · Significato degli stati e composizione della curva d'asta
+
+Significati confermati:
+
+| Codice | Significato |
+|---|---|
+| `ACC` | Accettata |
+| `REJ` | Rifiutata |
+| `PREJ` | **Paradossalmente rifiutata** (riguarda le offerte a blocchi) |
+| `INC` | Incongrua |
+| `REP` | Sostituita |
+| `REV` | Revocata |
+
+La lettura ipotizzata era corretta su `ACC`, `REJ`, `REP`, `REV`; la precisazione riguarda
+`PREJ`, che non è un rifiuto "preliminare" ma il **rifiuto paradossale** tipico dei mercati
+con offerte a blocchi: un'offerta può essere in merito sul prezzo e venire comunque
+rifiutata perché il vincolo "tutto o niente" del blocco renderebbe inconsistente la
+soluzione d'asta.
+
+**Decisione.** Le curve si costruiscono con `ACC` + `REJ`: sono le offerte che hanno
+effettivamente partecipato all'asta. Restano fuori `REP` (conterebbe due volte la stessa
+offerta, l'originale e la sostituta), `REV` (offerte ritirate) e `INC` (offerte non valide).
+
+**Trattamento di `PREJ`.** Sono anch'esse offerte in gara, quindi in linea di principio
+vanno incluse. Nel giorno pilota sono però **20 righe su 568.185** (tutte in NORD, tutte
+lato vendita): l'inclusione o l'esclusione non sposta nulla di misurabile. Verranno incluse
+insieme a `REJ` e la sensibilità sarà verificata in fase di validazione, riportando il
+numero di periodi in cui il prezzo cambia.
+
+C'è però una conseguenza concettuale da annotare per la tesi: l'esistenza stessa dei rifiuti
+paradossali conferma che il vero algoritmo d'asta risolve un problema con vincoli di
+interezza, mentre la nostra ricostruzione a curve continue tratta i blocchi come offerte
+divisibili (D-03). I `PREJ` sono la traccia osservabile di quella differenza.
+
+### D-10 (nuova, supera D-01) · Perimetro zonale
+
+**Decisione.** Alle offerte della zona NORD si aggiungono quelle delle **zone virtuali di
+frontiera confinanti**, senza imporre vincoli di capacità di transito.
+
+**Perché.** Il dato mostrava che in NORD la domanda supera l'offerta interna in tutti e 96 i
+periodi del giorno pilota: la zona isolata non può chiudere il bilancio e il prezzo
+ricostruito risulta troppo alto (400 €/MWh contro 177,87 ufficiale sul periodo 40). L'import
+non è un dettaglio, è la parte a basso costo della curva di offerta.
+
+**Cosa resta approssimato.** Non imponendo i limiti di transito si ammette implicitamente
+che tutta l'energia offerta sulle frontiere possa entrare in NORD. Nella realtà i transiti
+sono vincolati e nelle ore di congestione il vincolo è attivo: ci si attende quindi un
+prezzo ricostruito *più basso* di quello reale in quelle ore, cioè un bias di segno opposto
+a quello della zona isolata. Le due varianti (isolata / con frontiere) verranno confrontate
+sulla stessa metrica di match, così l'errore risulta acquisito da entrambi i lati.
+
+**Da verificare in implementazione.** Quali zone virtuali confinino effettivamente con NORD.
+Nel giorno pilota compaiono `SVIZ` (3.357 righe), `MONT` (979), `CORS` (864), `COAC` (864),
+`FRAN` (96), `MALT` (28): fra queste, `CORS` e `MALT` sono frontiere di altre zone (Corsica
+verso CNOR/SARD, Malta verso SICI) e non vanno incluse. Non compaiono zone per Austria e
+Slovenia, che pure confinano con NORD: da capire se i relativi scambi siano rappresentati
+altrove (market coupling implicito) e se questo lasci scoperta una parte dell'import. È il
+primo controllo da fare prima di usare il perimetro allargato.
+
+### D-13 (era D3) · Granularità minoritaria
+
+Confermato l'orientamento: si resta sulla granularità prevalente in fase di messa a punto,
+poi si confrontano sistematicamente le due varianti sulla frequenza di match e si adotta la
+migliore, documentando il confronto.
+
+### D-11 · Periodo di studio: gennaio 2025 per validare, poi tutto il 2025
+
+Il campione è l'anno solare **2025**, partendo da **gennaio** per validare il modello.
+
+---
+
+## 2026-08-03 — Il 2025 non è a 15 minuti: il periodo di mercato cambia il 1° ottobre 2025
+
+### Come è emerso
+Prima di impostare il lavoro sul 2025 sono stati scanditi i file dell'archivio contando i
+valori di `GRANULARITY`. Risultato:
+
+| Giorno | Composizione |
+|---|---|
+| 15/01/2025, 15/03/2025, 01/06/2025, 01/09/2025 | PT60 100% |
+| 26, 28, 29, 30/09/2025 | PT60 100% |
+| **01/10/2025** | **PT15 82,8%**, PT60 17,2% |
+| 02/10/2025 | PT15 89,3%, PT60 10,7% |
+| 15/10, 01/11, 01/12/2025, 15/01/2026 | PT15 ~95,7%, PT60 ~4,3% |
+
+Il passaggio al periodo di mercato da 15 minuti è **netto e cade il 1° ottobre 2025**.
+
+### Perché conta
+1. **Il 2025 non è omogeneo**: nove mesi a granularità oraria (24 aste al giorno) e tre mesi
+   a quarto d'ora (96 aste al giorno). Un'analisi "sull'anno 2025" mette insieme due
+   risoluzioni temporali diverse.
+2. **La decisione D-05 ("solo PT15") non è applicabile**: da gennaio a settembre 2025 non
+   esiste una sola offerta PT15. Va riformulata → **D-12**: si usa la granularità *nativa
+   prevalente del giorno*, quale che sia.
+3. **Il mese di validazione scelto (gennaio 2025) è orario**, mentre tutta la messa a punto
+   finora è stata fatta su un giorno a quarto d'ora. Non è un problema — il lettore
+   normalizza le due granularità e la funzione di clearing lavora comunque su un periodo
+   alla volta — ma la validazione va fatta su entrambe le risoluzioni prima di fidarsene.
+4. **La risoluzione temporale non è neutrale per l'oggetto della tesi**: la strategia di
+   arbitraggio di una batteria dipende da quanto è fine la griglia temporale su cui può
+   caricare e scaricare. Confrontare risultati orari e a quarto d'ora richiede cautela; per
+   contro, avere entrambe le risoluzioni permette di *misurare* quanto la risoluzione
+   incide sul valore dell'arbitraggio, che è un risultato di interesse.
+
+### Copertura dell'archivio
+Dal 13/02/2015 al 31/03/2026, 4.065 giorni. Il 2025 è completo (365 giorni su 365), del 2026
+ci sono i primi 90 giorni. I giorni a granularità nativa PT15 sono **182**, dal 01/10/2025 al
+31/03/2026: non esiste quindi, nei dati disponibili, un anno intero a quarto d'ora.
+
+### Decisione provvisoria e questione da portare al prossimo ricevimento
+Si procede come stabilito — validazione su gennaio 2025 (orario), poi estensione all'anno
+solare 2025 — usando per ogni giorno la sua granularità nativa (D-12) e riportando i
+risultati su base oraria, in modo che l'anno resti confrontabile. Resta da decidere se
+affiancare a questo un'analisi a quarto d'ora sui 182 giorni disponibili: è la domanda
+portata al prossimo ricevimento.
+
+---
+
 ## Prossimi passi
 
-1. `src/mgp/curve.py`: costruzione delle curve aggregate a gradini e funzione
+1. Verificare quali zone virtuali di frontiera confinano con NORD e cosa aggiungono in
+   quantità e in prezzo alla curva di offerta (presupposto di D-10).
+2. `src/mgp/curve.py`: costruzione delle curve aggregate a gradini e funzione
    `prezzo_equilibrio(offerte_periodo)`, con test su casi giocattolo in `tests/`.
-2. Validazione su tutti i 96 periodi del giorno pilota → scioglie D-06 e misura il bias di D-01.
-3. Estensione: sensibilità al perimetro delle zone (NORD isolata vs NORD + frontiere) e alla
-   granularità (D-05).
-4. Simulazione della batteria: domanda addizionale nelle ore di carica, offerta addizionale in
+3. Validazione sul giorno pilota con il perimetro allargato (D-10) e le offerte `ACC`+`REJ`
+   (D-06): confronto fra prezzo ricostruito e prezzo ufficiale sui 96 periodi.
+4. Estendere la validazione a gennaio 2025 (granularità oraria) e misurare la frequenza di
+   match sulle due risoluzioni temporali; confronto delle varianti di D-13.
+5. Elaborazione dell'anno 2025 completo, con caricamento incrementale dei 365 file.
+6. Simulazione della batteria: domanda addizionale nelle ore di carica, offerta addizionale in
    quelle di scarica, ricalcolo del prezzo di equilibrio (effetto di feedback).
-5. Dimensionamento ottimale (capacità in MWh, potenza in MW, durata di carica/scarica) via
+7. Dimensionamento ottimale (capacità in MWh, potenza in MW, durata di carica/scarica) via
    ottimizzazione, tenendo conto dell'effetto di feedback sul prezzo.

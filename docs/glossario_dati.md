@@ -54,19 +54,28 @@ Giorno pilota (31/03/2026): 568.185 elementi `OfferteOperatori`, 574 MB.
 | `GRANULARITY` | str | Granularità temporale | `PT15` / `PT30` / `PT60`; **solo schema recente** |
 | `MINIMUM_ACCEPTANCE_RATIO` | str | Quota minima di accettazione | presente nello schema, assente dai record ispezionati |
 
-## `STATUS_CD` — esiti (lettura **da confermare** su documentazione GME)
+## `STATUS_CD` — esiti (significati **confermati** dal relatore il 03/08/2026)
 
-| Codice | Lettura | Righe (31/03/2026, tutte le zone) |
-|---|---|---|
-| `ACC` | Accettata | 240.008 |
-| `REP` | Sostituita da una presentazione successiva dello stesso operatore | 217.558 |
-| `REV` | Revocata | 58.279 |
-| `REJ` | Respinta: offerta valida in gara ma fuori mercato | 50.200 |
-| `INC` | Incongruente | 2.120 |
-| `PREJ` | Respinta in fase preliminare | 20 |
+| Codice | Significato | In gara? | Righe (31/03/2026, tutte le zone) |
+|---|---|---|---|
+| `ACC` | Accettata | sì | 240.008 |
+| `REJ` | Rifiutata | sì | 50.200 |
+| `PREJ` | **Paradossalmente rifiutata**: offerta a blocchi in merito sul prezzo ma rifiutata per il vincolo "tutto o niente" | sì | 20 |
+| `REP` | Sostituita da una presentazione successiva dello stesso operatore | no | 217.558 |
+| `REV` | Revocata dall'operatore | no | 58.279 |
+| `INC` | Incongrua (offerta non valida) | no | 2.120 |
 
-La scelta di quali stati entrino nelle curve è la decisione aperta **D-06**
-([decisioni.md](decisioni.md)): incide sul prezzo ricostruito di un ordine di grandezza.
+La colonna "in gara" riporta la conseguenza operativa: le curve d'asta si costruiscono con
+`ACC` + `REJ` (+ `PREJ`, marginale), perché sono le offerte che hanno effettivamente
+partecipato all'asta. `REP` conterebbe due volte la stessa offerta, `REV` offerte ritirate,
+`INC` offerte scartate a monte. Vedi decisione **D-06** in [decisioni.md](decisioni.md).
+
+Nota su `PREJ`: il "rifiuto paradossale" è un fenomeno proprio delle offerte a blocchi, che
+sono accettabili solo per intero e su tutti i periodi del blocco. Un'offerta può quindi
+risultare in merito sul prezzo e venire comunque rifiutata perché accettarla renderebbe
+inconsistente la soluzione d'asta. È la stessa ragione per cui trattare i blocchi come
+offerte semplici (D-03) è un'approssimazione: nel nostro modello un blocco può essere
+accettato parzialmente.
 
 ## Zone (`ZONE_CD`) nel giorno pilota
 
@@ -88,8 +97,18 @@ offerta quando è importatrice.
 | Separatore decimale | punto | punto |
 
 `mgp.io_gme` normalizza lo schema storico su quello recente (`INTERVAL_NO` → `PERIOD`,
-`GRANULARITY` → `PT60`). **Da mappare**: la data esatta in cui l'archivio passa alla
-granularità a quarto d'ora.
+`GRANULARITY` → `PT60`).
+
+## Quando l'archivio passa al quarto d'ora
+
+Verificato scandendo i file giorno per giorno intorno al cambio: **il 30/09/2025 le offerte
+sono al 100% `PT60`, il 01/10/2025 sono per l'82,8% `PT15`**. Il passaggio al periodo di
+mercato da 15 minuti è quindi netto e cade il **1° ottobre 2025**. Da quella data in poi
+resta una quota residua di offerte orarie (4-5% nei mesi successivi, 17% nel primo giorno).
+
+Copertura dell'archivio locale: dal 13/02/2015 al 31/03/2026, 4.065 giorni; il 2025 è
+completo (365 giorni su 365), del 2026 ci sono i primi 90 giorni. I giorni a granularità
+nativa PT15 disponibili sono quindi **182**, dal 01/10/2025 al 31/03/2026.
 
 ## Altri dataset GME potenzialmente utili
 
