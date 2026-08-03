@@ -300,10 +300,11 @@ def riepilogo(df: pd.DataFrame) -> dict[str, pd.DataFrame | pd.Series]:
         * 'per_granularita'  : righe per `GRANULARITY` x `PURPOSE_CD`;
         * 'per_status'       : righe per `STATUS_CD` x `PURPOSE_CD`;
         * 'per_periodo'      : per ciascun periodo PT15, righe totali, righe BID/OFF e
-                               quantita' offerte in acquisto/vendita (MWh);
+                               quantita' offerte in acquisto/vendita (MW: le quantita' GME
+                               sono potenze, vedi `config.DURATA_ORE`);
         * 'numeriche'        : statistiche descrittive e conteggio NaN delle colonne numeriche;
         * 'qualita'          : indicatori di qualita' del dato (offerte a blocchi, bilaterali,
-                               price taker, quota di righe e di MWh non PT15).
+                               price taker, quota di righe e di MW non PT15).
 
     Motivazione
     -----------
@@ -332,9 +333,9 @@ def riepilogo(df: pd.DataFrame) -> dict[str, pd.DataFrame | pd.Series]:
         "righe": pt15.groupby("PERIOD").size(),
         "righe_BID": pt15[pt15["PURPOSE_CD"] == config.PURPOSE_ACQUISTO].groupby("PERIOD").size(),
         "righe_OFF": pt15[pt15["PURPOSE_CD"] == config.PURPOSE_VENDITA].groupby("PERIOD").size(),
-        "MWh_domanda": pt15[pt15["PURPOSE_CD"] == config.PURPOSE_ACQUISTO]
+        "MW_domanda": pt15[pt15["PURPOSE_CD"] == config.PURPOSE_ACQUISTO]
             .groupby("PERIOD")["QUANTITY_NO"].sum(),
-        "MWh_offerta": pt15[pt15["PURPOSE_CD"] == config.PURPOSE_VENDITA]
+        "MW_offerta": pt15[pt15["PURPOSE_CD"] == config.PURPOSE_VENDITA]
             .groupby("PERIOD")["QUANTITY_NO"].sum(),
     }).fillna(0)
     out["per_periodo"] = per_periodo
@@ -345,15 +346,15 @@ def riepilogo(df: pd.DataFrame) -> dict[str, pd.DataFrame | pd.Series]:
     desc["dtype"] = [str(df[c].dtype) for c in num]
     out["numeriche"] = desc
 
-    mwh_tot = df["QUANTITY_NO"].sum()
-    mwh_pt15 = pt15["QUANTITY_NO"].sum()
+    mw_tot = df["QUANTITY_NO"].sum()
+    mw_pt15 = pt15["QUANTITY_NO"].sum()
     qualita = pd.Series({
         "righe_totali": len(df),
         "righe_PT15": len(pt15),
         "quota_righe_non_PT15_%": round(100 * (1 - len(pt15) / len(df)), 3) if len(df) else 0.0,
-        "MWh_totali": round(mwh_tot, 1),
-        "MWh_PT15": round(mwh_pt15, 1),
-        "quota_MWh_non_PT15_%": round(100 * (1 - mwh_pt15 / mwh_tot), 3) if mwh_tot else 0.0,
+        "MW_totali": round(mw_tot, 1),
+        "MW_PT15": round(mw_pt15, 1),
+        "quota_MW_non_PT15_%": round(100 * (1 - mw_pt15 / mw_tot), 3) if mw_tot else 0.0,
         "offerte_a_blocchi": int((df.get("OFFER_TYPE", pd.Series(dtype=object)) == "B").sum()),
         "BLOCK_ID_valorizzati": int(df.get("BLOCK_ID", pd.Series(dtype=object)).fillna("").ne("").sum()),
         "bilaterali": int(df.get("BILATERAL_IN", pd.Series(dtype=object)).astype(str).str.lower().eq("true").sum()),
@@ -372,7 +373,7 @@ def riepilogo(df: pd.DataFrame) -> dict[str, pd.DataFrame | pd.Series]:
             ((df["PURPOSE_CD"] == config.PURPOSE_VENDITA)
              & (df["ENERGY_PRICE_NO"] == 0.0)).sum()
         ),
-        "MWh_bilaterali": round(
+        "MW_bilaterali": round(
             df.loc[df.get("BILATERAL_IN", pd.Series(dtype=object)).astype(str).str.lower().eq("true"),
                    "QUANTITY_NO"].sum(), 1),
         "prezzo_min": df["ENERGY_PRICE_NO"].min(),

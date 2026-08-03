@@ -375,14 +375,18 @@ decidere, non a raccogliere l'istruttoria.
 
 ---
 
-## 2026-08-03 — Risposte alle domande del ricevimento: D-06 e D-10 chiuse
+## 2026-08-03 — Sciolte le quattro questioni aperte: D-06 e D-10 chiuse
 
-Le quattro questioni portate al ricevimento hanno avuto risposta. Di seguito le decisioni
-che ne derivano e le conseguenze operative.
+**Nota sulla provenienza di queste decisioni.** Il ricevimento con il relatore non si è
+ancora tenuto: le quattro questioni sono state sciolte in autonomia per non fermare il
+lavoro, sulla base della conoscenza di dominio e delle evidenze raccolte. Restano quindi
+**da sottoporre al relatore** alla prima occasione, in particolare il significato dei codici
+`STATUS_CD`, che non è documentato in modo esplicito nei file GME. Se una di queste letture
+si rivelasse errata, la decisione andrà superata con una voce nuova.
 
 ### D-06 (era aperta) · Significato degli stati e composizione della curva d'asta
 
-Significati confermati:
+Significati adottati:
 
 | Codice | Significato |
 |---|---|
@@ -393,7 +397,7 @@ Significati confermati:
 | `REP` | Sostituita |
 | `REV` | Revocata |
 
-La lettura ipotizzata era corretta su `ACC`, `REJ`, `REP`, `REV`; la precisazione riguarda
+La lettura iniziale era corretta su `ACC`, `REJ`, `REP`, `REV`; la precisazione riguarda
 `PREJ`, che non è un rifiuto "preliminare" ma il **rifiuto paradossale** tipico dei mercati
 con offerte a blocchi: un'offerta può essere in merito sul prezzo e venire comunque
 rifiutata perché il vincolo "tutto o niente" del blocco renderebbe inconsistente la
@@ -495,6 +499,132 @@ solare 2025 — usando per ogni giorno la sua granularità nativa (D-12) e ripor
 risultati su base oraria, in modo che l'anno resti confrontabile. Resta da decidere se
 affiancare a questo un'analisi a quarto d'ora sui 182 giorni disponibili: è la domanda
 portata al prossimo ricevimento.
+
+---
+
+## 2026-08-03 — `curve.py`: clearing implementato, e tre correzioni al lavoro precedente
+
+Scritto `src/mgp/curve.py` con le curve aggregate a gradini e `prezzo_equilibrio()`, più
+`tests/test_curve.py` (22 test su casi calcolabili a mano) e lo script
+`scripts/02_ricostruisci_prezzi.py`, che confronta le varianti della pipeline sui prezzi
+ufficiali. Lungo la strada sono emerse tre cose che correggono quanto scritto prima.
+
+### Correzione 1 — `QUANTITY_NO` è una POTENZA (MW), non l'energia del periodo
+
+**Come è emerso.** Sommando le quantità assegnate a livello nazionale nel giorno pilota
+venivano 37.149 "MWh" in un quarto d'ora, cioè 148 GW di potenza: un valore impossibile,
+circa quattro volte il fabbisogno italiano. Il confronto con un giorno orario ha sciolto il
+dubbio: 15/01/2025 → 38.334 in media all'ora; 31/03/2026 → 31.956 in media al quarto d'ora.
+Il rapporto è **0,83**, non 0,25: se fossero energie riferite al periodo, passando dall'ora
+al quarto d'ora dovrebbero ridursi a un quarto. Sono potenze, e la differenza residua è la
+stagionalità del fabbisogno (gennaio contro marzo).
+
+**Conseguenze.**
+* Un'offerta oraria di X MW vale X MW in **ciascuno** dei quattro quarti d'ora dell'ora:
+  non va divisa per quattro. Il codice che scrivevo lo faceva ed era sbagliato.
+* Va corretta l'osservazione registrata il 03/08 nella prima esplorazione, secondo cui
+  includere le offerte orarie "riscalate" spostava il prezzo del periodo 40 da 400 a
+  319 €/MWh: quel numero era calcolato dividendo per quattro. Con la quantità corretta
+  l'effetto è molto maggiore (vedi sotto).
+* Tutte le etichette `MWh_*` nei riepiloghi sono state rinominate `MW_*`. L'energia serve
+  solo dove conta davvero, cioè nel bilancio della batteria, e si ottiene moltiplicando per
+  la durata del periodo (`config.in_energia`).
+
+### Correzione 2 — "la domanda supera l'offerta in tutti e 96 i periodi" era un artefatto
+
+Quell'osservazione era calcolata **su tutte le righe**, comprese `REP` (sostituite) e `REV`
+(revocate), che non partecipano all'asta. Con il filtro corretto (D-06) il quadro cambia:
+
+| Selezione | domanda media | offerta media | periodi con domanda > offerta |
+|---|---|---|---|
+| tutte le righe | 40.377 MW | 31.759 MW | 96 su 96 |
+| solo offerte in gara | 19.038 MW | 19.190 MW | 44 su 96 |
+
+Le offerte in gara sono quindi **quasi in pareggio**. Resta vero che NORD importa, ma la
+prova non è questa: è il confronto fra quantità *assegnate*, dove gli acquisti superano le
+vendite di circa 6.300 MW per periodo. È una lezione metodologica da tenere: un filtro
+sbagliato produce un'evidenza convincente e falsa.
+
+### Correzione 3 — l'ambiente non richiede più il certificato di Avast
+
+Il bundle CA `wscert.pem` non esiste più sul sistema e `pip` funziona senza alcuna
+configurazione: il file `.venv/pip.ini` è stato rimosso. Se in futuro `pip` tornasse a
+fallire con `CERTIFICATE_VERIFY_FAILED`, la causa è l'intercettazione TLS dell'antivirus.
+
+---
+
+## 2026-08-03 — D-16 · L'import netto come blocco esogeno, e i risultati della validazione
+
+### Il problema, misurato
+Ricostruendo la curva della sola zona NORD il prezzo risulta **sistematicamente più alto**
+di quello ufficiale: errore mediano 128,43 €/MWh a zona isolata, 100,79 aggiungendo le
+frontiere confinanti, 99,31 aggiungendo tutte le zone virtuali. Il bias è sempre positivo,
+la frequenza di match è zero a qualunque tolleranza.
+
+La diagnosi sul periodo 40 spiega perché. Al prezzo ufficiale di 177,87 €/MWh:
+
+* la **domanda ricostruita coincide con quella ufficialmente assegnata**: 37.152,6 MW
+  contro 37.149,3. Su tutti i 96 periodi lo scarto è sotto lo 0,1% in **94 periodi su 96**
+  (media 0,02%). La curva di domanda è ricostruita correttamente;
+* l'**offerta no**: in NORD gli acquisti assegnati (21.304 MW) superano le vendite assegnate
+  (10.920 MW) di oltre 10 GW. Quella differenza è energia che entra in NORD dalle altre zone
+  e dall'estero, e **non compare fra le offerte con `ZONE_CD = NORD`**.
+
+Le zone virtuali di frontiera non colmano il vuoto: sull'intero giorno pilota `SVIZ` offre
+in vendita 121.796 MW cumulati e `FRAN` 960, contro 1.842.251 di NORD. Aggiungerle riduce
+l'errore da 128 a 101 €/MWh, ma il grosso dell'import resta fuori dai dati: passa dal market
+coupling e da meccanismi (offerte integrative GSE) pubblicati in dataset diversi.
+
+### La decisione (D-16)
+Si introduce nella curva di offerta un **blocco price taker di import netto**, pari alla
+differenza fra acquisti e vendite assegnate nel perimetro, collocato al prezzo minimo di
+mercato. È energia già allocata altrove, che entra comunque: si comporta da offerta
+anelastica e trasla la curva verso destra senza cambiarne la forma.
+
+**Limite da dichiarare.** L'import è calcolato dall'esito osservato dell'asta, quindi è una
+grandezza **calibrata**, non prevista dal modello. Quando si simulerà la batteria si
+assumerà che i flussi di import non reagiscano alla variazione di prezzo indotta: è
+un'assunzione forte. Il prezzo resta comunque un esito del modello, non un dato: emerge
+dall'incrocio delle curve, e lo scarto residuo misura quanto bene sono ricostruite.
+
+### Risultati della validazione
+
+**31/03/2026 (96 aste da 15 minuti), perimetro NORD + frontiere, offerte in gara,
+inclusa l'altra granularità:**
+
+| Variante | Errore mediano | Bias mediano | Match ±1 € | Match ±5 € |
+|---|---|---|---|---|
+| NORD isolata | 128,43 | +128,43 | 0% | 0% |
+| NORD + frontiere | 100,79 | +100,79 | 0% | 0% |
+| … + offerte all'altra granularità | 24,57 | +24,57 | 5,2% | 11,5% |
+| … + blocco di import netto | **5,25** | **+1,52** | 12,5% | 50,0% |
+
+**15/01/2025 (24 aste orarie), stessa pipeline:**
+
+| Variante | Errore mediano | Match esatto (±0,01 €) | Match ±1 € | Match ±5 € |
+|---|---|---|---|---|
+| NORD + frontiere, senza import | 38,26 | 0% | 0% | 0% |
+| NORD + frontiere + import netto | **0,05** | **45,8%** | 75,0% | 91,7% |
+
+Il giorno orario si ricostruisce nettamente meglio di quello a quarto d'ora: 11 ore su 24
+sono riprodotte **esattamente**. Due possibili spiegazioni, da verificare: il mercato a 15
+minuti è più recente e potrebbe avere una quota maggiore di offerte gestite fuori dalle
+offerte pubbliche; oppure la ripartizione delle offerte orarie residue sui quarti d'ora
+introduce un errore che sulle aste orarie non esiste. È il primo controllo della prossima
+settimana, da fare su più giorni prima di trarne conclusioni.
+
+### Effetto degli stati ammessi (chiude la verifica di D-06)
+A parità di perimetro, sul giorno pilota: `ACC+REJ+PREJ` e `ACC+REJ` danno lo stesso
+risultato (i 20 `PREJ` non spostano nulla, come atteso); aggiungere `REP` peggiora l'errore
+da 100,79 a 358,53; usare tutti gli stati lo porta a 281,84; con i soli `ACC` le curve si
+incrociano in 2 periodi su 96. La scelta di D-06 è quindi confermata dai dati, non solo dal
+ragionamento.
+
+### Effetto della granularità minoritaria (chiude D-13)
+Includere le offerte presentate all'altra granularità **migliora nettamente**: errore
+mediano da 100,79 a 24,57 sul giorno a quarto d'ora. Sul giorno orario non cambia nulla,
+perché non ci sono offerte a 15 minuti da includere. La variante adottata è quindi quella
+con le offerte di tutte le granularità, senza riscalare le quantità (sono potenze).
 
 ---
 

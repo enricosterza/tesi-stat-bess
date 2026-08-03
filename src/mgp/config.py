@@ -101,8 +101,8 @@ PURPOSE_VENDITA: str = "OFF"    # offerta di vendita   -> costruisce la curva di
 ZONE_FRONTIERA_NORD: list[str] = ["SVIZ", "FRAN"]
 
 #: Stati delle offerte che hanno effettivamente partecipato all'asta e che quindi
-#: compongono le curve di domanda e offerta (decisione D-06, significati confermati dal
-#: relatore il 03/08/2026):
+#: compongono le curve di domanda e offerta (decisione D-06; i significati dei codici sono
+#: quelli adottati il 03/08/2026, ancora da confermare con il relatore):
 #:   ACC  accettata            REJ  rifiutata
 #:   PREJ paradossalmente rifiutata (offerte a blocchi in merito sul prezzo ma escluse dal
 #:        vincolo "tutto o niente": 20 righe nel giorno pilota, effetto non misurabile)
@@ -144,8 +144,24 @@ def granularita_prevalente(data: str) -> str:
     """
     return "PT15" if data >= DATA_PASSAGGIO_PT15 else "PT60"
 
-#: Durata in ore di un periodo, per convertire quantita' (MWh) in potenza (MW) e viceversa.
+#: Durata in ore di un periodo.
+#:
+#: ATTENZIONE ALLE UNITA': `QUANTITY_NO` e `AWARDED_QUANTITY_NO` sono **potenze (MW)**, non
+#: energie riferite al periodo. Verificato confrontando le quantita' assegnate nazionali fra
+#: un giorno orario e uno a quarto d'ora: se fossero energie di periodo, passando da PT60 a
+#: PT15 dovrebbero ridursi a un quarto, mentre il rapporto osservato e' 0,83 (38.334 MW medi
+#: all'ora il 15/01/2025 contro 31.956 MW medi al quarto d'ora il 31/03/2026, differenza
+#: spiegata dalla stagionalita' del fabbisogno).
+#:
+#: Conseguenze: (a) un'offerta oraria vale la stessa potenza in tutti i quarti d'ora che
+#: compongono l'ora, senza divisioni; (b) l'energia si ottiene moltiplicando per la durata,
+#: e serve solo dove l'energia conta davvero, cioe' nel bilancio della batteria.
 DURATA_ORE: dict[str, float] = {"PT15": 0.25, "PT30": 0.5, "PT60": 1.0}
+
+
+def in_energia(potenza_mw: float, granularita: str) -> float:
+    """Converte una potenza (MW) nell'energia del periodo (MWh)."""
+    return potenza_mw * DURATA_ORE[granularita]
 
 #: Limiti di prezzo ammessi sul MGP (€/MWh), verificati sul giorno pilota: i prezzi offerti
 #: vanno da -500 a 4000 (i prezzi negativi sono ammessi). Un'offerta di ACQUISTO a P_MAX e
@@ -165,8 +181,8 @@ COLONNE_UTILI: list[str] = [
     "PERIOD",                 # periodo del giorno (dipende da GRANULARITY)
     "GRANULARITY",            # PT15 / PT30 / PT60
     "ENERGY_PRICE_NO",        # prezzo offerto, €/MWh
-    "QUANTITY_NO",            # quantita' offerta, MWh
-    "AWARDED_QUANTITY_NO",    # quantita' assegnata dall'algoritmo di mercato, MWh
+    "QUANTITY_NO",            # quantita' offerta, MW (potenza: vedi nota su DURATA_ORE)
+    "AWARDED_QUANTITY_NO",    # quantita' assegnata dall'algoritmo di mercato, MW
     "AWARDED_PRICE_NO",       # prezzo di assegnazione = prezzo zonale ufficiale (su righe ACC)
     "MERIT_ORDER_NO",         # posizione nell'ordine di merito
     "PARTIAL_QTY_ACCEPTED_IN",# S/N: accettazione parziale ammessa

@@ -21,4 +21,11 @@ Stato: **adottata** = in uso nella pipeline · **aperta** = da decidere/validare
 | D-10 | Perimetro zonale: **NORD più le zone virtuali di frontiera confinanti**, senza vincoli di capacità di transito | adottata | 2026-08-03 | Alto: recupera la parte a basso costo della curva di offerta (import) |
 | D-11 | Periodo di studio: **gennaio 2025** per la validazione, poi estensione a **tutto il 2025** | adottata, con riserva | 2026-08-03 | Definisce il campione; vedi la questione aperta sulla granularità |
 | D-12 | Si usa la **granularità nativa prevalente di ciascun giorno** (PT60 fino al 30/09/2025, PT15 dal 01/10/2025); le righe di granularità minoritaria restano escluse e quantificate | adottata | 2026-08-03 | Sostituisce D-05: nel 2025 nove mesi su dodici sono orari |
-| D-13 | Confronto sistematico fra "sola granularità prevalente" e "prevalente + minoritaria riscalata", scelta in base alla frequenza di match | aperta | — | Da misurare: sul giorno pilota sposta il prezzo da 400 a 319 €/MWh |
+| D-13 | Nelle curve entrano le offerte di **tutte le granularità**, senza riscalare le quantità (sono potenze, non energie di periodo) | adottata | 2026-08-03 | Alto: errore mediano da 100,79 a 24,57 €/MWh sul giorno pilota |
+| D-16 | L'**import netto** del perimetro entra come blocco price taker al prezzo minimo, calibrato sulle quantità assegnate osservate | adottata | 2026-08-03 | Decisivo: errore mediano da 24,57 a 5,25 €/MWh (giorno a 15 min) e a 0,05 (giorno orario) |
+| D-14 | Doppio campione: analisi principale sull'anno 2025 riportata su base oraria, più analisi di confronto sui 182 giorni a quarto d'ora (01/10/2025-31/03/2026) | adottata | 2026-08-03 | L'effetto della risoluzione temporale sul valore dell'arbitraggio diventa un risultato, non un limite |
+| D-15 | La funzione di clearing è **indipendente dalla granularità**: opera su un insieme di offerte già filtrato per zona e periodo | adottata | 2026-08-03 | Permette PT15, PT30 e PT60 con lo stesso codice e senza rami condizionali |
+
+**Attenzione:** le decisioni D-06, D-10, D-11, D-12, D-14 sono state prese in autonomia per
+non fermare il lavoro e **non sono ancora state discusse con il relatore**. In particolare i
+significati dei codici `STATUS_CD` non sono documentati esplicitamente da GME.

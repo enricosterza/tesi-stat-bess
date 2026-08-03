@@ -35,8 +35,8 @@ Giorno pilota (31/03/2026): 568.185 elementi `OfferteOperatori`, 574 MB.
 | `BID_OFFER_DATE_DT` | int | Giorno di competenza | formato `YYYYMMDD` |
 | `TRANSACTION_REFERENCE_NO` | str | Identificativo univoco della transazione | |
 | `BALANCED_REFERENCE_NO` | str | Riferimento per offerte bilanciate | quasi sempre vuoto |
-| `QUANTITY_NO` | float | **Quantità offerta**, MWh | riferita al periodo indicato da `PERIOD`+`GRANULARITY` |
-| `AWARDED_QUANTITY_NO` | float | Quantità effettivamente assegnata, MWh | 0 se l'offerta non è accettata |
+| `QUANTITY_NO` | float | **Quantità offerta**, **MW** (potenza) | vedi la nota sulle unità in fondo: **non** è l'energia del periodo |
+| `AWARDED_QUANTITY_NO` | float | Quantità effettivamente assegnata, **MW** | 0 se l'offerta non è accettata |
 | `ENERGY_PRICE_NO` | float | **Prezzo offerto**, €/MWh | separatore decimale: punto; range osservato **-500 … 4000** (prezzi negativi ammessi) |
 | `MERIT_ORDER_NO` | float | Posizione nell'ordine di merito | |
 | `PARTIAL_QTY_ACCEPTED_IN` | str | Ammessa accettazione parziale | `Y`/`N` (nel giorno pilota, NORD: 554 `Y` su 137.039) |
@@ -54,7 +54,7 @@ Giorno pilota (31/03/2026): 568.185 elementi `OfferteOperatori`, 574 MB.
 | `GRANULARITY` | str | Granularità temporale | `PT15` / `PT30` / `PT60`; **solo schema recente** |
 | `MINIMUM_ACCEPTANCE_RATIO` | str | Quota minima di accettazione | presente nello schema, assente dai record ispezionati |
 
-## `STATUS_CD` — esiti (significati **confermati** dal relatore il 03/08/2026)
+## `STATUS_CD` — esiti (significati adottati il 03/08/2026, **da confermare con il relatore**)
 
 | Codice | Significato | In gara? | Righe (31/03/2026, tutte le zone) |
 |---|---|---|---|
@@ -98,6 +98,25 @@ offerta quando è importatrice.
 
 `mgp.io_gme` normalizza lo schema storico su quello recente (`INTERVAL_NO` → `PERIOD`,
 `GRANULARITY` → `PT60`).
+
+## Unità delle quantità: sono potenze, non energie
+
+`QUANTITY_NO` e `AWARDED_QUANTITY_NO` sono espresse in **MW** (equivalentemente MWh/h) e
+**non** rappresentano l'energia del periodo di riferimento.
+
+Verifica: sommando le quantità assegnate a livello nazionale si ottengono 37.149 in un
+quarto d'ora del 31/03/2026. Se fosse energia sarebbero 148 GW di potenza, circa quattro
+volte il fabbisogno italiano. Il confronto fra un giorno orario e uno a quarto d'ora lo
+conferma: 38.334 in media all'ora il 15/01/2025 contro 31.956 in media al quarto d'ora il
+31/03/2026, **rapporto 0,83** anziché 0,25 (la differenza residua è la stagionalità del
+fabbisogno, gennaio contro marzo).
+
+Conseguenze operative:
+
+* un'offerta oraria di X MW vale X MW in **ciascuno** dei quarti d'ora che compongono
+  l'ora: non va divisa per quattro quando si mescolano le granularità;
+* l'energia si ottiene moltiplicando per la durata del periodo (`config.in_energia`), e
+  serve solo dove conta davvero, cioè nel bilancio di carica e scarica della batteria.
 
 ## Quando l'archivio passa al quarto d'ora
 

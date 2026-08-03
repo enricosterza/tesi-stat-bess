@@ -12,3 +12,4 @@ pulp==3.3.2            # formulazione LP/MILP del dimensionamento della batteria
 jupyter==1.1.1         # notebook di esplorazione
 ipykernel==7.3.0       # kernel del venv per i notebook
 python-docx==1.2.0     # generazione dei report settimanali .docx per il relatore
+pytest==9.1.1          # test delle funzioni di calcolo

@@ -9,7 +9,7 @@ e di averlo interpretato correttamente. Questo script esegue e documenta i contr
 1. carica il file del 31/03/2026 filtrando la zona NORD (primo livello di filtro);
 2. stampa i valori unici dei campi categoriali con i relativi conteggi;
 3. verifica la conversione numerica (dtype, NaN, range dei prezzi e delle quantita');
-4. riepiloga la composizione del dato: periodi, righe per periodo, MWh per lato del mercato,
+4. riepiloga la composizione del dato: periodi, righe per periodo, MW per lato del mercato,
    quanto pesano le granularita' diverse da PT15 che verranno escluse;
 5. estrae il prezzo zonale ufficiale per periodo (benchmark per validare, al passo
    successivo, il prezzo di equilibrio ricostruito).
@@ -25,7 +25,7 @@ riparsing: `--no-cache`.
 Output su file
 --------------
 * `output/tabelle/01_riepilogo_<data>_<zona>.txt`      : il report completo;
-* `output/tabelle/01_per_periodo_<data>_<zona>.csv`    : righe e MWh per periodo;
+* `output/tabelle/01_per_periodo_<data>_<zona>.csv`    : righe e MW per periodo;
 * `data/processed/prezzi_ufficiali_<zona>_<data>.csv`  : prezzo zonale ufficiale per periodo.
 """
 
@@ -133,7 +133,7 @@ def main() -> None:
     out("\nPrime e ultime righe della tabella per periodo (PT15):")
     out(pd.concat([per_periodo.head(3), per_periodo.tail(3)]).to_string())
     out("\nStatistiche sulle righe per periodo:")
-    out(per_periodo[["righe", "righe_BID", "righe_OFF", "MWh_domanda", "MWh_offerta"]]
+    out(per_periodo[["righe", "righe_BID", "righe_OFF", "MW_domanda", "MW_offerta"]]
         .describe().T.to_string())
 
     # ----------------------------------------------------------------------------------
