@@ -1,0 +1,14 @@
+# Ambiente della tesi — Python 3.10.0 (venv in .venv/)
+# Installazione:  .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+# Versioni bloccate al 2026-08-03 per rendere i risultati riproducibili.
+
+pandas==2.3.3          # manipolazione dei dati tabellari
+lxml==6.1.1            # parsing XML in streaming (iterparse) dei file GME
+numpy==2.2.6           # calcolo numerico
+pyarrow==25.0.0        # cache Parquet dei dati letti
+matplotlib==3.10.9     # grafici delle curve di domanda/offerta e dei risultati
+scipy==1.15.3          # ottimizzazione (linprog/HiGHS) e statistica
+pulp==3.3.2            # formulazione LP/MILP del dimensionamento della batteria
+jupyter==1.1.1         # notebook di esplorazione
+ipykernel==7.3.0       # kernel del venv per i notebook
+python-docx==1.2.0     # generazione dei report settimanali .docx per il relatore

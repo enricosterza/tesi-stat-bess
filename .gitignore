@@ -1,0 +1,35 @@
+# --- Ambiente Python ---
+.venv/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+*.egg-info/
+
+# --- Dati grezzi GME (pesanti: ~6 GB, restano fuori dal versionamento) ---
+*.xml
+*.zip
+MGP_OffertePubbliche/
+
+# --- Cache e dati derivati (rigenerabili dagli script) ---
+data/interim/*
+data/processed/*
+!data/interim/.gitkeep
+!data/processed/.gitkeep
+
+# --- Output (rigenerabili) ---
+# I .docx dei report NON si versionano: si rigenerano dal Markdown in docs/report/,
+# che e' invece versionato.
+output/figure/*
+output/tabelle/*
+output/report/*
+!output/figure/.gitkeep
+!output/tabelle/.gitkeep
+~$*.docx
+
+# --- Strumenti locali di lavoro (non fanno parte del progetto) ---
+CLAUDE.md
+.claude/
+
+# --- Varie ---
+.Rhistory
+*.log
