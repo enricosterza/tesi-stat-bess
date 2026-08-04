@@ -360,6 +360,97 @@ def test_la_sensibilita_e_nulla_dove_la_curva_e_ripida():
     assert curve.impatto_prezzo(df, 100)["sensibilita"] == 0.0
 
 
+# --------------------------------------------------------------------------------------
+# Clearing con offerte a blocchi
+# --------------------------------------------------------------------------------------
+def _giorno_con_blocco(prezzo_blocco: float) -> pd.DataFrame:
+    """
+    Costruisce una giornata di due periodi con un blocco di vendita che li copre entrambi.
+
+    In ciascun periodo: offerta semplice 10 EUR x 100, domanda 200 EUR x 150.
+    Senza il blocco l'equilibrio sarebbe al prezzo dell'offerta cara mancante; il blocco
+    offre 100 MW in ognuno dei due periodi al prezzo indicato.
+    """
+    righe = []
+    for periodo in (1, 2):
+        righe += [
+            {"PURPOSE_CD": "OFF", "ENERGY_PRICE_NO": 10.0, "QUANTITY_NO": 100.0,
+             "STATUS_CD": "ACC", "ZONE_CD": "NORD", "PERIOD": periodo, "GRANULARITY": "PT60",
+             "OFFER_TYPE": "S", "BLOCK_ID": "", "AWARDED_QUANTITY_NO": 0.0},
+            {"PURPOSE_CD": "OFF", "ENERGY_PRICE_NO": 500.0, "QUANTITY_NO": 100.0,
+             "STATUS_CD": "ACC", "ZONE_CD": "NORD", "PERIOD": periodo, "GRANULARITY": "PT60",
+             "OFFER_TYPE": "S", "BLOCK_ID": "", "AWARDED_QUANTITY_NO": 0.0},
+            {"PURPOSE_CD": "BID", "ENERGY_PRICE_NO": 200.0, "QUANTITY_NO": 150.0,
+             "STATUS_CD": "ACC", "ZONE_CD": "NORD", "PERIOD": periodo, "GRANULARITY": "PT60",
+             "OFFER_TYPE": "S", "BLOCK_ID": "", "AWARDED_QUANTITY_NO": 0.0},
+            {"PURPOSE_CD": "OFF", "ENERGY_PRICE_NO": prezzo_blocco, "QUANTITY_NO": 100.0,
+             "STATUS_CD": "ACC", "ZONE_CD": "NORD", "PERIOD": periodo, "GRANULARITY": "PT60",
+             "OFFER_TYPE": "B", "BLOCK_ID": "BLK1", "AWARDED_QUANTITY_NO": 0.0},
+        ]
+    return pd.DataFrame(righe)
+
+
+def test_blocco_conveniente_viene_accettato():
+    """
+    Un blocco di vendita a 50 EUR, con l'offerta semplice a buon mercato che copre solo
+    100 dei 150 MW domandati, entra in merito: senza di lui il prezzo salirebbe a 500.
+    Accettandolo, l'offerta a 10 piu' il blocco a 50 coprono i 150 MW e il prezzo e' 50.
+    """
+    ric = curve.clearing_giorno_con_blocchi(_giorno_con_blocco(50.0), "PT60",
+                                            con_import=False)
+    assert ric["blocchi_accettati"].iloc[0] == 1
+    assert ric["prezzo"].tolist() == [50.0, 50.0]
+
+
+def test_blocco_troppo_caro_viene_rifiutato():
+    """
+    Un blocco offerto a 800 EUR resta fuori mercato: il prezzo di equilibrio senza di lui
+    e' 500, quindi il blocco non copre il proprio prezzo e viene rifiutato. E' il
+    tutto-o-niente che la ricostruzione a offerte divisibili non sa rappresentare.
+    """
+    ric = curve.clearing_giorno_con_blocchi(_giorno_con_blocco(800.0), "PT60",
+                                            con_import=False)
+    assert ric["blocchi_accettati"].iloc[0] == 0
+    assert ric["prezzo"].tolist() == [500.0, 500.0]
+
+
+def test_il_blocco_e_valutato_sulla_media_dei_suoi_periodi():
+    """
+    Il criterio e' il prezzo **medio ponderato** sui periodi coperti, non il prezzo di
+    ciascuno: un blocco resta accettato anche se in un periodo e' fuori mercato, purche'
+    negli altri guadagni abbastanza da coprire il proprio prezzo.
+
+    Costruzione: due periodi con offerta 10 EUR x 100 e 500 EUR x 200, e un blocco a
+    100 EUR x 100 su entrambi. Nel periodo 1 la domanda e' 250 MW e il prezzo si forma a
+    500 (serve l'offerta cara); nel periodo 2 la domanda e' 60 MW e il prezzo e' 10, quindi
+    li' il blocco vende sotto il proprio prezzo. La media ponderata vale 255 EUR, sopra i
+    100 del blocco, che resta percio' accettato.
+    """
+    righe = []
+    for periodo, domanda in ((1, 250.0), (2, 60.0)):
+        righe += [
+            {"PURPOSE_CD": "OFF", "ENERGY_PRICE_NO": 10.0, "QUANTITY_NO": 100.0,
+             "STATUS_CD": "ACC", "ZONE_CD": "NORD", "PERIOD": periodo,
+             "GRANULARITY": "PT60", "OFFER_TYPE": "S", "BLOCK_ID": "",
+             "AWARDED_QUANTITY_NO": 0.0},
+            {"PURPOSE_CD": "OFF", "ENERGY_PRICE_NO": 500.0, "QUANTITY_NO": 200.0,
+             "STATUS_CD": "ACC", "ZONE_CD": "NORD", "PERIOD": periodo,
+             "GRANULARITY": "PT60", "OFFER_TYPE": "S", "BLOCK_ID": "",
+             "AWARDED_QUANTITY_NO": 0.0},
+            {"PURPOSE_CD": "BID", "ENERGY_PRICE_NO": 600.0, "QUANTITY_NO": domanda,
+             "STATUS_CD": "ACC", "ZONE_CD": "NORD", "PERIOD": periodo,
+             "GRANULARITY": "PT60", "OFFER_TYPE": "S", "BLOCK_ID": "",
+             "AWARDED_QUANTITY_NO": 0.0},
+            {"PURPOSE_CD": "OFF", "ENERGY_PRICE_NO": 100.0, "QUANTITY_NO": 100.0,
+             "STATUS_CD": "ACC", "ZONE_CD": "NORD", "PERIOD": periodo,
+             "GRANULARITY": "PT60", "OFFER_TYPE": "B", "BLOCK_ID": "BLK1",
+             "AWARDED_QUANTITY_NO": 0.0},
+        ]
+    ric = curve.clearing_giorno_con_blocchi(pd.DataFrame(righe), "PT60", con_import=False)
+    assert ric["blocchi_accettati"].iloc[0] == 1
+    assert ric["prezzo"].tolist() == [500.0, 10.0]
+
+
 def test_confronto_con_ufficiale_calcola_la_frequenza_di_match():
     """
     Su quattro periodi, due prezzi ricostruiti coincidono con l'ufficiale, uno sbaglia di

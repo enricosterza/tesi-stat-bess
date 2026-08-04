@@ -1,0 +1,136 @@
+\chapter{Il Mercato Elettrico Italiano}
+\label{cap:mercato}
+
+Questo capitolo descrive l'architettura del mercato elettrico italiano limitatamente a
+quanto serve per il lavoro: la struttura delle sedi di negoziazione, il funzionamento
+dell'asta del Mercato del Giorno Prima e la natura della variabilit\`a dei prezzi. La
+descrizione del MGP \`e basata sui dati effettivamente utilizzati, le cui caratteristiche
+sono documentate nel Capitolo~\ref{cap:simulazione}.
+
+\section{Struttura del GME (Gestore dei Mercati Energetici)}
+\label{sec:gme}
+
+Il Gestore dei Mercati Energetici (GME) organizza le sedi di negoziazione dell'energia
+elettrica all'ingrosso in Italia. Ai fini di questo lavoro rilevano tre caratteristiche
+della sua architettura.
+
+La prima \`e la \textbf{sequenzialit\`a} delle sedi: il Mercato del Giorno Prima si chiude
+prima dei Mercati Infragiornalieri, che a loro volta precedono il Mercato per il Servizio di
+Dispacciamento. Un operatore che modifica la propria posizione lo fa quindi in momenti
+successivi e con informazioni via via pi\`u precise.
+
+La seconda \`e la \textbf{zonalit\`a}: il territorio nazionale \`e suddiviso in zone di
+mercato, ciascuna con un proprio prezzo quando i limiti di transito fra zone sono
+vincolanti. Nel giorno pilota analizzato compaiono sette zone fisiche italiane — NORD, CNOR,
+CSUD, SUD, CALA, SICI, SARD — accanto a zone \emph{virtuali} che rappresentano le frontiere
+con l'estero.
+
+La terza \`e la \textbf{trasparenza dei dati}: il GME pubblica, per ciascun giorno e per
+ciascuna sede, l'insieme completo delle offerte presentate, comprese quelle rifiutate. \`E
+questa disponibilit\`a che rende possibile la ricostruzione delle curve aggregate su cui si
+fonda l'intero lavoro: senza il dettaglio delle offerte non accettate la curva sarebbe
+troncata proprio nel punto che interessa, cio\`e attorno all'equilibrio.
+
+\section{MGP e MI (Mercato del Giorno Prima e Mercati Infragiornalieri)}
+\label{sec:mgp}
+
+\subsection*{Il meccanismo d'asta}
+
+Il Mercato del Giorno Prima \`e un'\textbf{asta a prezzo uniforme}: gli operatori presentano
+coppie prezzo--quantit\`a, distinte fra acquisto e vendita, riferite a un singolo periodo e a
+una singola zona. L'algoritmo di mercato ordina le offerte di vendita per prezzo crescente e
+quelle di acquisto per prezzo decrescente, ottenendo due funzioni a gradini, e ne individua
+l'intersezione. Tutte le offerte accettate sono remunerate al medesimo prezzo, quello di
+equilibrio, indipendentemente dal prezzo a cui erano state presentate.
+
+Formalmente, indicando con $S(p)$ la quantit\`a complessivamente offerta in vendita a un
+prezzo non superiore a $p$ e con $D(p)$ quella domandata a un prezzo non inferiore a $p$, il
+prezzo di equilibrio \`e
+\begin{equation}
+p^{*} \;=\; \min \{\, p \;:\; S(p) \ge D(p) \,\}.
+\label{eq:clearing}
+\end{equation}
+
+La funzione $S$ \`e non decrescente e la funzione $D$ non crescente, quindi l'eccesso di
+offerta $S(p) - D(p)$ \`e monotono non decrescente e l'insieme dei prezzi che pareggiano il
+mercato \`e sempre una semiretta: il prezzo di equilibrio ne \`e l'estremo inferiore. Quando
+l'eccesso si annulla su un intervallo di prezzi l'equilibrio non \`e unico e la scelta del
+punto diventa una convenzione; sui dati esaminati questo accade nello 0{,}8\% delle aste
+orarie e in nessuna di quelle a quarto d'ora, quindi non costituisce una fonte rilevante di
+ambiguit\`a.
+
+\subsection*{Il periodo di mercato}
+
+Il periodo elementare d'asta (\emph{Market Time Unit}) \`e cambiato durante il periodo
+coperto dai dati. Fino al 30 settembre 2025 il mercato era organizzato su base
+\textbf{oraria}, con ventiquattro aste indipendenti al giorno; dal 1\textsuperscript{o}
+ottobre 2025 \`e passato al \textbf{quarto d'ora}, con novantasei aste al giorno. Il
+passaggio \`e netto e verificabile nei dati: il 30 settembre 2025 la totalit\`a delle offerte
+\`e oraria, il giorno successivo l'82{,}8\% \`e a quarto d'ora.
+
+Questa discontinuit\`a ha conseguenze dirette sul disegno dello studio, discusse nella
+Sezione~\ref{sec:dataset}: l'anno solare 2025 non \`e omogeneo, e la risoluzione temporale
+non \`e neutrale per la valutazione di una strategia di arbitraggio, che dipende da quanto
+\`e fine la griglia su cui l'accumulo pu\`o caricare e scaricare.
+
+\subsection*{Tipologie di offerta}
+
+Accanto alle offerte \emph{semplici}, riferite a un singolo periodo e frazionabili, esistono
+le \textbf{offerte a blocchi}, accettabili solo per intero e su tutti i periodi che coprono.
+Sui dati esaminati un blocco copre da quattro a novantasei periodi, ha un prezzo unico e uno
+stato identico in tutti i suoi periodi: non si osserva alcun blocco accettato soltanto su una
+parte di essi.
+
+La presenza di offerte a blocchi rende il problema d'asta un programma con vincoli di
+interezza e genera il fenomeno del \emph{rifiuto paradossale}: un blocco pu\`o risultare in
+merito sul prezzo e venire comunque respinto, perch\'e accettarlo renderebbe inconsistente la
+soluzione. I dati riportano questi casi con un codice di stato dedicato.
+
+\subsection*{I Mercati Infragiornalieri}
+
+% DA COMPLETARE: descrizione dei MI, da sviluppare se l'analisi verra' estesa oltre il MGP.
+% Elementi da trattare: sessioni ad asta MI-A1/A2/A3, negoziazione continua XBID, funzione
+% di aggiustamento delle posizioni assunte sul MGP, e implicazioni per un accumulo che
+% volesse operare anche su queste sedi.
+
+\section{MSD (Mercato per il Servizio di Dispacciamento)}
+\label{sec:msd}
+
+% DA COMPLETARE: descrizione del MSD.
+% Elementi da trattare:
+%   - finalita': approvvigionamento delle risorse per il bilanciamento in tempo reale
+%     e per la risoluzione delle congestioni, con Terna come controparte unica;
+%   - meccanismo pay-as-bid, diverso dal prezzo uniforme del MGP;
+%   - rilevanza per un BESS: i ricavi da MSD sono spesso superiori a quelli da arbitraggio
+%     sul MGP, quindi ignorarli sottostima la redditivita' complessiva dell'investimento.
+%     Questa esclusione va dichiarata fra i limiti del modello (Sezione 6.2).
+
+\section{L'aleatorietà del prezzo}
+\label{sec:aleatorieta}
+
+Il prezzo zonale \`e la variabile aleatoria centrale del problema. Due sue caratteristiche
+sono direttamente rilevanti per la strategia di accumulo.
+
+\paragraph{Ampiezza dell'escursione infragiornaliera.} \`E il differenziale fra ore a prezzo
+basso e ore di picco, cio\`e esattamente il margine lordo di un ciclo di arbitraggio. Nel
+mese di gennaio 2025 il prezzo zonale della zona NORD si \`e mosso fra un minimo orario medio
+di circa 116~\euromwh{} nelle ore notturne e un massimo di circa 172~\euromwh{} nelle ore di
+picco serale.
+
+\paragraph{Limiti di prezzo e prezzi negativi.} I prezzi ammessi sul mercato non sono
+confinati ai valori positivi: sui dati esaminati le offerte spaziano da $-500$ a
+$4\,000$~\euromwh{}. La possibilit\`a di prezzi negativi \`e caratteristica dei sistemi ad
+alta penetrazione rinnovabile, dove in alcune ore conviene pagare per immettere energia
+piuttosto che modulare la produzione, ed \`e proprio la condizione in cui l'accumulo trova le
+occasioni di acquisto pi\`u convenienti.
+
+\paragraph{Rigidit\`a della domanda.} Una quota rilevante della domanda \`e presentata al
+prezzo massimo, cio\`e \`e disposta ad acquistare a qualunque prezzo: nel giorno pilota si
+tratta del 52\% delle offerte di acquisto della zona NORD. La curva di domanda risulta quindi
+molto ripida e l'effetto di un accumulo sul prezzo passa quasi interamente attraverso la
+curva di offerta. \`E un elemento da tenere presente nell'interpretazione degli scenari del
+Capitolo~\ref{cap:simulazione}.
+
+% DA COMPLETARE: analisi statistica della serie dei prezzi (stagionalita' settimanale e
+% annuale, persistenza, distribuzione dell'escursione giornaliera). Da sviluppare quando
+% sara' disponibile la ricostruzione su tutto l'anno 2025.

@@ -1,0 +1,163 @@
+% =====================================================================
+%  Tesi magistrale in Scienze Statistiche
+%  Effetto dei sistemi di accumulo a batteria sul Mercato del Giorno
+%  Prima del mercato elettrico italiano
+%
+%  Compilazione (pdfLaTeX + biber):
+%      pdflatex main
+%      biber    main
+%      pdflatex main
+%      pdflatex main
+%  oppure, piu' semplicemente:  latexmk -pdf main
+%
+%  Su Overleaf: impostare il compilatore su pdfLaTeX (Menu > Compiler).
+% =====================================================================
+\documentclass[12pt,a4paper,oneside]{report}
+
+% --- Lingua e codifica -----------------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[italian]{babel}
+\usepackage{csquotes}          % richiesto da biblatex insieme a babel
+\usepackage{textcomp}          % fornisce \texteuro (il comando \euro non esiste di base)
+
+% --- Matematica ------------------------------------------------------
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+
+% --- Figure, tabelle, impaginazione ----------------------------------
+\usepackage{graphicx}
+\graphicspath{{figure/}{../output/figure/}}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{caption}
+\usepackage[a4paper,margin=3cm]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+
+% --- Codice sorgente -------------------------------------------------
+\usepackage{xcolor}
+\usepackage{listings}
+
+\definecolor{grigioChiaro}{gray}{0.95}
+\definecolor{verdeCommento}{rgb}{0.0,0.45,0.2}
+\definecolor{bluParola}{rgb}{0.1,0.1,0.6}
+\definecolor{rossoStringa}{rgb}{0.6,0.1,0.1}
+
+\lstset{
+  language=Python,
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{bluParola}\bfseries,
+  commentstyle=\color{verdeCommento}\itshape,
+  stringstyle=\color{rossoStringa},
+  backgroundcolor=\color{grigioChiaro},
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  numbersep=8pt,
+  frame=single,
+  rulecolor=\color{gray},
+  breaklines=true,
+  breakatwhitespace=true,
+  showstringspaces=false,
+  columns=flexible,
+  captionpos=b,
+  extendedchars=true,
+  % Le lettere accentate dentro i listati vanno dichiarate esplicitamente,
+  % altrimenti listings non le sa rappresentare.
+  literate=%
+    {à}{{\`a}}1 {è}{{\`e}}1 {é}{{\'e}}1 {ì}{{\`i}}1 {ò}{{\`o}}1 {ù}{{\`u}}1
+    {À}{{\`A}}1 {È}{{\`E}}1 {É}{{\'E}}1 {Ì}{{\`I}}1 {Ò}{{\`O}}1 {Ù}{{\`U}}1
+    {€}{{\texteuro{}}}1
+}
+\renewcommand{\lstlistingname}{Codice}
+\renewcommand{\lstlistlistingname}{Elenco dei codici}
+
+% --- Bibliografia ----------------------------------------------------
+% Se biber non fosse disponibile, sostituire con:
+%   \usepackage[backend=bibtex,style=numeric,sorting=nyt]{biblatex}
+\usepackage[backend=biber,style=numeric,sorting=nyt]{biblatex}
+\addbibresource{bibliografia.bib}
+
+% --- Collegamenti ipertestuali (va caricato per ultimo) --------------
+\usepackage[hidelinks]{hyperref}
+
+% --- Comandi di comodo -----------------------------------------------
+\newcommand{\eur}{\texteuro}
+\newcommand{\euromwh}{\texteuro/MWh}
+\newcommand{\mgp}{MGP}
+\newcommand{\bess}{BESS}
+
+\begin{document}
+
+% =====================================================================
+%  FRONTESPIZIO (segnaposto: sostituire i campi fra parentesi quadre)
+% =====================================================================
+\begin{titlepage}
+\centering
+
+{\large UNIVERSIT\`A DEGLI STUDI DI MILANO-BICOCCA\par}
+\vspace{0.5cm}
+{\large [Dipartimento]\par}
+\vspace{0.3cm}
+{\large Corso di Laurea Magistrale in [Corso di laurea]\par}
+
+\vfill
+
+{\Huge\bfseries [Titolo della tesi]\par}
+\vspace{1cm}
+{\Large\itshape [Eventuale sottotitolo]\par}
+
+\vfill
+
+\begin{flushleft}
+\begin{tabular}{@{}ll@{}}
+\textbf{Relatore:}    & Prof. [Nome Cognome] \\[0.3cm]
+\textbf{Correlatore:} & [Nome Cognome] \\
+\end{tabular}
+\end{flushleft}
+
+\vspace{1cm}
+
+\begin{flushright}
+\begin{tabular}{@{}ll@{}}
+\textbf{Candidato:} & [Nome Cognome] \\
+\textbf{Matricola:} & [numero] \\
+\end{tabular}
+\end{flushright}
+
+\vfill
+
+{\large Anno Accademico [20XX/20XX]\par}
+
+\end{titlepage}
+
+% =====================================================================
+%  INDICI
+% =====================================================================
+\pagenumbering{roman}
+
+\tableofcontents
+\clearpage
+
+\listoffigures
+\clearpage
+
+\pagenumbering{arabic}
+
+% =====================================================================
+%  CAPITOLI
+% =====================================================================
+\input{capitoli/01_introduzione}
+\input{capitoli/02_mercato_elettrico}
+\input{capitoli/03_strategia_ottima}
+\input{capitoli/04_simulazione}
+\input{capitoli/05_valutazione_economica}
+\input{capitoli/06_conclusioni}
+
+% =====================================================================
+%  BIBLIOGRAFIA
+% =====================================================================
+\printbibliography[heading=bibintoc,title={Bibliografia}]
+
+\end{document}

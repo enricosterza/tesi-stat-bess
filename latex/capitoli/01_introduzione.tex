@@ -1,0 +1,121 @@
+\chapter{Introduzione e Contesto}
+\label{cap:introduzione}
+
+% DA COMPLETARE: capitolo introduttivo. Le sezioni 1.1-1.3 richiedono fonti esterne
+% (dati Terna e ARERA sulla capacita' rinnovabile installata, documentazione MACSE sulle
+% aste per la capacita' di accumulo, letteratura sull'arbitraggio con storage).
+% La sezione 1.4 va scritta per ultima, quando gli obiettivi saranno stabilizzati.
+
+\section{La transizione energetica in Italia}
+\label{sec:transizione}
+
+% DA COMPLETARE: inquadramento del contesto.
+% Elementi da trattare, con dati da reperire e citare:
+%   - crescita della capacita' rinnovabile non programmabile (fotovoltaico ed eolico)
+%     in Italia negli ultimi anni;
+%   - effetto sui prezzi di mercato: compressione dei prezzi diurni, aumento della
+%     volatilita' infragiornaliera, comparsa di prezzi negativi;
+%   - obiettivi al 2030 del PNIEC e fabbisogno di flessibilita' stimato da Terna.
+
+Il sistema elettrico italiano sta attraversando una fase di trasformazione profonda, guidata
+dalla penetrazione crescente di fonti rinnovabili non programmabili. L'effetto di questa
+trasformazione sul mercato non riguarda soltanto il livello medio dei prezzi, ma soprattutto
+la loro \emph{forma} nell'arco della giornata: la produzione fotovoltaica comprime i prezzi
+nelle ore centrali e li lascia elevati nelle ore serali, quando la domanda resta alta e
+l'irraggiamento e' venuto meno.
+
+\`E proprio questo divario infragiornaliero a costituire l'opportunit\`a economica per i
+sistemi di accumulo, ed \`e la grandezza su cui si concentra il presente lavoro.
+
+\section{I sistemi di accumulo a batteria (BESS)}
+\label{sec:bess}
+
+% DA COMPLETARE: descrizione tecnologica ed economica dei BESS.
+% Elementi da trattare:
+%   - principio di funzionamento e grandezze caratteristiche: potenza nominale (MW),
+%     capacita' energetica (MWh), rapporto energia/potenza (durata), efficienza di
+%     ciclo completo (round-trip), profondita' di scarica;
+%   - servizi che un BESS puo' fornire: arbitraggio sui mercati dell'energia, riserva,
+%     regolazione di frequenza, capacity market;
+%   - stato dell'arte in Italia: capacita' installata, aste MACSE, prospettive.
+
+\section{Il quesito degli investitori}
+\label{sec:quesito}
+
+% DA COMPLETARE: impostazione della domanda di ricerca dal punto di vista dell'investitore.
+% Il punto centrale, che il lavoro svolto permette gia' di argomentare, e' il seguente:
+% la redditivita' di un impianto di accumulo dipende dal differenziale di prezzo fra ore
+% di carica e ore di scarica, ma quel differenziale non e' un dato esogeno: l'accumulo,
+% comprando nelle ore basse e vendendo nelle ore alte, riduce esso stesso il differenziale
+% da cui trae profitto. Questo effetto di retroazione e' il cuore metodologico della tesi.
+
+\section{Obiettivi della tesi}
+\label{sec:obiettivi}
+
+% DA COMPLETARE: da rifinire quando i risultati saranno consolidati.
+% Formulazione provvisoria degli obiettivi, coerente con il lavoro svolto finora.
+
+Il lavoro si propone tre obiettivi.
+
+Il primo \`e \textbf{ricostruire il meccanismo di formazione del prezzo} sul Mercato del
+Giorno Prima a partire dai dati pubblici delle offerte, in modo da poter calcolare non solo
+il prezzo osservato ma anche il prezzo \emph{controfattuale} che si sarebbe formato in
+presenza di capacit\`a di accumulo. Questo obiettivo \`e stato raggiunto ed \`e documentato
+nel Capitolo~\ref{cap:simulazione}.
+
+Il secondo \`e \textbf{simulare l'effetto di quantit\`a crescenti di accumulo} sui prezzi e
+sulle quantit\`a di equilibrio della zona NORD, tenendo conto dell'effetto di retroazione che
+l'accumulo stesso esercita sul prezzo.
+
+Il terzo \`e \textbf{determinare il dimensionamento ottimale} dell'accumulo — capacit\`a
+energetica, potenza e durata di carica e scarica — e valutarne la redditivit\`a dal punto di
+vista di un investitore.
+
+\section{Organizzazione del documento}
+\label{sec:organizzazione}
+
+Il Capitolo~\ref{cap:mercato} descrive l'architettura del mercato elettrico italiano e i
+meccanismi d'asta rilevanti per il lavoro. Il Capitolo~\ref{cap:strategia} formula il
+problema di ottimizzazione della strategia di accumulo. Il Capitolo~\ref{cap:simulazione}
+presenta i dati, la ricostruzione delle curve di domanda e offerta e la sua validazione. Il
+Capitolo~\ref{cap:valutazione} traduce i risultati in termini economici e finanziari. Il
+Capitolo~\ref{cap:conclusioni} riassume i risultati e ne discute i limiti.
+
+\subsection{Citations}
+\label{sec:citations}
+
+% DA COMPLETARE: sostituire con le convenzioni effettivamente adottate.
+
+I riferimenti bibliografici sono gestiti con \texttt{biblatex} in stile numerico e sono
+raccolti nel file \texttt{bibliografia.bib}. Nel testo una citazione appare come
+\texttt{\textbackslash cite\{chiave\}}; le fonti dei dati di mercato sono citate per esteso
+alla prima occorrenza.
+
+\subsection{Use of acronyms}
+\label{sec:acronimi}
+
+% DA COMPLETARE: valutare se introdurre il pacchetto acronym o glossaries per generare
+% automaticamente l'elenco degli acronimi. Per ora l'elenco e' compilato a mano.
+
+Gli acronimi sono definiti per esteso alla prima occorrenza e usati in forma abbreviata nel
+seguito. I principali sono riportati nella Tabella~\ref{tab:acronimi}.
+
+\begin{table}[H]
+\centering
+\caption{Acronimi ricorrenti nel documento.}
+\label{tab:acronimi}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Sigla} & \textbf{Significato} \\
+\midrule
+BESS   & \emph{Battery Energy Storage System}, sistema di accumulo a batteria \\
+GME    & Gestore dei Mercati Energetici \\
+MGP    & Mercato del Giorno Prima \\
+MI     & Mercati Infragiornalieri \\
+MSD    & Mercato per il Servizio di Dispacciamento \\
+MTU    & \emph{Market Time Unit}, periodo elementare di mercato \\
+PUN    & Prezzo Unico Nazionale \\
+XML    & \emph{eXtensible Markup Language}, formato dei dati pubblicati dal GME \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -1,0 +1,369 @@
+\chapter{Simulazione e Analisi Pratica}
+\label{cap:simulazione}
+
+Questo capitolo descrive la parte operativa del lavoro: come sono stati trattati i dati
+pubblici del GME, come sono state ricostruite le curve di domanda e offerta, e con quale
+accuratezza la ricostruzione riproduce i prezzi effettivamente formatisi sul mercato. La
+validazione \`e presentata prima degli scenari di accumulo perch\'e ne costituisce il
+presupposto: un modello che non sa riprodurre il prezzo osservato non pu\`o essere usato per
+calcolare un prezzo controfattuale.
+
+\section{Setup della simulazione}
+\label{sec:setup}
+
+\subsection{Ricostruzione delle curve aggregate}
+
+Per ogni asta — individuata da una zona e da un periodo — le offerte di vendita sono ordinate
+per prezzo crescente e quelle di acquisto per prezzo decrescente, e le rispettive quantit\`a
+sono cumulate. Si ottengono cos\`i le due funzioni a gradini $S(p)$ e $D(p)$ introdotte nella
+Sezione~\ref{sec:mgp}, il cui punto di incontro definisce il prezzo di
+equilibrio~\eqref{eq:clearing}.
+
+L'implementazione valuta le curve sull'insieme di tutti i prezzi presenti nell'asta.
+L'insieme \`e sufficiente perch\'e le curve sono costanti a tratti e cambiano valore solo in
+corrispondenza di un prezzo offerto: l'intersezione cade quindi sempre su uno di questi
+punti. Il costo computazionale \`e $O(n \log n)$ nel numero $n$ di offerte del periodo,
+dell'ordine del migliaio, il che rende praticabile l'esecuzione su decine di migliaia di
+aste.
+
+\begin{lstlisting}[caption={Ricerca del prezzo di equilibrio (\texttt{src/mgp/curve.py}).},
+                   label={lst:clearing}]
+def prezzo_equilibrio(offerte):
+    """Il prezzo di equilibrio e' il piu' piccolo prezzo al quale l'offerta
+    cumulata raggiunge la domanda cumulata: p* = min { p : S(p) >= D(p) }."""
+    vendita  = offerte[offerte["PURPOSE_CD"] == "OFF"]
+    acquisto = offerte[offerte["PURPOSE_CD"] == "BID"]
+    if vendita.empty or acquisto.empty:
+        return Equilibrio(None, None, None, None, "curva_vuota")
+
+    # Le curve sono costanti a tratti: cambiano valore solo su un prezzo
+    # offerto, quindi l'intersezione cade sempre su uno di questi punti.
+    prezzi = np.unique(np.concatenate([p_off, p_dom]))
+    S = offerta_cumulata_fino_a(prezzi)     # non decrescente
+    D = domanda_cumulata_oltre(prezzi)      # non crescente
+
+    incrocio = np.flatnonzero(S >= D)
+    if incrocio.size == 0:
+        return Equilibrio(None, None, None, None, "domanda_sempre_superiore")
+
+    i = incrocio[0]
+    # L'offerta marginale entra solo per la parte che pareggia la domanda.
+    return Equilibrio(prezzi[i], min(S[i], D[i]), S[i], D[i], "ok")
+\end{lstlisting}
+
+La funzione \`e indipendente dalla granularit\`a: riceve un insieme di offerte gi\`a filtrato
+per zona e periodo e non ha bisogno di sapere se il periodo dura quindici, trenta o sessanta
+minuti. Questa scelta permette di usare lo stesso codice sull'intero campione, che a cavallo
+del 1\textsuperscript{o} ottobre 2025 cambia risoluzione temporale.
+
+\subsection{Il perimetro zonale: la zona NORD come mercato isolato}
+\label{sec:perimetro}
+
+L'analisi si concentra sulla zona NORD, modellata come mercato a s\'e stante: le curve sono
+costruite con le sole offerte di quella zona, ignorando i limiti di transito con le zone
+confinanti. La giustificazione \`e che l'oggetto di studio \`e l'effetto \emph{marginale}
+dell'accumulo, cio\`e una differenza fra due scenari calcolati sulla stessa curva, e buona
+parte dell'errore di livello si compensa nella differenza.
+
+Questa semplificazione ha per\`o un costo che i dati rendono evidente. La
+Tabella~\ref{tab:perimetro} riporta l'errore della ricostruzione al crescere del perimetro
+considerato, sul giorno pilota del 31 marzo 2026.
+
+\begin{table}[H]
+\centering
+\caption{Effetto del perimetro zonale sull'accuratezza della ricostruzione. Giorno pilota
+         31 marzo 2026, zona NORD, 96 aste a quarto d'ora.}
+\label{tab:perimetro}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Perimetro} & \textbf{Errore mediano} & \textbf{Scarto mediano} & \textbf{Match $\pm 5$~\eur} \\
+                   & (\euromwh{})            & (\euromwh{})            & \\
+\midrule
+NORD isolata                       & 128{,}43 & $+128{,}43$ & 0\,\% \\
+NORD + frontiere confinanti        & 100{,}79 & $+100{,}79$ & 0\,\% \\
+\quad + offerte all'altra granularità &  24{,}57 & $+24{,}57$  & 11{,}5\,\% \\
+\quad + blocco di scambio netto    & \textbf{5{,}25} & $+1{,}52$ & 50{,}0\,\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Il prezzo ricostruito sulla sola zona NORD risulta \textbf{sistematicamente pi\`u alto} di
+quello ufficiale. La ragione \`e strutturale: la zona \`e importatrice, e l'energia che vi
+arriva dalle altre zone e dall'estero non compare fra le offerte con codice di zona NORD.
+Nel periodo 40 del giorno pilota, per esempio, gli acquisti assegnati in NORD ammontano a
+$21\,304$~MW contro $10\,920$~MW di vendite assegnate: oltre 10~GW di differenza entrano
+nella zona dall'esterno. Escludendoli si toglie dalla curva di offerta proprio la parte a
+basso costo, e il prezzo di equilibrio sale.
+
+\subsection{Il blocco di scambio netto}
+\label{sec:scambio}
+
+Per colmare questa lacuna si introduce nelle curve un blocco \emph{price taker} pari alla
+differenza fra acquisti e vendite assegnate nel perimetro. Il trattamento \`e simmetrico:
+quando la zona importa, il blocco entra come offerta di vendita al prezzo minimo — energia
+gi\`a allocata altrove, che si colloca comunque e si comporta quindi da offerta anelastica;
+quando la zona esporta, entra come offerta di acquisto al prezzo massimo, cio\`e come domanda
+proveniente dall'esterno.
+
+La simmetria non \`e un dettaglio implementativo. In una prima versione era gestito il solo
+import, e i dieci periodi con l'errore pi\`u grande del mese di gennaio 2025 risultavano
+\emph{tutti} periodi di export, con scarti fino a $-85$~\euromwh{}. Trattando anche l'export
+la deviazione standard dello scarto sul mese \`e scesa da 5{,}65 a 1{,}65~\euromwh{}.
+
+\paragraph{Limite da dichiarare.} Lo scambio netto \`e calcolato dall'esito osservato
+dell'asta: \`e quindi una grandezza \emph{calibrata}, non prevista dal modello. Il prezzo
+resta un esito del modello — emerge dall'incrocio delle curve — ma la simulazione
+dell'accumulo assume implicitamente che i flussi con l'esterno non reagiscano alla variazione
+di prezzo che l'accumulo induce. \`E un'assunzione forte, tanto pi\`u forte quanto pi\`u il
+periodo \`e congestionato, e va richiamata fra i limiti del modello.
+
+Una conseguenza inattesa di questa impostazione \`e che i periodi congestionati non si
+ricostruiscono peggio degli altri: su gennaio 2025 l'errore mediano \`e 0{,}17~\euromwh{} nei
+611 periodi non congestionati e 0{,}00 nei 133 congestionati, con correlazione nulla fra
+ampiezza dello \emph{spread} zonale ed errore. Non si tratta di robustezza del modello: lo
+scambio netto \`e calibrato su quantit\`a che sono gi\`a l'esito dell'asta vincolata, quindi
+il vincolo di transito entra nel modello sotto forma di quantit\`a osservata anzich\'e di
+vincolo esplicito.
+
+\subsection{Le offerte a blocchi}
+\label{sec:blocchi}
+
+Le offerte a blocchi sono accettabili solo per intero e su tutti i periodi che coprono, e
+trattarle come divisibili introduce un errore che nel mercato a quarto d'ora \`e la principale
+fonte di imprecisione: i blocchi sono il 2{,}82\% delle offerte ma valgono in media 385~MW
+l'uno contro i 40~MW delle offerte semplici, e spostano l'offerta di circa 880~MW per asta,
+il 5\% del volume scambiato.
+
+Per rappresentarne il vincolo \`e stato implementato un clearing iterativo: si parte con tutti
+i blocchi accettati, si risolvono tutte le aste della giornata, si rivaluta ciascun blocco sul
+prezzo medio ponderato dei periodi che copre — un blocco di vendita resta accettato se il suo
+prezzo non supera quel valore — e si ripete fino a stabilit\`a. \`E l'euristica classica per i
+mercati con offerte a blocchi; non garantisce l'ottimo, perch\'e il problema esatto \`e un
+programma intero, e pu\`o oscillare fra configurazioni.
+
+% DA COMPLETARE: i risultati dell'euristica sono riportati nella Sezione 4.4; resta da
+% migliorarne il comportamento nelle giornate in cui oscilla.
+
+\section{Dataset}
+\label{sec:dataset}
+
+\subsection{I file delle offerte pubbliche}
+
+I dati sono i file \emph{Offerte Pubbliche} del Mercato del Giorno Prima pubblicati dal GME:
+un file XML per ogni giorno di mercato, contenente tutte le zone e tutti i periodi. L'archivio
+utilizzato copre il periodo dal 13 febbraio 2015 al 31 marzo 2026, per un totale di 4\,065
+giornate; l'anno 2025 \`e completo.
+
+I file recenti sono di dimensioni considerevoli: quello del 31 marzo 2026 pesa 574~MB e
+contiene $568\,185$ offerte, di cui $137\,039$ relative alla zona NORD. Un caricamento che
+costruisse in memoria l'intero albero XML richiederebbe diversi gigabyte di memoria e un
+riparsing completo a ogni esecuzione; la lettura avviene quindi in \emph{streaming}, con
+filtro sulla zona applicato durante il parsing e cache del risultato in formato colonnare.
+
+\subsection{Campi rilevanti}
+
+Ogni offerta \`e una coppia prezzo--quantit\`a riferita a un operatore, una zona e un periodo.
+I campi utilizzati sono riassunti nella Tabella~\ref{tab:campi}.
+
+\begin{table}[H]
+\centering
+\caption{Campi dei file di offerte pubbliche utilizzati nell'analisi.}
+\label{tab:campi}
+\begin{tabular}{@{}lp{8.5cm}@{}}
+\toprule
+\textbf{Campo} & \textbf{Contenuto} \\
+\midrule
+\texttt{PURPOSE\_CD}   & Finalità: \texttt{BID} acquisto, \texttt{OFF} vendita \\
+\texttt{STATUS\_CD}    & Esito dell'offerta (sei valori, si veda oltre) \\
+\texttt{ZONE\_CD}      & Zona di mercato \\
+\texttt{PERIOD}        & Periodo del giorno, da leggere insieme a \texttt{GRANULARITY} \\
+\texttt{GRANULARITY}   & Granularità: \texttt{PT15}, \texttt{PT30}, \texttt{PT60} \\
+\texttt{ENERGY\_PRICE\_NO}    & Prezzo offerto, \euromwh{} \\
+\texttt{QUANTITY\_NO}         & Quantità offerta, MW \\
+\texttt{AWARDED\_QUANTITY\_NO}& Quantità assegnata, MW \\
+\texttt{AWARDED\_PRICE\_NO}   & Prezzo di assegnazione, \euromwh{} \\
+\texttt{OFFER\_TYPE}          & \texttt{S} offerta semplice, \texttt{B} offerta a blocchi \\
+\texttt{BLOCK\_ID}            & Identificativo del blocco \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Caratteristiche del dato verificate empiricamente}
+\label{sec:caratteristiche}
+
+L'ispezione diretta dei file ha corretto diverse assunzioni iniziali. Le si riporta perch\'e
+ciascuna ha conseguenze sul trattamento dei dati.
+
+\paragraph{Separatore decimale.} Nei file XML il separatore decimale \`e il \textbf{punto}
+(\texttt{146.800}, \texttt{1100.00}), non la virgola: quest'ultima compare negli \emph{export}
+in formato Excel o CSV degli stessi dati. La conversione implementata resta comunque
+tollerante verso entrambi i separatori, perch\'e l'archivio copre undici anni e una
+conversione rigida produrrebbe valori mancanti silenziosi, cio\`e offerte che scompaiono dalle
+curve senza segnalazione.
+
+\paragraph{Unit\`a di misura delle quantit\`a.} I campi di quantit\`a sono espressi in
+\textbf{MW}, cio\`e sono potenze, e non rappresentano l'energia del periodo. La verifica \`e
+indiretta ma conclusiva: sommando le quantit\`a assegnate a livello nazionale in un quarto
+d'ora si otterrebbero 148~GW, circa quattro volte il fabbisogno italiano. Il confronto fra un
+giorno orario e uno a quarto d'ora conferma la lettura: $38\,334$~MW medi all'ora il
+15 gennaio 2025 contro $31\,956$~MW medi al quarto d'ora il 31 marzo 2026, con un rapporto di
+0{,}83 e non di 0{,}25. La conseguenza pratica \`e che un'offerta oraria vale la stessa
+potenza in ciascuno dei quattro quarti d'ora che compongono l'ora, senza divisioni.
+
+\paragraph{Stato delle offerte.} Il campo di stato assume sei valori e non due:
+\texttt{ACC} accettata, \texttt{REJ} rifiutata, \texttt{PREJ} paradossalmente rifiutata,
+\texttt{INC} incongrua, \texttt{REP} sostituita da una presentazione successiva,
+\texttt{REV} revocata. Le curve d'asta sono costruite con le offerte che hanno effettivamente
+partecipato all'asta, cio\`e \texttt{ACC}, \texttt{REJ} e \texttt{PREJ}: includere le
+sostituite significherebbe contare due volte la stessa offerta. La scelta \`e confermata dai
+dati — includendo anche le sostituite l'errore mediano sul giorno pilota passa da
+100{,}79 a 358{,}53~\euromwh{} — e nella Tabella~\ref{tab:stati} sono riportate le varianti
+messe a confronto.
+
+\begin{table}[H]
+\centering
+\caption{Effetto della selezione degli stati sull'accuratezza. Giorno pilota, perimetro NORD
+         più frontiere confinanti.}
+\label{tab:stati}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+\textbf{Offerte incluse} & \textbf{Aste ricostruite} & \textbf{Errore mediano (\euromwh{})} \\
+\midrule
+\texttt{ACC} + \texttt{REJ} + \texttt{PREJ} (adottato) & 96 & 100{,}79 \\
+\texttt{ACC} + \texttt{REJ}                            & 96 & 100{,}79 \\
+solo \texttt{ACC}                                      &  2 & --- \\
+\texttt{ACC} + \texttt{REJ} + \texttt{PREJ} + \texttt{REP} & 96 & 358{,}53 \\
+tutti gli stati                                        & 96 & 281{,}84 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Con le sole offerte accettate le curve non si intersecano quasi mai, ed \`e atteso: le
+offerte accettate sono per costruzione quelle interne al mercato, quindi la curva risulta
+troncata proprio dove servirebbe il punto di incontro.
+
+\paragraph{Granularit\`a mista.} La granularit\`a non \`e uniforme nemmeno all'interno di una
+singola giornata. Nel giorno pilota, zona NORD, convivono $131\,277$ righe a quarto d'ora,
+$5\,466$ orarie e 296 semiorarie. Il numero di periodo non \`e quindi interpretabile da solo:
+va sempre letto insieme alla granularit\`a, perch\'e con \texttt{PT15} vale da 1 a 96, con
+\texttt{PT30} da 1 a 48 e con \texttt{PT60} da 1 a 24. Filtrare sul solo numero di periodo
+mescolerebbe quarti d'ora e ore.
+
+\paragraph{Cambio del periodo di mercato.} Il passaggio dall'ora al quarto d'ora cade il
+1\textsuperscript{o} ottobre 2025: il 30 settembre la totalit\`a delle offerte \`e oraria, il
+giorno successivo l'82{,}8\% \`e a quarto d'ora. L'anno solare 2025 \`e quindi composto da
+nove mesi a ventiquattro aste giornaliere e tre mesi a novantasei.
+
+\paragraph{Il prezzo ufficiale \`e nei dati.} Poich\'e il mercato \`e un'asta a prezzo
+uniforme, sulle righe accettate il campo del prezzo di assegnazione \`e costante entro
+ciascuna coppia zona--periodo e coincide con il prezzo zonale pubblicato. La verifica \`e
+positiva su tutti i periodi esaminati. Questo rende disponibile il termine di confronto per la
+validazione senza dover allineare dataset aggiuntivi.
+
+\section{Definizione degli Scenari}
+\label{sec:scenari}
+
+% DA COMPLETARE: definizione degli scenari di capacita' di accumulo.
+% Elementi da fissare:
+%   - griglia di potenze installate (MW) da simulare, ad esempio da 100 MW a diversi GW,
+%     scelta in rapporto alla dimensione del mercato della zona NORD (la quantita'
+%     scambiata mediana e' dell'ordine dei 15-25 GW per asta);
+%   - griglia delle durate (rapporto energia/potenza): 1, 2, 4, 8 ore;
+%   - scenario di riferimento senza accumulo, rispetto al quale misurare le differenze;
+%   - se simulare un operatore unico che ottimizza il portafoglio complessivo oppure
+%     una pluralita' di operatori che agiscono in concorrenza: la distinzione conta,
+%     perche' nel primo caso l'operatore internalizza l'effetto di retroazione e nel
+%     secondo no.
+
+\section{Esecuzione della simulazione}
+\label{sec:esecuzione}
+
+\subsection{Validazione della ricostruzione}
+
+Prima di introdurre l'accumulo occorre stabilire quanto la ricostruzione sia affidabile. Il
+criterio adottato \`e la \emph{frequenza di match}: la quota di aste in cui il prezzo
+ricostruito coincide con quello ufficiale entro una tolleranza fissata, affiancata
+dall'errore assoluto mediano e dal suo segno.
+
+La validazione \`e stata condotta su un mese intero — gennaio 2025, 744 aste orarie — perch\'e
+una giornata singola dice se la procedura funziona, non se \`e affidabile. I risultati sono
+riportati nella Tabella~\ref{tab:validazione}.
+
+\begin{table}[H]
+\centering
+\caption{Validazione della ricostruzione su gennaio 2025, zona NORD, 744 aste orarie.}
+\label{tab:validazione}
+\begin{tabular}{@{}lr@{}}
+\toprule
+\textbf{Indicatore} & \textbf{Valore} \\
+\midrule
+Aste con equilibrio esistente            & 744 su 744 \\
+Prezzo ufficiale medio                   & 143{,}32~\euromwh{} \\
+Prezzo ricostruito medio                 & 142{,}97~\euromwh{} \\
+Mediana dello scarto                     & 0{,}00~\euromwh{} \\
+Media dello scarto                       & $-0{,}35$~\euromwh{} \\
+Deviazione standard dello scarto         & 1{,}65~\euromwh{} \\
+Match entro $\pm 0{,}01$~\euromwh{}      & 44{,}5\,\% \\
+Match entro $\pm 1$~\euromwh{}           & 76{,}7\,\% \\
+Match entro $\pm 5$~\euromwh{}           & 98{,}1\,\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+L'accuratezza \`e stabile nel tempo — l'errore mediano giornaliero ha mediana 0{,}11~\euromwh{}
+e non supera mai 1{,}81 — ed \`e uniforme nell'arco della giornata. Quest'ultimo punto \`e
+rilevante per il seguito: nelle ore di picco serale, quelle in cui un accumulo scaricherebbe,
+l'errore mediano resta compreso fra 0{,}00 e 0{,}21~\euromwh{}, in linea con le ore notturne.
+Un modello impreciso proprio nelle ore di picco distorcerebbe in modo sistematico la stima del
+ricavo da arbitraggio.
+
+\subsection{Il divario fra risoluzioni temporali}
+
+La ricostruzione delle aste a quarto d'ora \`e nettamente meno accurata di quella delle aste
+orarie. Il confronto \`e stato condotto sullo stesso mese dell'anno per non confondere
+l'effetto della risoluzione con quello della stagionalit\`a.
+
+\begin{table}[H]
+\centering
+\caption{Confronto fra risoluzioni temporali, zona NORD.}
+\label{tab:risoluzioni}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+ & \textbf{Gennaio 2025} & \textbf{12--18 gennaio 2026} \\
+ & (744 aste orarie)     & (672 aste a quarto d'ora) \\
+\midrule
+Mediana dello scarto (\euromwh{})        & 0{,}00 & $+0{,}25$ \\
+Deviazione standard (\euromwh{})         & 1{,}65 & 8{,}81 \\
+Match entro $\pm 1$~\euromwh{}           & 76{,}7\,\% & 22{,}3\,\% \\
+Match entro $\pm 5$~\euromwh{}           & 98{,}1\,\% & 64{,}6\,\% \\
+Errore sulla curva di offerta            & 0{,}40\,\% & 4{,}62\,\% \\
+Errore sulla curva di domanda            & 0{,}00\,\% & 0{,}10\,\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Il bias \`e quasi nullo in entrambi i casi: il problema \`e la dispersione. La curva di
+domanda \`e ricostruita quasi esattamente in entrambi i mercati, mentre l'errore sulla curva
+di offerta \`e undici volte pi\`u grande nelle aste a quarto d'ora. La causa principale sono
+le offerte a blocchi, che nel mercato a quarto d'ora sono cinque volte pi\`u frequenti e
+quasi dieci volte pi\`u grandi della media, e che causano il 99{,}2\% dei megawatt accettati
+o rifiutati in modo incoerente con il prezzo del proprio periodo.
+
+% DA COMPLETARE: il residuo non e' interamente spiegato. Due candidati sono stati esclusi
+% empiricamente: l'accettazione parziale delle offerte (0,3% dei MW assegnati, e con
+% frequenza simile nei due mercati) e i vincoli fra quarti d'ora consecutivi (fra le
+% offerte il cui prezzo cade fra il minimo e il massimo dei quattro prezzi dell'ora, il
+% 99,3% viene assegnato in modo diverso da un quarto all'altro, come prevede un clearing
+% indipendente). Restano da individuare altre cause.
+
+\subsection{Simulazione dell'accumulo}
+
+% DA COMPLETARE: e' il passo successivo del lavoro.
+% La funzione che misura l'effetto di retroazione e' gia' implementata: dato un insieme di
+% offerte e una potenza da iniettare, restituisce la variazione del prezzo di equilibrio.
+% Sui dati esaminati la sensibilita' mediana e' di 0,10 EUR/MWh per 100 MW nelle aste orarie
+% e 0,00 in quelle a quarto d'ora, con code molto piu' alte in un quarto delle aste: la
+% distribuzione e' fortemente asimmetrica, il che significa che l'effetto di un accumulo
+% sul prezzo e' concentrato in poche ore e trascurabile nelle altre.
+% Da produrre: profilo ottimale di carica e scarica per ciascuno scenario, prezzi
+% controfattuali, e differenza rispetto allo scenario senza accumulo.

@@ -841,6 +841,125 @@ blocchi in merito, ripetere fino a convergenza. Il guadagno atteso è quantifica
 
 ---
 
+## 2026-08-04 — D-18 implementata: clearing iterativo con i blocchi, e residuo ancora aperto
+
+### Il clearing consapevole dei blocchi
+Implementata in `curve.clearing_giorno_con_blocchi()` l'euristica iterativa: si parte con
+tutti i blocchi accettati, si risolvono tutte le aste della giornata, si rivaluta ogni blocco
+sul **prezzo medio ponderato dei periodi che copre**, e si ripete fino a stabilità. Il
+criterio del prezzo medio è quello degli algoritmi d'asta europei: un blocco è in the money se
+il ricavo complessivo copre il prezzo offerto, non se lo copre in ogni singolo periodo.
+
+La struttura del dato giustifica l'impostazione a livello di giornata: un `BLOCK_ID` copre da
+4 a 96 periodi, ha un prezzo unico, e nessun blocco risulta accettato solo su una parte dei
+suoi periodi. Il vincolo è quindi genuinamente multi-periodo e non si può risolvere un'asta
+alla volta.
+
+### Risultati
+
+**Gennaio 2025, 744 aste orarie:**
+
+| Trattamento dei blocchi | Errore mediano | Dev. standard | Match ±1 € |
+|---|---|---|---|
+| come offerte semplici | 0,11 | 1,65 | 76,8% |
+| esclusi | 0,39 | 2,63 | 67,3% |
+| **clearing iterativo (D-18)** | **0,08** | **1,45** | **78,4%** |
+| con esito osservato (limite) | 0,07 | 1,42 | 79,2% |
+
+**12-18 gennaio 2026, 672 aste a quarto d'ora:**
+
+| Trattamento dei blocchi | Errore mediano | Dev. standard | Match ±1 € |
+|---|---|---|---|
+| come offerte semplici | 3,23 | 8,81 | 22,3% |
+| esclusi | 28,45 | 36,01 | 0,3% |
+| **clearing iterativo (D-18)** | **2,94** | **8,36** | **25,6%** |
+| con esito osservato (limite) | 2,44 | 5,15 | 30,2% |
+
+Sulle aste orarie l'euristica **raggiunge praticamente il limite dell'oracolo** (0,08 contro
+0,07). Sulle aste a quarto d'ora recupera invece solo una parte del guadagno disponibile:
+la deviazione standard scende da 8,81 a 8,36 contro il 5,15 ottenibile.
+
+**Perché la differenza.** L'euristica **non converge in 4 giornate su 7** nel campione a
+quarto d'ora: oscilla fra due configurazioni di blocchi accettati e si ferma al limite di
+iterazioni. Sulle giornate orarie converge quasi sempre in una o due iterazioni, perché i
+blocchi sono pochi (da 2 a 12 al giorno) contro i 30-34 delle giornate a quarto d'ora.
+
+Attenzione a non generalizzare da un caso: sulla prima giornata provata (12/01/2026)
+l'euristica raggiungeva esattamente l'oracolo, e sembrava un risultato pieno. Sulla settimana
+completa il quadro è più modesto. È la stessa lezione del mese di gennaio: una giornata
+singola non basta a giudicare.
+
+**Da fare.** Gestire l'oscillazione: fra le configurazioni visitate, sceglierne una con un
+criterio esplicito — per esempio quella che massimizza il benessere sociale, o che minimizza
+il numero di blocchi accettati fuori merito — invece di fermarsi all'ultima raggiunta.
+
+### Il residuo delle aste a quarto d'ora: due candidati esclusi
+
+**Accettazione parziale.** Il mercato accetta parzialmente 2,7 offerte per asta, per 94 MW su
+31.427 assegnati: lo **0,3%**. Ed è simile nei due mercati (0,27% delle offerte accettate a
+quarto d'ora contro 0,36% orarie). Non è la spiegazione.
+
+**Vincoli fra quarti d'ora consecutivi.** A prima vista promettente: l'80,3% delle unità ha la
+stessa quantità assegnata nei quattro quarti dell'ora. Ma è un artefatto — un'offerta lontana
+dal margine viene accettata in tutti e quattro i quarti comunque. Il test discriminante è
+sulle offerte identiche nei quattro quarti il cui **prezzo cade fra il minimo e il massimo dei
+quattro prezzi dell'ora**, le uniche per cui la decisione corretta cambierebbe da un quarto
+all'altro:
+
+| Posizione dell'offerta rispetto ai quattro prezzi | Gruppi | Assegnazione identica nei 4 quarti |
+|---|---|---|
+| sotto tutti e quattro (sempre in merito) | 40.125 (84,0%) | 99,8% |
+| **a cavallo** | **877 (1,8%)** | **0,7%** |
+| sopra tutti e quattro (mai in merito) | 6.776 (14,2%) | 100,0% |
+
+Il 99,3% delle offerte a cavallo viene assegnato in modo diverso fra i quarti, esattamente
+come prevede un clearing indipendente: **il mercato decide davvero quarto per quarto**. I sei
+gruppi che si comportano diversamente valgono 4 MW per asta.
+
+Entrambi i candidati indicati sono quindi da escludere. È un risultato negativo, ma chiude due
+strade in modo pulito: il residuo va cercato altrove.
+
+---
+
+## 2026-08-04 — Creata la struttura LaTeX della tesi
+
+Creata la cartella `latex/` con un documento modulare: `main.tex` contiene preambolo,
+frontespizio segnaposto, indice ed elenco delle figure, e richiama con `\input{}` un file per
+capitolo dalla sottocartella `capitoli/`. Aggiunti `bibliografia.bib` (vuoto, con l'elenco
+commentato delle voci da reperire) e `latex/README.md` con le istruzioni di compilazione.
+
+**Struttura dei capitoli** (sei capitoli, con le sezioni fissate dall'indice della tesi):
+1. Introduzione e Contesto · 2. Il Mercato Elettrico Italiano · 3. Formulazione Teorica della
+Strategia Ottima · 4. Simulazione e Analisi Pratica · 5. Valutazione Economica per gli
+Investitori · 6. Conclusioni.
+
+**Criterio di riempimento.** Dove il lavoro è stato fatto, il testo riporta contenuti e numeri
+reali attinti da questo diario e dagli script, ciascuno riproducibile: il capitolo 2 descrive
+il meccanismo d'asta, il periodo di mercato e le tipologie di offerta; il capitolo 4 contiene
+il dataset (campi, granularità mista, unità di misura, stati delle offerte), la ricostruzione
+delle curve con l'estratto di codice della funzione di clearing, il perimetro zonale con la
+tabella dell'errore per variante, il blocco di scambio netto e i risultati della validazione
+su gennaio 2025. Il capitolo 3 formalizza la funzione obiettivo con l'effetto di retroazione
+e il modello fisico della batteria. Dove il lavoro non è ancora stato fatto — degrado,
+incertezza, metriche finanziarie, analisi di sensitività, definizione degli scenari — ci sono
+**23 segnaposto** marcati `% DA COMPLETARE`, ciascuno con l'indicazione di cosa andrà scritto.
+
+**Scelte tecniche.** `listings` invece di `minted`, che richiederebbe Python e la compilazione
+con `--shell-escape`; `biblatex` con backend biber; `textcomp` per il simbolo dell'euro,
+perché il comando `\euro` non è definito di base e ne avrebbe fatto fallire la compilazione.
+`\graphicspath` punta anche a `../output/figure/`, così i grafici prodotti dagli script si
+includono senza doverli copiare.
+
+**Compilazione: non verificata.** Sul sistema non è installata alcuna distribuzione LaTeX
+(né pdflatex, né lualatex, né latexmk). Il documento va quindi compilato su Overleaf o dopo
+aver installato MiKTeX. Per ridurre il rischio sono stati usati solo pacchetti di larga
+diffusione ed è stato scritto un controllo statico che verifica ambienti chiusi, graffe
+bilanciate, riferimenti con etichetta corrispondente e comandi personalizzati definiti: passa
+senza segnalazioni su tutti e sette i file. Non sostituisce la compilazione, ma intercetta gli
+errori più comuni.
+
+---
+
 ## Prossimi passi
 
 1. Verificare quali zone virtuali di frontiera confinano con NORD e cosa aggiungono in

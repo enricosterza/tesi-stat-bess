@@ -1,0 +1,128 @@
+\chapter{Formulazione Teorica della Strategia Ottima}
+\label{cap:strategia}
+
+Questo capitolo formalizza il problema decisionale dell'operatore di un sistema di accumulo
+che opera sul Mercato del Giorno Prima. La formulazione della funzione obiettivo e del
+modello fisico \`e impostata; il modello di degrado e la gestione dell'incertezza sono
+ancora da sviluppare.
+
+\section{Definizione della Funzione Obiettivo}
+\label{sec:obiettivo}
+
+\subsection*{Notazione}
+
+Si consideri una giornata suddivisa in $T$ periodi di mercato indicizzati da
+$t = 1, \dots, T$, ciascuno di durata $\Delta_t$ ore ($\Delta_t = 1$ per le aste orarie,
+$\Delta_t = 0{,}25$ per quelle a quarto d'ora). Per ogni periodo si definiscono:
+
+\begin{itemize}
+  \item $c_t \ge 0$: potenza assorbita in carica nel periodo $t$, in MW;
+  \item $s_t \ge 0$: potenza immessa in scarica nel periodo $t$, in MW;
+  \item $e_t$: energia immagazzinata alla fine del periodo $t$, in MWh;
+  \item $p_t$: prezzo di equilibrio del periodo $t$, in \euromwh{}.
+\end{itemize}
+
+\subsection*{Il ricavo e l'effetto di retroazione}
+
+Se l'accumulo fosse di taglia trascurabile rispetto al mercato, il prezzo sarebbe un dato
+esogeno e il ricavo giornaliero si scriverebbe semplicemente come
+\begin{equation}
+\Pi^{\text{price taker}} \;=\; \sum_{t=1}^{T} p_t \,\Delta_t \,(s_t - c_t).
+\label{eq:ricavo-pricetaker}
+\end{equation}
+
+Questa formulazione, per\`o, ignora il meccanismo che costituisce l'oggetto della tesi: un
+accumulo che carica aggiunge domanda e fa \emph{salire} il prezzo, e che scarica aggiunge
+offerta e lo fa \emph{scendere}. Il prezzo non \`e quindi un dato ma una funzione della
+decisione stessa:
+\begin{equation}
+p_t \;=\; \pi_t\!\left(c_t, s_t\right),
+\label{eq:prezzo-endogeno}
+\end{equation}
+dove $\pi_t$ \`e la funzione che restituisce il prezzo di equilibrio del periodo $t$ dopo
+aver inserito nelle curve d'asta la domanda addizionale $c_t$ e l'offerta addizionale $s_t$.
+Questa funzione non ha forma analitica chiusa: \`e definita dall'algoritmo di
+clearing~\eqref{eq:clearing} applicato alle curve ricostruite dai dati, ed \`e implementata
+nel modulo descritto nella Sezione~\ref{sec:setup}.
+
+Il problema dell'operatore diventa quindi
+\begin{equation}
+\max_{\{c_t,\, s_t\}} \quad
+\Pi \;=\; \sum_{t=1}^{T} \pi_t\!\left(c_t, s_t\right) \Delta_t \left(s_t - c_t\right)
+\;-\; \Phi\!\left(\{c_t, s_t\}\right),
+\label{eq:obiettivo}
+\end{equation}
+dove $\Phi$ rappresenta il costo di degrado associato al profilo di utilizzo
+(Sezione~\ref{sec:degrado}).
+
+\paragraph{Osservazione.} La retroazione agisce \emph{contro} l'operatore in entrambe le
+direzioni: comprando fa salire il prezzo di acquisto, vendendo fa scendere quello di vendita.
+Il margine di arbitraggio si riduce quindi al crescere della taglia dell'accumulo, ed \`e
+questo il meccanismo che rende il dimensionamento un problema non banale — al di sopra di una
+certa capacit\`a, l'accumulo distrugge da s\'e la propria fonte di reddito. La misura di
+questo effetto \`e riportata nella Sezione~\ref{sec:esecuzione}.
+
+\section{Modello fisico della batteria}
+\label{sec:modello-fisico}
+
+Il bilancio energetico dell'accumulo lega lo stato di carica fra periodi consecutivi:
+\begin{equation}
+e_t \;=\; e_{t-1} \;+\; \eta^{c}\, c_t\, \Delta_t \;-\; \frac{s_t\, \Delta_t}{\eta^{s}},
+\qquad t = 1, \dots, T,
+\label{eq:bilancio}
+\end{equation}
+dove $\eta^{c}$ ed $\eta^{s}$ sono i rendimenti di carica e di scarica; il loro prodotto
+$\eta = \eta^{c}\eta^{s}$ \`e il rendimento di ciclo completo.
+
+Il problema \`e soggetto ai vincoli
+\begin{align}
+0 \;\le\; e_t \;&\le\; E^{\max}, \label{eq:vincolo-energia}\\
+0 \;\le\; c_t \;&\le\; P^{\max}, \label{eq:vincolo-carica}\\
+0 \;\le\; s_t \;&\le\; P^{\max}, \label{eq:vincolo-scarica}\\
+c_t \cdot s_t \;&=\; 0, \label{eq:vincolo-esclusione}
+\end{align}
+dove $E^{\max}$ \`e la capacit\`a energetica in MWh e $P^{\max}$ la potenza nominale in MW.
+Il loro rapporto $E^{\max}/P^{\max}$ \`e la \emph{durata} dell'accumulo, espressa in ore, ed
+\`e uno dei parametri di dimensionamento che la tesi si propone di ottimizzare.
+
+Il vincolo~\eqref{eq:vincolo-esclusione} impedisce di caricare e scaricare simultaneamente.
+\`E un vincolo di complementarit\`a, non lineare; nella pratica pu\`o essere omesso quando i
+prezzi sono positivi, perch\'e caricare e scaricare nello stesso periodo sarebbe comunque
+non conveniente, ma va reintrodotto in presenza di prezzi negativi, che sui dati esaminati
+sono ammessi fino a $-500$~\euromwh{}.
+
+% DA COMPLETARE: scelta dei valori dei parametri fisici.
+% Da fissare, con riferimento a fonti tecniche: rendimento di ciclo completo (tipicamente
+% 0,85-0,92 per batterie agli ioni di litio), profondita' di scarica ammessa, eventuali
+% vincoli di rampa, autoscarica. Va inoltre deciso se imporre e_T = e_0 (ciclo giornaliero
+% chiuso), scelta che semplifica il confronto fra giornate.
+
+\section{Modellazione del degrado}
+\label{sec:degrado}
+
+% DA COMPLETARE: modello di degrado della batteria.
+% Elementi da trattare:
+%   - distinzione fra degrado calendariale (funzione del tempo e dello stato di carica
+%     medio) e degrado ciclico (funzione del numero e della profondita' dei cicli);
+%   - scelta di una formulazione trattabile: costo marginale costante per MWh ciclato,
+%     oppure conteggio dei cicli equivalenti con metodo rainflow;
+%   - traduzione del degrado in un costo monetario Phi da inserire nella funzione
+%     obiettivo (eq. 3.4), tipicamente come costo di sostituzione ripartito sui cicli
+%     di vita utile;
+%   - implicazione economica: il degrado introduce un costo opportunita' che rende non
+%     conveniente ogni arbitraggio il cui differenziale di prezzo non lo copra, e quindi
+%     riduce il numero di cicli ottimali rispetto al caso senza degrado.
+
+\section{Gestione dell'incertezza}
+\label{sec:incertezza}
+
+% DA COMPLETARE: trattamento dell'incertezza sui prezzi.
+% Il punto di partenza e' che la strategia ottimizzata sui prezzi realizzati costituisce
+% un limite superiore irraggiungibile (perfect foresight): serve come termine di confronto,
+% non come strategia realistica.
+% Elementi da trattare:
+%   - quantificazione del divario fra strategia con previsione perfetta e strategie
+%     realizzabili sulla base dell'informazione disponibile alla chiusura del MGP;
+%   - possibili impostazioni: ottimizzazione stocastica su scenari di prezzo, oppure
+%     regole di decisione basate su previsioni puntuali con analisi dell'errore;
+%   - collegamento con la Sezione 2.4 sull'aleatorieta' del prezzo.

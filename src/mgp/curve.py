@@ -675,6 +675,177 @@ def clearing_giorno(
     return pd.DataFrame(righe)
 
 
+def _e_blocco(offerte: pd.DataFrame) -> pd.Series:
+    """Maschera delle righe che appartengono a un'offerta a blocchi."""
+    if "OFFER_TYPE" not in offerte.columns:
+        return pd.Series(False, index=offerte.index)
+    return offerte["OFFER_TYPE"].fillna("") == "B"
+
+
+def clearing_giorno_con_blocchi(
+    df: pd.DataFrame,
+    granularita: str,
+    zone: list[str] | str | None = None,
+    stati: list[str] | None = None,
+    includi_altra_granularita: bool = True,
+    con_import: bool = True,
+    max_iterazioni: int = 15,
+) -> pd.DataFrame:
+    """
+    Clearing di una giornata che tratta le offerte a blocchi come tutto-o-niente.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Offerte del giorno.
+    granularita, zone, stati, includi_altra_granularita, con_import
+        Come in `clearing_giorno`.
+    max_iterazioni : int
+        Numero massimo di iterazioni prima di fermarsi.
+
+    Returns
+    -------
+    pd.DataFrame
+        Come `clearing_giorno`, con in piu' le colonne `blocchi_accettati` (quanti blocchi
+        risultano accettati alla convergenza) e `iterazioni`.
+
+    Il problema
+    -----------
+    Un'offerta a blocchi e' accettabile solo per intero e su **tutti** i periodi che copre.
+    Verificato sui dati: un `BLOCK_ID` copre da 4 a 96 periodi, ha un prezzo unico, e lo
+    stato e' identico in tutti i suoi periodi — nessun blocco risulta accettato solo su una
+    parte di essi. Trattarli come offerte divisibili, periodo per periodo, e' la
+    semplificazione D-03, che sulle aste a quarto d'ora sposta l'offerta di circa 880 MW per
+    asta.
+
+    L'algoritmo
+    -----------
+    Il vincolo lega fra loro periodi diversi, quindi non si puo' risolvere un'asta alla
+    volta: la decisione su un blocco dipende dai prezzi di tutti i suoi periodi, che a loro
+    volta dipendono da quali blocchi sono accettati. Si procede per iterazioni:
+
+    1. si parte con **tutti i blocchi accettati** (escluderli tutti sarebbe molto piu'
+       lontano dal vero: senza di essi l'errore mediano sale a 36,76 €/MWh contro 2,91);
+    2. si risolvono tutte le aste della giornata con l'insieme corrente di blocchi;
+    3. ogni blocco viene rivalutato sul **prezzo medio dei suoi periodi**, ponderato con le
+       quantita' che offre in ciascuno: un blocco di vendita resta accettato se il suo
+       prezzo non supera quel valore medio, uno di acquisto se lo supera;
+    4. se l'insieme dei blocchi accettati non cambia, la soluzione e' stabile; altrimenti si
+       ripete.
+
+    E' l'euristica classica per i mercati con offerte a blocchi. Non garantisce di trovare
+    l'ottimo — il problema esatto e' un programma intero — e puo' oscillare fra due
+    configurazioni: in quel caso ci si ferma segnalando la mancata convergenza nella colonna
+    `iterazioni` (valore pari a `max_iterazioni`).
+
+    Il criterio del prezzo medio ponderato e' quello usato dagli algoritmi d'asta europei:
+    un blocco e' "in the money" se il ricavo complessivo che otterrebbe copre il prezzo a
+    cui e' stato offerto, non se lo copre in ogni singolo periodo.
+    """
+    periodi = sorted(
+        df.loc[df["GRANULARITY"] == granularita, "PERIOD"].dropna().unique().tolist()
+    )
+
+    # Precalcolo: per ogni periodo, le offerte semplici (con il blocco di scambio gia'
+    # incluso) e le righe dei blocchi, separate. Il precalcolo evita di rifiltrare il
+    # DataFrame a ogni iterazione.
+    semplici: dict[int, pd.DataFrame] = {}
+    blocchi_periodo: dict[int, pd.DataFrame] = {}
+    scambi: dict[int, float] = {}
+    for periodo in periodi:
+        periodo = int(periodo)
+        off = offerte_periodo(df, periodo, granularita, zone=zone, stati=stati,
+                              includi_altra_granularita=includi_altra_granularita)
+        maschera = _e_blocco(off)
+        base = off[~maschera]
+        scambi[periodo] = (
+            import_netto(df, periodo, granularita, zone=zone) if con_import else 0.0
+        )
+        semplici[periodo] = aggiungi_import(base, scambi[periodo]) if con_import else base
+        blocchi_periodo[periodo] = off[maschera]
+
+    identificativi = sorted({
+        b for periodo in periodi
+        for b in blocchi_periodo[int(periodo)]["BLOCK_ID"].dropna().unique()
+        if str(b).strip()
+    })
+    accettati = set(identificativi)
+
+    stati_visti: list[frozenset] = []
+    iterazione = 0
+    risultati: dict[int, Equilibrio] = {}
+
+    for iterazione in range(1, max_iterazioni + 1):
+        prezzi: dict[int, float | None] = {}
+        for periodo in periodi:
+            periodo = int(periodo)
+            righe_blocco = blocchi_periodo[periodo]
+            if accettati and not righe_blocco.empty:
+                righe_blocco = righe_blocco[righe_blocco["BLOCK_ID"].isin(accettati)]
+            else:
+                righe_blocco = righe_blocco.iloc[0:0]
+            offerte = pd.concat([semplici[periodo], righe_blocco], ignore_index=True)
+            eq = prezzo_equilibrio(offerte)
+            risultati[periodo] = eq
+            prezzi[periodo] = eq.prezzo
+
+        # Rivalutazione dei blocchi sul prezzo medio ponderato dei loro periodi.
+        nuovi = set()
+        for identificativo in identificativi:
+            somma_quantita = 0.0
+            somma_valore = 0.0
+            prezzo_offerto = None
+            purpose = None
+            for periodo in periodi:
+                periodo = int(periodo)
+                righe = blocchi_periodo[periodo]
+                righe = righe[righe["BLOCK_ID"] == identificativo]
+                if righe.empty or prezzi[periodo] is None:
+                    continue
+                quantita = float(righe["QUANTITY_NO"].sum())
+                somma_quantita += quantita
+                somma_valore += quantita * float(prezzi[periodo])
+                prezzo_offerto = float(righe["ENERGY_PRICE_NO"].iloc[0])
+                purpose = righe["PURPOSE_CD"].iloc[0]
+            if prezzo_offerto is None or somma_quantita == 0:
+                continue
+            prezzo_medio = somma_valore / somma_quantita
+            in_merito = (
+                prezzo_offerto <= prezzo_medio if purpose == config.PURPOSE_VENDITA
+                else prezzo_offerto >= prezzo_medio
+            )
+            if in_merito:
+                nuovi.add(identificativo)
+
+        if nuovi == accettati:
+            break
+        if frozenset(nuovi) in stati_visti:      # oscillazione: ci si ferma
+            accettati = nuovi
+            iterazione = max_iterazioni
+            break
+        stati_visti.append(frozenset(nuovi))
+        accettati = nuovi
+
+    righe = []
+    for periodo in periodi:
+        periodo = int(periodo)
+        eq = risultati[periodo]
+        righe.append({
+            "PERIOD": periodo,
+            "prezzo": eq.prezzo,
+            "quantita": eq.quantita,
+            "offerta_cumulata": eq.offerta_cumulata,
+            "domanda_cumulata": eq.domanda_cumulata,
+            "motivo": eq.motivo,
+            "n_offerte": len(semplici[periodo]) + len(blocchi_periodo[periodo]),
+            "import_netto": scambi[periodo],
+            "blocchi_accettati": len(accettati),
+            "blocchi_totali": len(identificativi),
+            "iterazioni": iterazione,
+        })
+    return pd.DataFrame(righe)
+
+
 def confronta_con_ufficiale(
     ricostruito: pd.DataFrame,
     ufficiale: pd.DataFrame,

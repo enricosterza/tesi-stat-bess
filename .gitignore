@@ -26,6 +26,21 @@ output/report/*
 !output/tabelle/.gitkeep
 ~$*.docx
 
+# --- LaTeX: file ausiliari e PDF compilato (rigenerabili) ---
+*.aux
+*.toc
+*.lof
+*.lot
+*.out
+*.bbl
+*.bcf
+*.blg
+*.run.xml
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+latex/main.pdf
+
 # --- Strumenti locali di lavoro (non fanno parte del progetto) ---
 CLAUDE.md
 .claude/

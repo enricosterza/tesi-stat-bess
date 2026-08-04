@@ -1,0 +1,54 @@
+\chapter{Conclusioni}
+\label{cap:conclusioni}
+
+\section{Sintesi dei risultati}
+\label{sec:sintesi}
+
+% DA COMPLETARE: da scrivere per ultimo, quando i risultati della simulazione e della
+% valutazione economica saranno disponibili. Di seguito i risultati gia' acquisiti, che
+% andranno integrati.
+
+Il lavoro svolto finora ha prodotto un risultato metodologico: \`e possibile ricostruire il
+prezzo del Mercato del Giorno Prima a partire dai soli dati pubblici delle offerte, con
+un'accuratezza sufficiente a usarlo come base per il calcolo di prezzi controfattuali. Sulle
+744 aste orarie di gennaio 2025 il prezzo ricostruito coincide esattamente con quello
+ufficiale nel 44{,}5\% dei casi ed \`e entro 5~\euromwh{} nel 98{,}1\%, con mediana dello
+scarto nulla e deviazione standard di 1{,}65~\euromwh{}.
+
+Arrivare a questo risultato ha richiesto tre elementi che non erano evidenti all'inizio: la
+selezione corretta delle offerte che hanno partecipato all'asta, l'inclusione delle offerte
+presentate a granularit\`a diversa da quella prevalente, e soprattutto la reintroduzione
+dello scambio netto con l'esterno del perimetro zonale, senza il quale il prezzo ricostruito
+sbaglia di circa 100~\euromwh{}.
+
+\section{Limiti del modello e sviluppi futuri}
+\label{sec:limiti}
+
+Si elencano i limiti gi\`a identificati e misurati, distinguendo quelli di cui \`e noto il
+costo da quelli ancora aperti.
+
+\paragraph{Perimetro zonale e scambio calibrato.} La zona NORD \`e modellata senza vincoli
+espliciti di transito, e l'energia scambiata con l'esterno \`e reintrodotta come blocco
+calibrato sull'esito osservato dell'asta. Ne consegue che la simulazione dell'accumulo assume
+flussi di scambio insensibili alla variazione di prezzo che l'accumulo stesso induce:
+l'assunzione \`e tanto pi\`u forte quanto pi\`u il periodo \`e congestionato. Il superamento
+naturale \`e un modello multi-zonale con i limiti di transito espliciti.
+
+\paragraph{Offerte a blocchi.} Il vincolo di accettazione tutto-o-niente \`e rappresentato
+con un'euristica iterativa che non garantisce l'ottimo del problema intero sottostante. Sulle
+aste orarie l'approssimazione \`e buona; su quelle a quarto d'ora recupera solo una parte del
+divario.
+
+\paragraph{Residuo non spiegato nelle aste a quarto d'ora.} Anche trattando perfettamente i
+blocchi, la ricostruzione delle aste a quarto d'ora resta meno accurata di quella delle aste
+orarie. Due possibili cause sono state escluse empiricamente — l'accettazione parziale delle
+offerte e l'esistenza di vincoli fra quarti d'ora consecutivi — e la ricerca resta aperta.
+
+\paragraph{Mercati non considerati.} L'analisi riguarda il solo Mercato del Giorno Prima.
+Un sistema di accumulo reale opera anche sui Mercati Infragiornalieri e sul Mercato per il
+Servizio di Dispacciamento, dove i ricavi possono essere significativi: la redditivit\`a
+stimata in questo lavoro va quindi letta come una componente, non come il totale.
+
+% DA COMPLETARE: aggiungere i limiti che emergeranno dalla simulazione e dalla valutazione
+% economica, in particolare quelli relativi al modello di degrado e al trattamento
+% dell'incertezza sui prezzi.
