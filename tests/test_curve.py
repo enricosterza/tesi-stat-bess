@@ -451,6 +451,31 @@ def test_il_blocco_e_valutato_sulla_media_dei_suoi_periodi():
     assert ric["prezzo"].tolist() == [500.0, 10.0]
 
 
+def test_il_surplus_e_la_differenza_fra_valore_e_costo_delle_offerte_accettate():
+    """
+    Con offerta 10 EUR x 100 e domanda 200 EUR x 100, si scambiano 100 MW: il valore per
+    chi compra e' 200 x 100 = 20.000 e il costo per chi vende 10 x 100 = 1.000, quindi il
+    surplus complessivo vale 19.000. Non dipende dal prezzo di equilibrio, che si limita a
+    ripartirlo fra le due parti.
+    """
+    df = offerte(vendite=[(10, 100)], acquisti=[(200, 100)])
+    assert curve.surplus(df) == pytest.approx(19000.0)
+
+
+def test_il_surplus_conta_solo_le_offerte_accettate():
+    """
+    Le offerte fuori mercato non contribuiscono: qui la vendita a 500 e l'acquisto a 5
+    restano fuori, e il surplus e' quello del solo scambio a buon mercato.
+    """
+    df = offerte(vendite=[(10, 100), (500, 100)], acquisti=[(200, 100), (5, 100)])
+    assert curve.surplus(df) == pytest.approx(19000.0)
+
+
+def test_senza_equilibrio_il_surplus_e_nullo():
+    df = offerte(vendite=[(10, 10)], acquisti=[])
+    assert curve.surplus(df) == 0.0
+
+
 def test_confronto_con_ufficiale_calcola_la_frequenza_di_match():
     """
     Su quattro periodi, due prezzi ricostruiti coincidono con l'ufficiale, uno sbaglia di

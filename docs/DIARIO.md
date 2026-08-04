@@ -960,6 +960,151 @@ errori più comuni.
 
 ---
 
+## 2026-08-04 — Due campi del tracciato che avevo classificato male, e la chiusura del residuo
+
+### Come sono emersi
+La scomposizione esatta dell'errore sulla curva di offerta — contributi A (offerte in merito
+mai assegnate), B (assegnate in parte) e C (fuori merito ma assegnate), la cui somma
+riproduce lo scarto per identità contabile, verificata a 0,0000 MW — mostrava che, tolti i
+blocchi e le zone di frontiera, restavano 151 MW per asta di offerte **della sola zona NORD**
+incoerenti con il proprio prezzo. Cercandone la ragione ho riesaminato due campi che il
+03/08 avevo annotato come "presenti nello schema ma assenti dai record": l'annotazione era
+sbagliata, derivava dall'aver guardato solo i primi record del file.
+
+### D-20 · `ADJ_QUANTITY_NO` è la quantità su cui l'asta si risolve
+Quando la quantità rettificata differisce da quella offerta, la quantità assegnata coincide
+con la **rettificata** in 199 casi su 200 (12/01/2026) e in 46 su 46 (15/01/2025), e non
+coincide mai con quella offerta. Le curve usavano il campo sbagliato.
+
+Sono poche righe — 348 su 123.785 — ma l'effetto è misurabile, perché si tratta di offerte
+quasi tutte in merito. Su gennaio 2025, a parità di tutto il resto:
+
+| Indicatore | Con `QUANTITY_NO` | Con `ADJ_QUANTITY_NO` |
+|---|---|---|
+| Match esatto (±0,01 €) | 44,5% | **49,7%** |
+| Match entro ±1 €/MWh | 76,7% | **80,8%** |
+| Deviazione standard | 1,65 | **1,43** |
+| Scarto medio | −0,35 | **+0,04** |
+| Scarto massimo | 15,88 | **11,20** |
+
+Un effetto collaterale conferma la lettura: le offerte che risultavano "accettate solo in
+parte" passano da 2,7 a 0,5 per asta, perché molte erano in realtà accettate per intero
+sulla quantità rettificata. Sulle aste a quarto d'ora invece non cambia nulla (dev. standard
+8,81 → 8,83): lì il problema è altrove.
+
+Per non lasciare in giro cache incoerenti, `carica_giorno` ora rigenera automaticamente una
+cache che non contenga tutte le colonne attese.
+
+### `MINIMUM_ACCEPTANCE_RATIO`: ipotesi formulata e smentita
+Il campo è valorizzato, e nel mercato a quarto d'ora riguarda volumi trentaquattro volte
+maggiori che in quello orario (8.011 MW per asta contro 237). Sembrava il candidato ideale
+per il residuo: è una forma di indivisibilità che può far rifiutare un'offerta in merito.
+
+**È falso, ed è già contato.** La tabella di contingenza è perfettamente diagonale: su
+123.785 righe della zona NORD, il campo è valorizzato su tutte e sole le 2.409 righe che sono
+offerte a blocchi. Non è un meccanismo separato, è un attributo dei blocchi — che spiega
+anche perché i blocchi siano indivisibili in modo più fine di quanto pensassi. Il contributo
+al residuo, misurato al netto dei blocchi, è **zero MW**.
+
+### D-19 · L'oscillazione dell'euristica sui blocchi, risolta
+L'euristica non restituisce più l'ultima configurazione raggiunta. Fra tutte quelle visitate
+scarta quelle con **accettazioni paradossali** — blocchi accettati che non coprono il proprio
+prezzo, che il mercato reale non ammette — e fra le rimanenti sceglie quella con il
+**surplus complessivo più alto**, che è la grandezza massimizzata dall'algoritmo d'asta.
+Aggiunta a questo scopo `curve.surplus()`.
+
+| Trattamento dei blocchi (672 aste a quarto d'ora) | Errore mediano | Dev. standard | Match ±1 € |
+|---|---|---|---|
+| come offerte semplici | 3,24 | 8,83 | 22,2% |
+| esclusi | 29,36 | 36,08 | 0,3% |
+| **iterativo, D-18 + D-19** | **2,52** | **5,40** | **28,3%** |
+| con esito osservato (limite) | 2,29 | 5,01 | 31,4% |
+
+L'euristica recupera ora l'86% della riduzione di dispersione ottenibile, contro il 13% della
+versione precedente, e **l'oscillazione sparisce**: 0 giornate su 7 contro 4 su 7. Sulle aste
+orarie raggiunge o supera di un soffio il limite (dev. standard 1,06 contro 1,07 dell'oracolo:
+la selezione per surplus può scegliere una configurazione che si adatta meglio dell'esito
+osservato, il che non è un paradosso ma il segno che le due soluzioni sono ormai equivalenti).
+
+### Stato della ricostruzione, configurazione adottata
+Perimetro NORD più frontiere confinanti, offerte in gara, tutte le granularità, quantità
+rettificata, scambio netto simmetrico, clearing iterativo con blocchi.
+
+| | Gennaio 2025 (744 aste orarie) | 12-18 gen 2026 (672 aste a quarto d'ora) |
+|---|---|---|
+| Prezzo ufficiale medio | 143,32 €/MWh | 136,14 |
+| Prezzo ricostruito medio | 143,53 | 137,47 |
+| Errore mediano | **0,00** | 2,52 |
+| Deviazione standard | **1,06** | 5,40 |
+| Match esatto (±0,01 €) | **52,3%** | 6,1% |
+| Match entro ±1 €/MWh | **83,7%** | 28,3% |
+| Match entro ±5 €/MWh | **99,5%** | 69,8% |
+| Scarto massimo | **6,61** | 26,51 |
+
+Rispetto al punto di partenza del 03/08 sulle aste orarie: match esatto dal 44,5% al 52,3%,
+deviazione standard da 1,65 a 1,06, scarto massimo da 15,88 a 6,61 €/MWh.
+
+### Attribuzione finale del residuo (aste a quarto d'ora)
+Sui 990 MW per asta di scarto complessivo, i MW incoerenti si attribuiscono così:
+
+| Causa | MW per asta | Quota |
+|---|---|---|
+| Offerte a blocchi (D-03) | 875,8 | 80,7% |
+| Zone di frontiera senza vincoli di transito (D-10) | 76,6 | 7,1% |
+| Offerte con quota minima di accettazione | 0,0 | 0,0% |
+| **Non spiegato** | **132,8** | **12,2%** |
+
+Il non spiegato è sceso a 133 MW per asta, cioè lo **0,74% del volume scambiato**. Le due
+cause note sono entrambe semplificazioni già dichiarate e misurate, non errori.
+
+---
+
+## 2026-08-04 — `batteria.py`: profilo ottimo ed effetto di retroazione
+
+Scritto `src/mgp/batteria.py` con quattordici test su casi calcolabili a mano.
+
+### Le due parti
+`profilo_ottimo()` risolve un programma lineare (HiGHS via scipy) che massimizza
+$\sum_t p_t \Delta (s_t - c_t)$ sotto i vincoli di potenza, capacità e bilancio energetico,
+con l'opzione di ciclo giornaliero chiuso. Il vincolo di non simultaneità $c_t s_t = 0$ non è
+imposto perché renderebbe il problema non lineare: con rendimenti minori di uno e prezzi
+positivi non è vincolante, ma può esserlo con prezzi negativi, e la funzione lo segnala.
+
+`simula_giorno()` cerca il punto fisso fra profilo e prezzi: ottimizza sui prezzi correnti,
+reinserisce carica e scarica nelle curve d'asta, ricalcola i prezzi, ri-ottimizza.
+
+### D-21 · Il punto fisso può non esistere, e la ragione è economica
+La batteria carica dove il prezzo è basso, ma **caricando lo alza**, e sul prezzo alzato non
+converrebbe più caricare. Su un mercato in cui la batteria pesa molto la successione oscilla
+fra due configurazioni e nessun punto fisso esiste.
+
+Quando accade non si restituisce l'ultimo profilo raggiunto — dipenderebbe solo da dove si è
+interrotta l'iterazione — ma quello con il **ricavo effettivamente realizzato** più alto, cioè
+valutato ai prezzi che quel profilo stesso genera. Le due situazioni hanno però
+interpretazioni economiche diverse, e nei risultati va detto quale vale: il punto fisso
+descrive un operatore che **non internalizza** il proprio effetto sul prezzo (concorrenza fra
+più operatori), la selezione per ricavo un operatore che lo **internalizza** (più vicino a un
+monopolista dell'accumulo).
+
+### Una lezione dai test
+Tre test fallivano e ho cercato l'errore nel codice, mentre era nella **giornata di prova**:
+l'equilibrio cadeva esattamente sullo spigolo fra due gradini della curva di offerta, quindi
+qualunque quantità aggiunta spingeva il prezzo al massimo di mercato, e il comportamento
+osservato era un artefatto della costruzione. Rifatta con gradini regolari e equilibrio a
+metà gradino, così l'effetto atteso si calcola a mano: una batteria da 100 MW consuma un
+gradino e sposta il prezzo di un passo.
+
+Il test più importante verifica il meccanismo su cui poggia la tesi: **raddoppiando la taglia
+il ricavo non raddoppia**, e il ricavo per MW installato scende, perché ogni gradino consumato
+peggiora sia il prezzo di acquisto sia quello di vendita.
+
+### D-22 · Previsione perfetta
+Il profilo è ottimizzato conoscendo i prezzi di tutti i periodi della giornata. Il ricavo che
+ne risulta è quindi un **limite superiore**, non un risultato conseguibile, e serve come
+termine di confronto. Il trattamento dell'incertezza resta da impostare.
+
+---
+
 ## Prossimi passi
 
 1. Verificare quali zone virtuali di frontiera confinano con NORD e cosa aggiungono in

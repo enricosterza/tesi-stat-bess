@@ -99,6 +99,76 @@ def varianti_giorno(data: str) -> pd.DataFrame:
     return pd.DataFrame(righe)
 
 
+def scomposizione_giorno(data: str) -> pd.DataFrame:
+    """
+    Scompone, asta per asta, lo scarto fra offerta ricostruita e offerta assegnata.
+
+    Al prezzo ufficiale la differenza fra la curva di offerta ricostruita e la quantita'
+    effettivamente assegnata si scompone in tre contributi, riga per riga:
+
+    * **A** offerte in merito (prezzo non superiore al prezzo ufficiale) mai assegnate:
+      contributo positivo, la ricostruzione ha offerta in piu';
+    * **B** offerte in merito assegnate solo in parte: contributo positivo;
+    * **C** offerte fuori merito comunque assegnate: contributo negativo.
+
+    La somma dei tre riproduce esattamente lo scarto: e' un'identita' contabile, e il
+    controllo che torni serve a escludere errori nel confronto stesso.
+
+    Ciascun contributo viene inoltre attribuito alle sue possibili cause: offerte a blocchi
+    (D-03), zone virtuali di frontiera incluse senza vincoli di transito (D-10), offerte con
+    quota minima di accettazione valorizzata.
+    """
+    granularita = config.granularita_prevalente(data)
+    df = io_gme.carica_giorno(data=data, zona=None)
+    perimetro = _perimetro(df)
+    ufficiale = io_gme.prezzi_ufficiali(df[df["ZONE_CD"] == "NORD"], granularita=granularita)
+    prezzi_uff = dict(zip(ufficiale["PERIOD"], ufficiale["prezzo_ufficiale"]))
+
+    righe = []
+    for periodo in sorted(df.loc[df["GRANULARITY"] == granularita, "PERIOD"].dropna().unique()):
+        periodo = int(periodo)
+        if periodo not in prezzi_uff:
+            continue
+        p = prezzi_uff[periodo]
+        off = curve.offerte_periodo(df, periodo, granularita, zone=perimetro,
+                                    includi_altra_granularita=True)
+        v = off[off["PURPOSE_CD"] == config.PURPOSE_VENDITA].copy()
+        v["assegnata"] = v["AWARDED_QUANTITY_NO"].fillna(0.0)
+        v["in_merito"] = v["ENERGY_PRICE_NO"] <= p
+        v["blocco"] = curve._e_blocco(v)
+        v["frontiera"] = v["ZONE_CD"] != "NORD"
+        v["quota_minima"] = (
+            v["MINIMUM_ACCEPTANCE_RATIO"].fillna("").astype(str).str.strip() != ""
+            if "MINIMUM_ACCEPTANCE_RATIO" in v.columns else False
+        )
+
+        mai = v[v["in_merito"] & (v["assegnata"] <= 1e-9)]
+        parziali = v[v["in_merito"] & (v["assegnata"] > 1e-9)
+                     & (v["assegnata"] < v["QUANTITY_NO"] - 1e-6)]
+        fuori = v[~v["in_merito"] & (v["assegnata"] > 1e-9)]
+
+        voce = {
+            "data": data, "PERIOD": periodo, "granularita": granularita,
+            "assegnata_totale": float(v["assegnata"].sum()),
+            "A_mai_assegnate": float(mai["QUANTITY_NO"].sum()),
+            "B_parziali": float((parziali["QUANTITY_NO"] - parziali["assegnata"]).sum()),
+            "C_fuori_merito": -float(fuori["assegnata"].sum()),
+        }
+        # Attribuzione alle cause: si guarda solo ai contributi A e C, che sono quelli in
+        # cui l'offerta e' accettata o rifiutata in modo incoerente con il prezzo.
+        incoerenti = pd.concat([mai.assign(mw=mai["QUANTITY_NO"]),
+                                fuori.assign(mw=fuori["assegnata"])])
+        voce["incoerenti_totale"] = float(incoerenti["mw"].sum())
+        voce["di_cui_blocchi"] = float(incoerenti.loc[incoerenti["blocco"], "mw"].sum())
+        resto = incoerenti[~incoerenti["blocco"]]
+        voce["di_cui_frontiere"] = float(resto.loc[resto["frontiera"], "mw"].sum())
+        resto = resto[~resto["frontiera"]]
+        voce["di_cui_quota_minima"] = float(resto.loc[resto["quota_minima"], "mw"].sum())
+        voce["di_cui_non_spiegato"] = float(resto.loc[~resto["quota_minima"], "mw"].sum())
+        righe.append(voce)
+    return pd.DataFrame(righe)
+
+
 def residuo_giorno(data: str) -> pd.DataFrame:
     """
     Misura i due candidati residui, per ciascuna asta.
@@ -230,7 +300,41 @@ def main() -> None:
     ).round(2)
     out("\n" + riepilogo.to_string())
 
-    out(_sezione("C. IL RESIDUO: VINCOLI FRA QUARTI D'ORA CONSECUTIVI"))
+    out(_sezione("C. SCOMPOSIZIONE ESATTA DELL'ERRORE SULLA CURVA DI OFFERTA"))
+    scomposizione = pd.concat([scomposizione_giorno(g) for g in giorni], ignore_index=True)
+    controllo = (scomposizione["A_mai_assegnate"] + scomposizione["B_parziali"]
+                 + scomposizione["C_fuori_merito"])
+    out("Identita' contabile: A + B + C deve riprodurre lo scarto fra offerta ricostruita")
+    out("e offerta assegnata. Contributi medi per asta, in valore assoluto (MW):")
+    media = scomposizione["assegnata_totale"].mean()
+    tabella = []
+    for colonna, nome in [("A_mai_assegnate", "A) in merito, mai assegnate"),
+                          ("B_parziali", "B) in merito, assegnate in parte"),
+                          ("C_fuori_merito", "C) fuori merito, assegnate")]:
+        tabella.append({
+            "contributo": nome,
+            "MW_per_asta": scomposizione[colonna].abs().mean(),
+            "quota_%": 100 * scomposizione[colonna].abs().mean() / media,
+        })
+    out("\n" + pd.DataFrame(tabella).set_index("contributo").round(2).to_string())
+    out(f"\nOfferta assegnata media per asta: {media:.0f} MW")
+    out(f"Somma A+B+C media: {controllo.abs().mean():.1f} MW")
+
+    out("\nAttribuzione dei MW incoerenti (contributi A e C) alle cause note:")
+    cause = []
+    totale = scomposizione["incoerenti_totale"].mean()
+    for colonna, nome in [("di_cui_blocchi", "offerte a blocchi (D-03)"),
+                          ("di_cui_frontiere", "zone di frontiera senza vincoli (D-10)"),
+                          ("di_cui_quota_minima", "offerte con quota minima di accettazione"),
+                          ("di_cui_non_spiegato", "non spiegato")]:
+        cause.append({
+            "causa": nome,
+            "MW_per_asta": scomposizione[colonna].mean(),
+            "quota_%": 100 * scomposizione[colonna].mean() / totale if totale else 0.0,
+        })
+    out("\n" + pd.DataFrame(cause).set_index("causa").round(2).to_string())
+
+    out(_sezione("D. IL RESIDUO: VINCOLI FRA QUARTI D'ORA CONSECUTIVI"))
     out("Quota di unita' la cui quantita' assegnata resta identica nei quattro quarti")
     out("d'ora di un'ora: se e' alta, l'impegno non si decide quarto per quarto e la")
     out("nostra ricostruzione, che tratta ogni asta come indipendente, non puo' seguirlo.")
@@ -242,11 +346,13 @@ def main() -> None:
         out("\nNessuna giornata a quarto d'ora nel campione.")
 
     f_varianti = config.PROCESSED_DIR / f"varianti_blocchi_{etichetta}.csv"
+    f_scomposizione = config.PROCESSED_DIR / f"scomposizione_offerta_{etichetta}.csv"
     f_report = config.TABLE_DIR / f"05_blocchi_e_residuo_{etichetta}.txt"
     varianti.to_csv(f_varianti, index=False)
+    scomposizione.to_csv(f_scomposizione, index=False)
 
     out(_sezione("FILE PRODOTTI"))
-    for f in (f_varianti, f_report):
+    for f in (f_varianti, f_scomposizione, f_report):
         out(f"  {f}")
     f_report.write_text(buffer.getvalue(), encoding="utf-8")
 

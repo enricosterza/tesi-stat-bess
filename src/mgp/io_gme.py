@@ -231,7 +231,29 @@ def leggi_offerte_xml(
     if "PERIOD" in df.columns:
         df["PERIOD"] = df["PERIOD"].astype("Int64")
 
+    df["QUANTITY_NO"] = _quantita_efficace(df)
     return df
+
+
+def _quantita_efficace(df: pd.DataFrame) -> pd.Series:
+    """
+    Restituisce la quantita' su cui l'asta si risolve davvero.
+
+    Quando `ADJ_QUANTITY_NO` (quantita' rettificata) e' valorizzata e differisce da
+    `QUANTITY_NO`, e' la prima a fare fede. Verificato sui dati: fra le offerte accettate
+    in cui i due campi differiscono, la quantita' assegnata coincide con quella rettificata
+    in 199 casi su 200 nel giorno del 12/01/2026 e in 46 su 46 nel 15/01/2025, e non
+    coincide mai con quella offerta.
+
+    Sono poche righe — 348 su 123.785 nel 2026 — ma la correzione e' esatta e a costo nullo:
+    usando la quantita' offerta si sovrastima l'offerta disponibile di circa 2.000 MW al
+    giorno, concentrati su offerte che sono per lo piu' in merito.
+    """
+    quantita = df["QUANTITY_NO"]
+    if "ADJ_QUANTITY_NO" not in df.columns:
+        return quantita
+    rettificata = df["ADJ_QUANTITY_NO"]
+    return rettificata.where(rettificata.notna(), quantita)
 
 
 # --------------------------------------------------------------------------------------
@@ -274,7 +296,12 @@ def carica_giorno(
     cache = config.INTERIM_DIR / f"offerte_{data}_{suffisso_zona}_{suffisso_gran}.parquet"
 
     if usa_cache and cache.exists():
-        return pd.read_parquet(cache)
+        df = pd.read_parquet(cache)
+        # Una cache scritta prima che l'elenco delle colonne utili cambiasse non contiene
+        # i campi nuovi: va rigenerata, altrimenti il resto della pipeline lavorerebbe
+        # in silenzio su un dato incompleto.
+        if not set(config.COLONNE_UTILI) - set(df.columns):
+            return df
 
     df = leggi_offerte_xml(config.path_giorno(data), zona=zona, granularita=granularita)
     df.to_parquet(cache, index=False)

@@ -291,7 +291,8 @@ riportati nella Tabella~\ref{tab:validazione}.
 
 \begin{table}[H]
 \centering
-\caption{Validazione della ricostruzione su gennaio 2025, zona NORD, 744 aste orarie.}
+\caption{Validazione della ricostruzione su gennaio 2025, zona NORD, 744 aste orarie,
+         configurazione adottata.}
 \label{tab:validazione}
 \begin{tabular}{@{}lr@{}}
 \toprule
@@ -299,13 +300,36 @@ riportati nella Tabella~\ref{tab:validazione}.
 \midrule
 Aste con equilibrio esistente            & 744 su 744 \\
 Prezzo ufficiale medio                   & 143{,}32~\euromwh{} \\
-Prezzo ricostruito medio                 & 142{,}97~\euromwh{} \\
+Prezzo ricostruito medio                 & 143{,}53~\euromwh{} \\
 Mediana dello scarto                     & 0{,}00~\euromwh{} \\
-Media dello scarto                       & $-0{,}35$~\euromwh{} \\
-Deviazione standard dello scarto         & 1{,}65~\euromwh{} \\
-Match entro $\pm 0{,}01$~\euromwh{}      & 44{,}5\,\% \\
-Match entro $\pm 1$~\euromwh{}           & 76{,}7\,\% \\
-Match entro $\pm 5$~\euromwh{}           & 98{,}1\,\% \\
+Media dello scarto                       & $+0{,}22$~\euromwh{} \\
+Deviazione standard dello scarto         & 1{,}06~\euromwh{} \\
+Scarto massimo in valore assoluto        & 6{,}61~\euromwh{} \\
+Match entro $\pm 0{,}01$~\euromwh{}      & 52{,}3\,\% \\
+Match entro $\pm 1$~\euromwh{}           & 83{,}7\,\% \\
+Match entro $\pm 5$~\euromwh{}           & 99{,}5\,\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La configurazione a cui si riferiscono questi valori comprende, oltre a quanto descritto
+finora, due elementi introdotti dopo una diagnosi degli scarti residui: l'uso della
+quantit\`a rettificata al posto di quella offerta, e il trattamento delle offerte a blocchi
+come indivisibili. Il contributo di ciascun elemento \`e riportato nella
+Tabella~\ref{tab:contributi}.
+
+\begin{table}[H]
+\centering
+\caption{Contributo dei singoli elementi del modello. Gennaio 2025, 744 aste orarie.}
+\label{tab:contributi}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Configurazione} & \textbf{Dev.\ standard} & \textbf{Match esatto} & \textbf{Match $\pm 1$~\eur} \\
+                        & (\euromwh{})            &                       & \\
+\midrule
+Base (quantit\`a offerta, blocchi divisibili) & 1{,}65 & 44{,}5\,\% & 76{,}7\,\% \\
+\quad + quantit\`a rettificata                & 1{,}43 & 49{,}7\,\% & 80{,}8\,\% \\
+\quad + blocchi indivisibili                  & \textbf{1{,}06} & \textbf{52{,}3\,\%} & \textbf{83{,}7\,\%} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -325,36 +349,68 @@ l'effetto della risoluzione con quello della stagionalit\`a.
 
 \begin{table}[H]
 \centering
-\caption{Confronto fra risoluzioni temporali, zona NORD.}
+\caption{Confronto fra risoluzioni temporali, zona NORD, configurazione adottata.}
 \label{tab:risoluzioni}
 \begin{tabular}{@{}lrr@{}}
 \toprule
  & \textbf{Gennaio 2025} & \textbf{12--18 gennaio 2026} \\
  & (744 aste orarie)     & (672 aste a quarto d'ora) \\
 \midrule
-Mediana dello scarto (\euromwh{})        & 0{,}00 & $+0{,}25$ \\
-Deviazione standard (\euromwh{})         & 1{,}65 & 8{,}81 \\
-Match entro $\pm 1$~\euromwh{}           & 76{,}7\,\% & 22{,}3\,\% \\
-Match entro $\pm 5$~\euromwh{}           & 98{,}1\,\% & 64{,}6\,\% \\
-Errore sulla curva di offerta            & 0{,}40\,\% & 4{,}62\,\% \\
-Errore sulla curva di domanda            & 0{,}00\,\% & 0{,}10\,\% \\
+Mediana dello scarto (\euromwh{})        & 0{,}00 & 2{,}52 \\
+Deviazione standard (\euromwh{})         & 1{,}06 & 5{,}40 \\
+Match esatto ($\pm 0{,}01$~\eur)         & 52{,}3\,\% & 6{,}1\,\% \\
+Match entro $\pm 1$~\euromwh{}           & 83{,}7\,\% & 28{,}3\,\% \\
+Match entro $\pm 5$~\euromwh{}           & 99{,}5\,\% & 69{,}8\,\% \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Il bias \`e quasi nullo in entrambi i casi: il problema \`e la dispersione. La curva di
-domanda \`e ricostruita quasi esattamente in entrambi i mercati, mentre l'errore sulla curva
-di offerta \`e undici volte pi\`u grande nelle aste a quarto d'ora. La causa principale sono
-le offerte a blocchi, che nel mercato a quarto d'ora sono cinque volte pi\`u frequenti e
-quasi dieci volte pi\`u grandi della media, e che causano il 99{,}2\% dei megawatt accettati
-o rifiutati in modo incoerente con il prezzo del proprio periodo.
+La curva di domanda \`e ricostruita quasi esattamente in entrambi i mercati — lo scarto
+rispetto alle quantit\`a assegnate \`e sotto il decimo di punto percentuale — mentre l'errore
+sulla curva di offerta \`e circa undici volte pi\`u grande nelle aste a quarto d'ora. La causa
+principale sono le offerte a blocchi, che in quel mercato sono cinque volte pi\`u frequenti e
+quasi dieci volte pi\`u grandi della media.
 
-% DA COMPLETARE: il residuo non e' interamente spiegato. Due candidati sono stati esclusi
-% empiricamente: l'accettazione parziale delle offerte (0,3% dei MW assegnati, e con
-% frequenza simile nei due mercati) e i vincoli fra quarti d'ora consecutivi (fra le
-% offerte il cui prezzo cade fra il minimo e il massimo dei quattro prezzi dell'ora, il
-% 99,3% viene assegnato in modo diverso da un quarto all'altro, come prevede un clearing
-% indipendente). Restano da individuare altre cause.
+\subsection{Attribuzione dello scarto residuo}
+
+Lo scarto fra offerta ricostruita e offerta assegnata si scompone, riga per riga, in tre
+contributi la cui somma lo riproduce esattamente: offerte in merito mai assegnate, offerte in
+merito assegnate solo in parte, offerte fuori merito comunque assegnate. Attribuendo i
+megawatt incoerenti alle loro cause si ottiene la Tabella~\ref{tab:residuo}.
+
+\begin{table}[H]
+\centering
+\caption{Attribuzione dei megawatt incoerenti con il prezzo del proprio periodo.
+         Aste a quarto d'ora, su 990~MW per asta di scarto complessivo.}
+\label{tab:residuo}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+\textbf{Causa} & \textbf{MW per asta} & \textbf{Quota} \\
+\midrule
+Offerte a blocchi trattate come divisibili        & 875{,}8 & 80{,}7\,\% \\
+Zone di frontiera senza vincoli di transito       &  76{,}6 &  7{,}1\,\% \\
+Offerte con quota minima di accettazione          &   0{,}0 &  0{,}0\,\% \\
+Non spiegato                                      & 132{,}8 & 12{,}2\,\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Le prime due cause sono semplificazioni dichiarate del modello, non errori, e il loro costo
+\`e ora misurato. La terza merita una nota: il campo che indica la quota minima di
+accettazione risulta valorizzato su tutte e sole le offerte a blocchi — la tabella di
+contingenza \`e perfettamente diagonale — quindi non \`e un meccanismo separato ma un
+attributo dei blocchi, gi\`a conteggiato nella prima riga.
+
+Restano non spiegati 133~MW per asta, pari allo 0{,}74\% del volume scambiato. Due ipotesi
+sono state formulate e scartate sulla base dei dati: l'accettazione parziale delle offerte,
+che vale lo 0{,}25\% dei megawatt assegnati con frequenza simile nei due mercati, e
+l'esistenza di vincoli che legano quarti d'ora consecutivi. Su quest'ultima il test
+discriminante riguarda le offerte identiche nei quattro quarti il cui prezzo cade fra il
+minimo e il massimo dei quattro prezzi dell'ora, cio\`e le uniche per cui la decisione
+corretta cambierebbe da un quarto all'altro: il 99{,}3\% di esse viene assegnato in modo
+diverso fra i quarti, come prevede un clearing indipendente.
+
+% DA COMPLETARE: il 12,2% non spiegato resta da attribuire.
 
 \subsection{Simulazione dell'accumulo}
 

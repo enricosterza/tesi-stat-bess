@@ -12,14 +12,21 @@ Il lavoro svolto finora ha prodotto un risultato metodologico: \`e possibile ric
 prezzo del Mercato del Giorno Prima a partire dai soli dati pubblici delle offerte, con
 un'accuratezza sufficiente a usarlo come base per il calcolo di prezzi controfattuali. Sulle
 744 aste orarie di gennaio 2025 il prezzo ricostruito coincide esattamente con quello
-ufficiale nel 44{,}5\% dei casi ed \`e entro 5~\euromwh{} nel 98{,}1\%, con mediana dello
-scarto nulla e deviazione standard di 1{,}65~\euromwh{}.
+ufficiale nel 52{,}3\% dei casi, \`e entro 1~\euromwh{} nell'83{,}7\% ed entro 5~\euromwh{}
+nel 99{,}5\%, con mediana dello scarto nulla, deviazione standard di 1{,}06~\euromwh{} e uno
+scarto massimo di 6{,}61~\euromwh{} su tutto il mese.
 
-Arrivare a questo risultato ha richiesto tre elementi che non erano evidenti all'inizio: la
-selezione corretta delle offerte che hanno partecipato all'asta, l'inclusione delle offerte
-presentate a granularit\`a diversa da quella prevalente, e soprattutto la reintroduzione
-dello scambio netto con l'esterno del perimetro zonale, senza il quale il prezzo ricostruito
-sbaglia di circa 100~\euromwh{}.
+Arrivare a questo risultato ha richiesto cinque elementi, nessuno dei quali evidente
+all'inizio: la selezione delle offerte che hanno effettivamente partecipato all'asta;
+l'inclusione delle offerte presentate a granularit\`a diversa da quella prevalente;
+l'uso della quantit\`a rettificata al posto di quella offerta; il trattamento delle offerte a
+blocchi come indivisibili; e soprattutto la reintroduzione dello scambio netto con l'esterno
+del perimetro zonale, senza il quale il prezzo ricostruito sbaglia di circa 100~\euromwh{}.
+
+Lo strumento che ne risulta permette di misurare la grandezza su cui poggia l'intera tesi:
+di quanto si sposta il prezzo di equilibrio quando si inietta potenza nel mercato. \`E la
+stessa grandezza che determina il ricavo di un accumulo e che ne limita la scala, perch\'e
+una batteria che carica alza il prezzo a cui compra e che scarica abbassa quello a cui vende.
 
 \section{Limiti del modello e sviluppi futuri}
 \label{sec:limiti}
@@ -35,14 +42,27 @@ l'assunzione \`e tanto pi\`u forte quanto pi\`u il periodo \`e congestionato. Il
 naturale \`e un modello multi-zonale con i limiti di transito espliciti.
 
 \paragraph{Offerte a blocchi.} Il vincolo di accettazione tutto-o-niente \`e rappresentato
-con un'euristica iterativa che non garantisce l'ottimo del problema intero sottostante. Sulle
-aste orarie l'approssimazione \`e buona; su quelle a quarto d'ora recupera solo una parte del
-divario.
+con un'euristica iterativa che non garantisce l'ottimo del problema intero sottostante. Il
+confronto con la soluzione osservata dell'asta mostra che l'approssimazione \`e buona: sulle
+aste orarie la eguaglia, su quelle a quarto d'ora ne recupera l'86\%.
 
-\paragraph{Residuo non spiegato nelle aste a quarto d'ora.} Anche trattando perfettamente i
-blocchi, la ricostruzione delle aste a quarto d'ora resta meno accurata di quella delle aste
-orarie. Due possibili cause sono state escluse empiricamente — l'accettazione parziale delle
-offerte e l'esistenza di vincoli fra quarti d'ora consecutivi — e la ricerca resta aperta.
+\paragraph{Residuo non spiegato nelle aste a quarto d'ora.} Restano 133~MW per asta, pari
+allo 0{,}74\% del volume scambiato, non attribuiti ad alcuna causa nota. Due ipotesi sono
+state formulate e scartate sulla base dei dati — l'accettazione parziale delle offerte e
+l'esistenza di vincoli fra quarti d'ora consecutivi — e la ricerca resta aperta.
+
+\paragraph{Previsione perfetta.} Il profilo di carica e scarica \`e ottimizzato conoscendo i
+prezzi di tutti i periodi della giornata. Il ricavo che ne risulta \`e quindi un limite
+superiore, non un risultato conseguibile da un operatore reale, e va letto come termine di
+confronto.
+
+\paragraph{Esistenza dell'equilibrio con l'accumulo.} Profilo e prezzi si determinano a
+vicenda, e il punto fisso pu\`o non esistere: la batteria carica dove il prezzo \`e basso, ma
+caricando lo alza, e sul prezzo alzato non converrebbe pi\`u caricare. Nei casi in cui la
+successione oscilla si sceglie il profilo con il ricavo realizzato pi\`u alto, il che
+corrisponde per\`o a un operatore che internalizza il proprio effetto sul prezzo, mentre il
+punto fisso descrive un operatore che non lo internalizza. La distinzione va riportata nei
+risultati.
 
 \paragraph{Mercati non considerati.} L'analisi riguarda il solo Mercato del Giorno Prima.
 Un sistema di accumulo reale opera anche sui Mercati Infragiornalieri e sul Mercato per il

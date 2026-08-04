@@ -182,6 +182,8 @@ COLONNE_UTILI: list[str] = [
     "GRANULARITY",            # PT15 / PT30 / PT60
     "ENERGY_PRICE_NO",        # prezzo offerto, €/MWh
     "QUANTITY_NO",            # quantita' offerta, MW (potenza: vedi nota su DURATA_ORE)
+    "ADJ_QUANTITY_NO",        # quantita' rettificata: e' quella su cui l'asta si risolve
+    "MINIMUM_ACCEPTANCE_RATIO",  # quota minima accettabile dell'offerta (indivisibilita')
     "AWARDED_QUANTITY_NO",    # quantita' assegnata dall'algoritmo di mercato, MW
     "AWARDED_PRICE_NO",       # prezzo di assegnazione = prezzo zonale ufficiale (su righe ACC)
     "MERIT_ORDER_NO",         # posizione nell'ordine di merito
@@ -201,6 +203,7 @@ COLONNE_UTILI: list[str] = [
 COLONNE_NUMERICHE: list[str] = [
     "ENERGY_PRICE_NO",
     "QUANTITY_NO",
+    "ADJ_QUANTITY_NO",
     "AWARDED_QUANTITY_NO",
     "AWARDED_PRICE_NO",
     "MERIT_ORDER_NO",

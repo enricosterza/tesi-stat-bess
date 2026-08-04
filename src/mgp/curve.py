@@ -675,6 +675,57 @@ def clearing_giorno(
     return pd.DataFrame(righe)
 
 
+def surplus(offerte: pd.DataFrame) -> float:
+    """
+    Calcola il surplus complessivo generato da un'asta.
+
+    Parameters
+    ----------
+    offerte : pd.DataFrame
+        Offerte dell'asta.
+
+    Returns
+    -------
+    float
+        Somma del surplus del consumatore e del produttore, in euro per ora di periodo.
+        Vale zero se l'asta non ha equilibrio.
+
+    Definizione
+    -----------
+    Ordinando la domanda per prezzo decrescente e l'offerta per prezzo crescente e
+    accettandole fino alla quantita' di equilibrio $Q^{*}$, il surplus e'
+    $\\sum_i b_i q_i - \\sum_j o_j q_j$, dove $b_i$ sono i prezzi di acquisto accettati e
+    $o_j$ quelli di vendita accettati. E' la grandezza che l'algoritmo d'asta massimizza, e
+    non dipende dal prezzo di equilibrio ma solo da quali offerte vengono accettate.
+
+    A che serve qui
+    ---------------
+    Quando l'euristica sui blocchi (D-18) oscilla fra due configurazioni, serve un criterio
+    per sceglierne una. Il surplus e' il criterio che il mercato stesso usa, quindi e'
+    preferibile a scelte arbitrarie come "l'ultima configurazione raggiunta".
+    """
+    return _surplus_da_equilibrio(offerte, prezzo_equilibrio(offerte))
+
+
+def _surplus_da_equilibrio(offerte: pd.DataFrame, eq: Equilibrio) -> float:
+    """Come `surplus`, ma riusa un equilibrio gia' calcolato per non ripetere il clearing."""
+    if eq.prezzo is None or eq.quantita is None or eq.quantita <= 0:
+        return 0.0
+
+    def accumula(lato: pd.DataFrame, crescente: bool) -> float:
+        ordinate = lato.sort_values("ENERGY_PRICE_NO", ascending=crescente)
+        quantita = ordinate["QUANTITY_NO"].to_numpy(dtype=float)
+        prezzi = ordinate["ENERGY_PRICE_NO"].to_numpy(dtype=float)
+        cumulata = np.cumsum(quantita)
+        # L'ultima offerta accettata entra solo per la parte necessaria.
+        entro = np.minimum(quantita, np.maximum(0.0, eq.quantita - (cumulata - quantita)))
+        return float(np.sum(prezzi * entro))
+
+    valore_domanda = accumula(offerte[offerte["PURPOSE_CD"] == config.PURPOSE_ACQUISTO], False)
+    costo_offerta = accumula(offerte[offerte["PURPOSE_CD"] == config.PURPOSE_VENDITA], True)
+    return valore_domanda - costo_offerta
+
+
 def _e_blocco(offerte: pd.DataFrame) -> pd.Series:
     """Maschera delle righe che appartengono a un'offerta a blocchi."""
     if "OFFER_TYPE" not in offerte.columns:
@@ -734,9 +785,18 @@ def clearing_giorno_con_blocchi(
        ripete.
 
     E' l'euristica classica per i mercati con offerte a blocchi. Non garantisce di trovare
-    l'ottimo — il problema esatto e' un programma intero — e puo' oscillare fra due
-    configurazioni: in quel caso ci si ferma segnalando la mancata convergenza nella colonna
-    `iterazioni` (valore pari a `max_iterazioni`).
+    l'ottimo, perche' il problema esatto e' un programma intero, e puo' **oscillare** fra due
+    configurazioni senza mai stabilizzarsi: succede in 4 giornate su 7 nel campione a quarto
+    d'ora, dove i blocchi sono trenta al giorno, contro quasi mai nelle giornate orarie, dove
+    sono meno di dieci.
+
+    Per questo non si restituisce l'ultima configurazione raggiunta, che sarebbe arbitraria,
+    ma si sceglie fra **tutte quelle visitate** con il criterio del mercato stesso (D-19):
+    prima si scartano le configurazioni con accettazioni paradossali — blocchi accettati che
+    non coprono il proprio prezzo, che il mercato reale non ammette — e fra le rimanenti si
+    prende quella con il **surplus complessivo piu' alto**, che e' la grandezza che
+    l'algoritmo d'asta massimizza. Le colonne `convergenza`, `blocchi_paradossali` e
+    `surplus` documentano l'esito della scelta.
 
     Il criterio del prezzo medio ponderato e' quello usato dagli algoritmi d'asta europei:
     un blocco e' "in the money" se il ricavo complessivo che otterrebbe copre il prezzo a
@@ -769,33 +829,30 @@ def clearing_giorno_con_blocchi(
         for b in blocchi_periodo[int(periodo)]["BLOCK_ID"].dropna().unique()
         if str(b).strip()
     })
-    accettati = set(identificativi)
 
-    stati_visti: list[frozenset] = []
-    iterazione = 0
-    risultati: dict[int, Equilibrio] = {}
-
-    for iterazione in range(1, max_iterazioni + 1):
+    def valuta(accettati: set) -> dict:
+        """Risolve tutte le aste con un dato insieme di blocchi accettati."""
+        esiti: dict[int, Equilibrio] = {}
         prezzi: dict[int, float | None] = {}
+        surplus_totale = 0.0
         for periodo in periodi:
             periodo = int(periodo)
             righe_blocco = blocchi_periodo[periodo]
-            if accettati and not righe_blocco.empty:
-                righe_blocco = righe_blocco[righe_blocco["BLOCK_ID"].isin(accettati)]
-            else:
-                righe_blocco = righe_blocco.iloc[0:0]
+            righe_blocco = (
+                righe_blocco[righe_blocco["BLOCK_ID"].isin(accettati)]
+                if accettati and not righe_blocco.empty else righe_blocco.iloc[0:0]
+            )
             offerte = pd.concat([semplici[periodo], righe_blocco], ignore_index=True)
             eq = prezzo_equilibrio(offerte)
-            risultati[periodo] = eq
+            esiti[periodo] = eq
             prezzi[periodo] = eq.prezzo
+            surplus_totale += _surplus_da_equilibrio(offerte, eq)
 
-        # Rivalutazione dei blocchi sul prezzo medio ponderato dei loro periodi.
-        nuovi = set()
+        # Ogni blocco viene confrontato con il prezzo medio ponderato dei suoi periodi.
+        in_merito: set = set()
         for identificativo in identificativi:
-            somma_quantita = 0.0
-            somma_valore = 0.0
-            prezzo_offerto = None
-            purpose = None
+            somma_quantita = somma_valore = 0.0
+            prezzo_offerto = purpose = None
             for periodo in periodi:
                 periodo = int(periodo)
                 righe = blocchi_periodo[periodo]
@@ -810,26 +867,48 @@ def clearing_giorno_con_blocchi(
             if prezzo_offerto is None or somma_quantita == 0:
                 continue
             prezzo_medio = somma_valore / somma_quantita
-            in_merito = (
+            conveniente = (
                 prezzo_offerto <= prezzo_medio if purpose == config.PURPOSE_VENDITA
                 else prezzo_offerto >= prezzo_medio
             )
-            if in_merito:
-                nuovi.add(identificativo)
+            if conveniente:
+                in_merito.add(identificativo)
 
-        if nuovi == accettati:
+        return {
+            "accettati": frozenset(accettati),
+            "esiti": esiti,
+            "surplus": surplus_totale,
+            # Blocchi accettati che non coprono il proprio prezzo: sono le accettazioni
+            # "paradossali", che il mercato reale non ammette.
+            "paradossali": len(set(accettati) - in_merito),
+            "prossimo": in_merito,
+        }
+
+    visitati: list[dict] = []
+    accettati: set = set(identificativi)
+    iterazione = 0
+    convergenza = False
+
+    for iterazione in range(1, max_iterazioni + 1):
+        stato = valuta(accettati)
+        visitati.append(stato)
+        if stato["prossimo"] == set(accettati):
+            convergenza = True
             break
-        if frozenset(nuovi) in stati_visti:      # oscillazione: ci si ferma
-            accettati = nuovi
-            iterazione = max_iterazioni
-            break
-        stati_visti.append(frozenset(nuovi))
-        accettati = nuovi
+        if any(v["accettati"] == frozenset(stato["prossimo"]) for v in visitati):
+            break                                  # oscillazione: si esce e si sceglie
+        accettati = stato["prossimo"]
+
+    # Scelta della configurazione: si preferiscono quelle senza accettazioni paradossali,
+    # perche' e' il vincolo che il mercato impone; fra queste si prende quella con il
+    # surplus piu' alto, che e' il criterio massimizzato dall'algoritmo d'asta reale.
+    ammissibili = [v for v in visitati if v["paradossali"] == 0] or visitati
+    scelto = max(ammissibili, key=lambda v: v["surplus"])
 
     righe = []
     for periodo in periodi:
         periodo = int(periodo)
-        eq = risultati[periodo]
+        eq = scelto["esiti"][periodo]
         righe.append({
             "PERIOD": periodo,
             "prezzo": eq.prezzo,
@@ -839,9 +918,12 @@ def clearing_giorno_con_blocchi(
             "motivo": eq.motivo,
             "n_offerte": len(semplici[periodo]) + len(blocchi_periodo[periodo]),
             "import_netto": scambi[periodo],
-            "blocchi_accettati": len(accettati),
+            "blocchi_accettati": len(scelto["accettati"]),
             "blocchi_totali": len(identificativi),
+            "blocchi_paradossali": scelto["paradossali"],
+            "surplus": scelto["surplus"],
             "iterazioni": iterazione,
+            "convergenza": convergenza,
         })
     return pd.DataFrame(righe)
 
