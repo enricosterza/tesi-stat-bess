@@ -353,6 +353,114 @@ def prezzo_equilibrio(offerte: pd.DataFrame) -> Equilibrio:
     return Equilibrio(p_star, quantita, offerta_cum, domanda_cum, "ok")
 
 
+def curva_eccesso(offerte: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calcola l'eccesso di offerta S(p) - D(p) su tutti i prezzi presenti nell'asta.
+
+    Returns
+    -------
+    pd.DataFrame
+        Colonne `prezzo`, `offerta_cumulata`, `domanda_cumulata`, `eccesso`.
+
+    Proprieta' utile
+    ----------------
+    L'eccesso e' **monotono non decrescente**: S non decresce e D non cresce al crescere del
+    prezzo. Ne segue che l'insieme dei prezzi che pareggiano il mercato, cioe' quelli con
+    eccesso non negativo, e' sempre una semiretta [p*, +inf). Il prezzo di equilibrio e' il
+    suo estremo inferiore.
+
+    Quando pero' l'eccesso vale **esattamente zero su un tratto**, ogni prezzo di quel tratto
+    pareggia domanda e offerta: l'equilibrio non e' unico e serve una regola per sceglierne
+    uno. Questa funzione serve a misurare quanto spesso accade e quanto e' ampio il tratto.
+    """
+    vendita = offerte[offerte["PURPOSE_CD"] == config.PURPOSE_VENDITA]
+    acquisto = offerte[offerte["PURPOSE_CD"] == config.PURPOSE_ACQUISTO]
+    if vendita.empty or acquisto.empty:
+        return pd.DataFrame(columns=["prezzo", "offerta_cumulata", "domanda_cumulata", "eccesso"])
+
+    p_off = vendita["ENERGY_PRICE_NO"].to_numpy(dtype=float)
+    q_off = vendita["QUANTITY_NO"].to_numpy(dtype=float)
+    p_dom = acquisto["ENERGY_PRICE_NO"].to_numpy(dtype=float)
+    q_dom = acquisto["QUANTITY_NO"].to_numpy(dtype=float)
+    prezzi = np.unique(np.concatenate([p_off, p_dom]))
+
+    ordine = np.argsort(p_off, kind="stable")
+    p_o, q_o = p_off[ordine], q_off[ordine]
+    cum_o = np.cumsum(q_o)
+    idx = np.searchsorted(p_o, prezzi, side="right")
+    S = np.where(idx > 0, cum_o[np.clip(idx - 1, 0, None)], 0.0)
+
+    ordine = np.argsort(p_dom, kind="stable")
+    p_d, q_d = p_dom[ordine], q_dom[ordine]
+    cum_d = np.cumsum(q_d)
+    idx = np.searchsorted(p_d, prezzi, side="left")
+    D = q_d.sum() - np.where(idx > 0, cum_d[np.clip(idx - 1, 0, None)], 0.0)
+
+    return pd.DataFrame({
+        "prezzo": prezzi,
+        "offerta_cumulata": S,
+        "domanda_cumulata": D,
+        "eccesso": S - D,
+    })
+
+
+def intervallo_equilibrio(offerte: pd.DataFrame, tolleranza: float = 1e-6) -> dict[str, float]:
+    """
+    Individua l'intervallo di prezzi che pareggiano il mercato.
+
+    Parameters
+    ----------
+    offerte : pd.DataFrame
+        Offerte dell'asta.
+    tolleranza : float
+        Ampiezza entro cui un eccesso e' considerato nullo (MW).
+
+    Returns
+    -------
+    dict
+        `prezzo_minimo` (quello scelto da `prezzo_equilibrio`), `prezzo_massimo` (l'estremo
+        superiore del tratto a eccesso nullo, uguale al minimo se l'equilibrio e' unico),
+        `ampiezza` (€/MWh), `eccesso_al_minimo` (MW), `degenere` (bool).
+
+    A che serve
+    -----------
+    Se l'equilibrio non e' unico, la scelta della regola (prezzo piu' basso, piu' alto, punto
+    medio) sposta il prezzo ricostruito senza che nulla sia sbagliato nei dati. Confrontando
+    l'intervallo con il prezzo ufficiale si capisce se uno scarto e' un errore di
+    ricostruzione oppure solo una convenzione diversa nella scelta del punto.
+    """
+    ec = curva_eccesso(offerte)
+    if ec.empty:
+        return {"prezzo_minimo": float("nan"), "prezzo_massimo": float("nan"),
+                "ampiezza": float("nan"), "eccesso_al_minimo": float("nan"),
+                "degenere": False}
+
+    ammissibili = ec[ec["eccesso"] >= -tolleranza]
+    if ammissibili.empty:
+        return {"prezzo_minimo": float("nan"), "prezzo_massimo": float("nan"),
+                "ampiezza": float("nan"), "eccesso_al_minimo": float("nan"),
+                "degenere": False}
+
+    p_min = float(ammissibili["prezzo"].iloc[0])
+    eccesso_min = float(ammissibili["eccesso"].iloc[0])
+
+    # Tratto piatto: prezzi successivi in cui l'eccesso resta nullo.
+    if abs(eccesso_min) <= tolleranza:
+        piatto = ammissibili[ammissibili["eccesso"].abs() <= tolleranza]
+        # Il tratto e' contiguo perche' l'eccesso e' monotono.
+        p_max = float(piatto["prezzo"].iloc[-1])
+    else:
+        p_max = p_min
+
+    return {
+        "prezzo_minimo": p_min,
+        "prezzo_massimo": p_max,
+        "ampiezza": p_max - p_min,
+        "eccesso_al_minimo": eccesso_min,
+        "degenere": p_max > p_min,
+    }
+
+
 def import_netto(
     df: pd.DataFrame,
     periodo: int,
@@ -460,6 +568,48 @@ def aggiungi_import(offerte: pd.DataFrame, quantita: float) -> pd.DataFrame:
         }
     blocco.update({"STATUS_CD": "SCAMBIO", "ZONE_CD": "SCAMBIO"})
     return pd.concat([offerte, pd.DataFrame([blocco])], ignore_index=True)
+
+
+def impatto_prezzo(offerte: pd.DataFrame, delta_mw: float) -> dict[str, float]:
+    """
+    Misura di quanto si sposta il prezzo di equilibrio iniettando o sottraendo potenza.
+
+    Parameters
+    ----------
+    offerte : pd.DataFrame
+        Offerte dell'asta, blocco di scambio gia' incluso.
+    delta_mw : float
+        Potenza aggiunta, con segno: positiva = offerta addizionale (una batteria che
+        scarica), negativa = domanda addizionale (una batteria che carica).
+
+    Returns
+    -------
+    dict
+        `prezzo_base`, `prezzo_modificato`, `variazione` (€/MWh) e `sensibilita`, cioe' la
+        variazione di prezzo per 100 MW immessi, in valore assoluto.
+
+    Perche' questa funzione e' centrale
+    -----------------------------------
+    E' esattamente l'effetto di feedback che la tesi vuole misurare: una batteria che
+    scarica aggiunge offerta e abbassa il prezzo, una che carica aggiunge domanda e lo
+    alza. La stessa grandezza spiega pero' anche l'accuratezza della ricostruzione: dove
+    le curve sono quasi tangenti, cioe' dove l'eccesso di offerta varia lentamente con il
+    prezzo, un piccolo errore di quantita' si traduce in un grande errore di prezzo.
+    Misurare la sensibilita' significa quindi sapere sia quanto conta la batteria sia
+    quanto ci si puo' fidare del prezzo ricostruito, che sono due facce della stessa cosa.
+    """
+    base = prezzo_equilibrio(offerte)
+    modificato = prezzo_equilibrio(aggiungi_import(offerte, delta_mw))
+    if base.prezzo is None or modificato.prezzo is None:
+        return {"prezzo_base": float("nan"), "prezzo_modificato": float("nan"),
+                "variazione": float("nan"), "sensibilita": float("nan")}
+    variazione = modificato.prezzo - base.prezzo
+    return {
+        "prezzo_base": base.prezzo,
+        "prezzo_modificato": modificato.prezzo,
+        "variazione": variazione,
+        "sensibilita": abs(variazione) * 100.0 / abs(delta_mw),
+    }
 
 
 def clearing_giorno(

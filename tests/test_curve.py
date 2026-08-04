@@ -298,6 +298,68 @@ def test_import_netto_e_la_differenza_fra_quantita_assegnate():
     assert curve.import_netto(df, 40, "PT15", zone=["NORD"]) == pytest.approx(500.0)
 
 
+# --------------------------------------------------------------------------------------
+# Eccesso di offerta, unicita' dell'equilibrio e sensibilita' del prezzo
+# --------------------------------------------------------------------------------------
+def test_l_eccesso_di_offerta_e_monotono():
+    """
+    S non decresce e D non cresce al crescere del prezzo, quindi l'eccesso S - D e'
+    monotono non decrescente. E' la proprieta' che garantisce che i prezzi di equilibrio
+    formino sempre una semiretta e che quindi l'equilibrio sia ben definito.
+    """
+    df = offerte(vendite=[(10, 50), (20, 30), (40, 100)],
+                 acquisti=[(60, 60), (30, 40), (15, 100)])
+    ec = curve.curva_eccesso(df)
+    assert ec["eccesso"].is_monotonic_increasing
+    assert ec["prezzo"].is_monotonic_increasing
+
+
+def test_equilibrio_unico_quando_le_curve_si_incrociano_nettamente():
+    """Se l'eccesso salta da negativo a positivo, il prezzo di equilibrio e' uno solo."""
+    df = offerte(vendite=[(10, 30), (20, 200)], acquisti=[(50, 100)])
+    intervallo = curve.intervallo_equilibrio(df)
+    assert not intervallo["degenere"]
+    assert intervallo["prezzo_minimo"] == intervallo["prezzo_massimo"] == 20
+
+
+def test_equilibrio_non_unico_quando_l_eccesso_resta_nullo():
+    """
+    Con offerta 10 EUR x 100 e domanda 60 EUR x 100 piu' 5 EUR x 50, l'eccesso vale zero
+    sia a 10 sia a 60 EUR: ogni prezzo fra i due pareggia domanda e offerta. La scelta del
+    punto e' allora una convenzione, non un dato, e va segnalata come tale.
+    """
+    df = offerte(vendite=[(10, 100)], acquisti=[(60, 100), (5, 50)])
+    intervallo = curve.intervallo_equilibrio(df)
+    assert intervallo["degenere"]
+    assert intervallo["prezzo_minimo"] == 10
+    assert intervallo["prezzo_massimo"] == 60
+    assert intervallo["ampiezza"] == 50
+    # La funzione di clearing sceglie l'estremo inferiore.
+    assert curve.prezzo_equilibrio(df).prezzo == 10
+
+
+def test_offerta_aggiuntiva_abbassa_il_prezzo_e_domanda_aggiuntiva_lo_alza():
+    """
+    E' l'effetto di feedback che la tesi vuole misurare: una batteria che scarica aggiunge
+    offerta e abbassa il prezzo, una che carica aggiunge domanda e lo alza.
+    """
+    df = offerte(vendite=[(10, 100), (90, 100)], acquisti=[(200, 150)])
+    scarica = curve.impatto_prezzo(df, +100)
+    carica = curve.impatto_prezzo(df, -100)
+    assert scarica["variazione"] < 0
+    assert carica["variazione"] > 0
+
+
+def test_la_sensibilita_e_nulla_dove_la_curva_e_ripida():
+    """
+    Con un gradino di offerta molto ampio al prezzo di equilibrio, 100 MW in piu' non
+    spostano il prezzo: la sensibilita' e' nulla. E' la situazione in cui una batteria di
+    piccola taglia non ha alcun effetto sul prezzo.
+    """
+    df = offerte(vendite=[(10, 100), (50, 10000)], acquisti=[(200, 500)])
+    assert curve.impatto_prezzo(df, 100)["sensibilita"] == 0.0
+
+
 def test_confronto_con_ufficiale_calcola_la_frequenza_di_match():
     """
     Su quattro periodi, due prezzi ricostruiti coincidono con l'ufficiale, uno sbaglia di

@@ -100,6 +100,9 @@ def congestione(df: pd.DataFrame, granularita: str) -> pd.DataFrame:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mese", default="202501", help="mese da validare, formato AAAAMM")
+    parser.add_argument("--da", help="prima data da elaborare, formato AAAAMMGG")
+    parser.add_argument("--a", help="ultima data da elaborare, formato AAAAMMGG")
+    parser.add_argument("--etichetta", help="nome da usare nei file prodotti (default: il mese)")
     parser.add_argument("--no-cache", action="store_true")
     args = parser.parse_args()
 
@@ -113,7 +116,14 @@ def main() -> None:
         buffer.write(testo + "\n")
 
     giorni = giorni_del_mese(args.mese)
-    out(_sezione(f"VALIDAZIONE SUL MESE {args.mese} — {len(giorni)} giorni"))
+    if args.da:
+        giorni = [g for g in giorni if g >= args.da]
+    if args.a:
+        giorni = [g for g in giorni if g <= args.a]
+    etichetta = args.etichetta or (
+        args.mese if not (args.da or args.a) else f"{giorni[0]}_{giorni[-1]}"
+    )
+    out(_sezione(f"VALIDAZIONE {etichetta} — {len(giorni)} giorni"))
     out("Configurazione: perimetro NORD + frontiere confinanti (D-10), offerte in gara")
     out("ACC+REJ+PREJ (D-06), tutte le granularita' (D-13), blocco di import netto (D-16).")
 
@@ -226,10 +236,10 @@ def main() -> None:
     out(peggiori[colonne].head(10).round(2).to_string(index=False))
 
     # ----------------------------------------------------------------------------------
-    f_serie = config.PROCESSED_DIR / f"validazione_{args.mese}_NORD.csv"
-    f_giorni = config.TABLE_DIR / f"03_per_giorno_{args.mese}.csv"
-    f_ore = config.TABLE_DIR / f"03_per_ora_{args.mese}.csv"
-    f_report = config.TABLE_DIR / f"03_validazione_{args.mese}.txt"
+    f_serie = config.PROCESSED_DIR / f"validazione_{etichetta}_NORD.csv"
+    f_giorni = config.TABLE_DIR / f"03_per_giorno_{etichetta}.csv"
+    f_ore = config.TABLE_DIR / f"03_per_ora_{etichetta}.csv"
+    f_report = config.TABLE_DIR / f"03_validazione_{etichetta}.txt"
     mese.to_csv(f_serie, index=False)
     tab_giorni.to_csv(f_giorni)
     per_ora.to_csv(f_ore)

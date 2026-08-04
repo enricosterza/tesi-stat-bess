@@ -717,6 +717,130 @@ prossima; una pista è la quota di offerte a granularità non prevalente in quel
 
 ---
 
+## 2026-08-04 — Perché le aste a quarto d'ora si ricostruiscono peggio: sono le offerte a blocchi
+
+Scritto `scripts/04_diagnosi_scarti.py`, che scompone lo scarto fra prezzo ricostruito e
+ufficiale nelle sue possibili cause. Confrontati **gennaio 2025** (744 aste orarie) e la
+settimana **12-18 gennaio 2026** (672 aste a quarto d'ora), scelta nello stesso mese
+dell'anno per non confondere l'effetto della risoluzione con quello della stagionalità.
+
+### Il divario, confermato su più giorni
+
+| | Gennaio 2025 (oraria) | 12-18 gennaio 2026 (quarto d'ora) |
+|---|---|---|
+| Aste | 744 | 672 |
+| Scarto mediano | 0,00 €/MWh | +0,25 |
+| Deviazione standard dello scarto | 1,65 | **8,81** |
+| Match entro ±1 €/MWh | 76,7% | **22,3%** |
+| Match entro ±5 €/MWh | 98,1% | 64,6% |
+
+Il bias è quasi nullo in entrambi i casi: il problema è la **dispersione**, non una
+distorsione sistematica.
+
+### Prima ipotesi, scartata dai dati: le curve quasi tangenti
+
+Avevo ipotizzato che nelle aste a quarto d'ora le curve fossero più piatte attorno
+all'equilibrio, cosicché un piccolo errore di quantità si traducesse in un grande errore di
+prezzo. Per verificarlo ho aggiunto `curve.impatto_prezzo()`, che misura di quanto si sposta
+il prezzo iniettando 100 MW di offerta — la stessa grandezza che servirà per l'effetto di
+feedback della batteria.
+
+La misura smentisce l'ipotesi: la sensibilità mediana è **0,10 €/MWh per 100 MW nelle aste
+orarie e 0,00 in quelle a quarto d'ora**. Le curve a quarto d'ora sono semmai più ripide.
+L'ipotesi era plausibile ma sbagliata, e la funzione scritta per verificarla resta utile.
+
+Scartata anche l'ipotesi dell'equilibrio non unico: succede nello 0,8% delle aste orarie e
+nello 0,0% di quelle a quarto d'ora, e nei 6 casi osservati il prezzo ufficiale cade dentro
+l'intervallo in 5, quindi non è una fonte di errore rilevante.
+
+### Dove sta davvero l'errore: sul lato offerta
+
+Confrontando domanda e offerta **ricostruite al prezzo ufficiale** con le quantità
+effettivamente assegnate (scarto in valore assoluto, mediano):
+
+| | Errore sulla domanda | Errore sull'offerta | Errore sul prezzo |
+|---|---|---|---|
+| Aste orarie | 0,000% | 0,40% | 0,12 €/MWh |
+| Aste a quarto d'ora | 0,095% | **4,62%** | 3,24 €/MWh |
+
+La domanda resta ricostruita quasi esattamente in entrambi i mercati. L'errore sull'offerta è
+**undici volte più grande** nelle aste a quarto d'ora.
+
+### La causa: le offerte a blocchi
+
+Contando quante offerte di vendita risultano incoerenti con il prezzo del proprio periodo
+(in merito sul prezzo ma non assegnate, o viceversa):
+
+| | Aste orarie | Aste a quarto d'ora |
+|---|---|---|
+| Offerte a blocchi sul totale | 0,54% | **2,82%** |
+| Righe incoerenti | 0,06% | 0,52% |
+| MW incoerenti per asta | 33 | **882** |
+| Quota di quei MW dovuta ai blocchi | 55,1% | **99,2%** |
+| Quantità media: offerte coerenti / incoerenti | 49,7 / 91,2 MW | 40,2 / **385,3 MW** |
+
+Nel mercato a quarto d'ora le offerte a blocchi sono cinque volte più frequenti e quasi dieci
+volte più grandi della media. Trattarle come offerte divisibili — decisione **D-03** — sposta
+l'offerta di circa 880 MW per asta, il 5% del volume scambiato.
+
+### Prova di controllo
+
+Confronto di tre trattamenti dei blocchi sulle stesse aste (l'ultimo usa l'esito osservato
+dell'asta, quindi non è un modello utilizzabile: serve solo a misurare il guadagno massimo
+ottenibile risolvendo il problema).
+
+**Gennaio 2026, quarto d'ora (576 aste):**
+
+| Trattamento dei blocchi | Errore mediano | Dev. standard | Match ±1 € | Match ±5 € |
+|---|---|---|---|---|
+| come offerte semplici (attuale) | 2,91 | 9,11 | 24,1% | 67,4% |
+| esclusi dalle curve | 36,76 | 37,77 | 0,3% | 12,0% |
+| con l'esito osservato (diagnostico) | **2,30** | **5,09** | 30,4% | 74,5% |
+
+**Gennaio 2025, orario (144 aste):**
+
+| Trattamento dei blocchi | Errore mediano | Dev. standard | Match ±1 € |
+|---|---|---|---|
+| come offerte semplici (attuale) | 0,09 | 1,36 | 77,8% |
+| esclusi dalle curve | 1,21 | 3,70 | 43,8% |
+| con l'esito osservato (diagnostico) | 0,06 | 1,28 | 79,2% |
+
+Tre letture.
+
+1. **Escludere i blocchi è molto peggio che trattarli come semplici**: portano volume che
+   deve stare nella curva. L'assunzione attuale, per quanto imperfetta, è meglio della
+   sua alternativa banale.
+2. **I blocchi sono la causa principale identificata**: trattandoli correttamente la
+   deviazione standard dello scarto quasi si dimezza (9,11 → 5,09).
+3. **Non spiegano tutto.** Anche con il trattamento perfetto, le aste a quarto d'ora restano
+   molto meno accurate di quelle orarie (dev. standard 5,09 contro 1,36). Un residuo non
+   spiegato rimane, e va indagato: candidati sono l'accettazione parziale e i vincoli
+   inter-temporali fra quarti d'ora consecutivi.
+
+### Conseguenza su D-03: la valutazione precedente era sbagliata
+
+Il 03/08 avevo classificato l'impatto di D-03 come "basso: 0,8% delle righe". Contato in
+righe sembra trascurabile; contato in **MW e in effetto sul prezzo** è la causa principale
+dell'errore nel mercato a quarto d'ora. La valutazione è stata corretta nel registro delle
+decisioni. È esattamente l'errore contro cui mette in guardia il metodo di lavoro adottato:
+il costo di una semplificazione va misurato nell'unità in cui produce l'effetto, non in
+quella più comoda da contare.
+
+### Perché gli errori si concentrano in poche giornate
+La correlazione fra l'errore mediano della giornata e le sue caratteristiche, sulla settimana
+a quarto d'ora: errore sull'offerta 0,72, quota di offerte a granularità non prevalente 0,49,
+quota di offerte a blocchi 0,41, congestione 0,05, scambio netto 0,03. Le giornate peggiori
+sono quelle con più blocchi e più offerte orarie, non quelle congestionate né quelle con
+scambi più intensi. Nel mese orario vale lo stesso: la correlazione fra errore sul prezzo ed
+errore sull'offerta è 0,99.
+
+### Da fare
+Implementare un clearing consapevole dei blocchi: risolvere l'asta senza blocchi, accettare i
+blocchi in merito, ripetere fino a convergenza. Il guadagno atteso è quantificato sopra
+(deviazione standard da 9,11 a circa 5,09 nel caso migliore).
+
+---
+
 ## Prossimi passi
 
 1. Verificare quali zone virtuali di frontiera confinano con NORD e cosa aggiungono in

@@ -11,7 +11,7 @@ Stato: **adottata** = in uso nella pipeline · **aperta** = da decidere/validare
 |----|-----------|-------|-----|----------------|
 | D-01 | Zona NORD modellata come **isolata**: nessun import dalle zone confinanti | superata da D-10 | 2026-08-03 | Alto: prezzo ricostruito sistematicamente sopra l'ufficiale |
 | D-02 | Filtro dei dati **a due livelli**: prima `ZONE_CD`, poi un singolo `PERIOD` alla volta | adottata | 2026-08-03 | Nullo sui risultati; organizza il codice e la memoria |
-| D-03 | Ogni offerta trattata come **indipendente**: le offerte a blocchi non sono vincolate | adottata | 2026-08-03 | Basso: 0,8% delle righe nel giorno pilota |
+| D-03 | Ogni offerta trattata come **indipendente**: le offerte a blocchi non sono vincolate | adottata, ma **impatto rivalutato** il 04/08 | 2026-08-03 | **Alto sulle aste a quarto d'ora**: i blocchi sono il 2,8% delle offerte ma spostano ~880 MW per asta (5% del volume) e causano il 99,2% delle incoerenze. Trattarli correttamente dimezzerebbe la dispersione dello scarto (9,11 → 5,09). Sulle aste orarie resta basso (0,54% delle offerte) |
 | D-04 | Conversione decimale **difensiva** (accetta punto e virgola) | adottata | 2026-08-03 | Nullo: nell'XML il separatore è il punto |
 | D-05 | Analisi ristretta alla granularità **PT15** | superata da D-12 | 2026-08-03 | Valida solo per i giorni dal 01/10/2025 |
 | D-06 | Le curve d'asta si costruiscono con le offerte **`ACC` + `REJ`** (più `PREJ`, da testare) | adottata | 2026-08-03 | Molto alto: cambia il prezzo ricostruito di un ordine di grandezza |
@@ -24,6 +24,7 @@ Stato: **adottata** = in uso nella pipeline · **aperta** = da decidere/validare
 | D-13 | Nelle curve entrano le offerte di **tutte le granularità**, senza riscalare le quantità (sono potenze, non energie di periodo) | adottata | 2026-08-03 | Alto: errore mediano da 100,79 a 24,57 €/MWh sul giorno pilota |
 | D-16 | Lo **scambio netto** del perimetro entra come blocco price taker, **simmetrico**: l'import come offerta al prezzo minimo, l'export come acquisto al prezzo massimo. È calibrato sulle quantità assegnate osservate | adottata (riformulata il 04/08) | 2026-08-03 | Decisivo: errore mediano da 24,57 a 5,25 €/MWh (giorno a 15 min) e a 0,05 (giorno orario); la simmetria porta lo scarto massimo di gennaio 2025 da 85 a 15,88 €/MWh |
 | D-17 | La validazione si fa su **un mese intero**, analizzando l'errore per giorno, per ora del giorno e per presenza di congestione | adottata | 2026-08-04 | Definisce il protocollo: una giornata singola non dice se il modello è affidabile |
+| D-18 | Clearing **consapevole dei blocchi** (risolvere senza blocchi, accettare quelli in merito, iterare) invece di trattarli come offerte divisibili | aperta | — | Guadagno massimo misurato: dispersione dello scarto da 9,11 a 5,09 €/MWh sulle aste a quarto d'ora |
 | D-14 | Doppio campione: analisi principale sull'anno 2025 riportata su base oraria, più analisi di confronto sui 182 giorni a quarto d'ora (01/10/2025-31/03/2026) | adottata | 2026-08-03 | L'effetto della risoluzione temporale sul valore dell'arbitraggio diventa un risultato, non un limite |
 | D-15 | La funzione di clearing è **indipendente dalla granularità**: opera su un insieme di offerte già filtrato per zona e periodo | adottata | 2026-08-03 | Permette PT15, PT30 e PT60 con lo stesso codice e senza rami condizionali |
 
