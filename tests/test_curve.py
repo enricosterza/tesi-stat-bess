@@ -242,6 +242,62 @@ def test_offerta_oraria_entra_nel_quarto_dora_con_quantita_invariata(periodo_pt1
     assert 999 not in sel["QUANTITY_NO"].tolist()
 
 
+# --------------------------------------------------------------------------------------
+# Scambio netto con l'esterno del perimetro
+# --------------------------------------------------------------------------------------
+def test_import_abbassa_il_prezzo():
+    """
+    L'import entra come offerta al prezzo minimo e trasla l'offerta verso destra: con
+    250 MW importati la domanda viene coperta senza ricorrere all'offerta cara.
+
+        offerta interna: 300 EUR x 500      domanda: 200 EUR x 250
+        senza import -> l'unico prezzo che pareggia e' 300
+        con 250 MW di import a prezzo minimo -> l'offerta a buon mercato basta
+    """
+    df = offerte(vendite=[(300, 500)], acquisti=[(200, 250)])
+    assert curve.prezzo_equilibrio(df).prezzo == 300
+    con_import = curve.aggiungi_import(df, 250)
+    assert curve.prezzo_equilibrio(con_import).prezzo == config.PREZZO_MINIMO
+
+
+def test_export_alza_il_prezzo():
+    """
+    L'export e' domanda che viene da fuori il perimetro e compra a qualunque prezzo:
+    entra come acquisto al prezzo massimo e trasla la domanda verso destra.
+
+        offerta interna: 10 EUR x 100 | 90 EUR x 100     domanda interna: 200 EUR x 100
+        senza export -> equilibrio a 10 (bastano i primi 100 MW)
+        con 100 MW esportati -> serve anche l'offerta a 90
+    """
+    df = offerte(vendite=[(10, 100), (90, 100)], acquisti=[(200, 100)])
+    assert curve.prezzo_equilibrio(df).prezzo == 10
+    con_export = curve.aggiungi_import(df, -100)
+    assert curve.prezzo_equilibrio(con_export).prezzo == 90
+
+
+def test_scambio_netto_nullo_non_modifica_le_offerte():
+    """Un perimetro in pareggio con l'esterno non riceve alcun blocco."""
+    df = offerte(vendite=[(10, 100)], acquisti=[(50, 100)])
+    assert len(curve.aggiungi_import(df, 0)) == len(df)
+
+
+def test_import_netto_e_la_differenza_fra_quantita_assegnate():
+    """
+    L'import netto del perimetro e' la differenza fra acquisti e vendite **assegnati**:
+    se in una zona vengono acquistati 900 MW e venduti 400, i 500 mancanti arrivano da
+    fuori. Le granularita' si sommano senza riscalare, perche' sono potenze.
+    """
+    df = pd.DataFrame([
+        {"PURPOSE_CD": "BID", "AWARDED_QUANTITY_NO": 900.0, "ZONE_CD": "NORD",
+         "PERIOD": 40, "GRANULARITY": "PT15", "STATUS_CD": "ACC"},
+        {"PURPOSE_CD": "OFF", "AWARDED_QUANTITY_NO": 400.0, "ZONE_CD": "NORD",
+         "PERIOD": 40, "GRANULARITY": "PT15", "STATUS_CD": "ACC"},
+        {"PURPOSE_CD": "OFF", "AWARDED_QUANTITY_NO": 700.0, "ZONE_CD": "CSUD",
+         "PERIOD": 40, "GRANULARITY": "PT15", "STATUS_CD": "ACC"},   # fuori perimetro
+    ])
+    assert curve.import_netto(df, 40, "PT15", zone=["NORD"]) == pytest.approx(500.0)
+
+
 def test_confronto_con_ufficiale_calcola_la_frequenza_di_match():
     """
     Su quattro periodi, due prezzi ricostruiti coincidono con l'ufficiale, uno sbaglia di

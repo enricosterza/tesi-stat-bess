@@ -628,6 +628,95 @@ con le offerte di tutte le granularità, senza riscalare le quantità (sono pote
 
 ---
 
+## 2026-08-04 — Validazione su gennaio 2025 (744 aste) e correzione di D-16
+
+Scritto `scripts/03_valida_mese.py`, che esegue la ricostruzione su tutti i giorni di un
+mese e ne analizza l'errore per giorno, per ora del giorno e per presenza di congestione.
+Eseguito su **gennaio 2025**: 31 giorni, 744 aste orarie, tutte con equilibrio esistente.
+
+### Il primo passaggio ha rivelato un difetto del modello: mancava l'export
+
+Nella prima esecuzione i dieci periodi con l'errore più grande erano **tutti** periodi in cui
+NORD **esporta** (import netto negativo), con scarti fino a **-85 €/MWh** la sera del
+20/01/2025, quando NORD esportava circa 3.700 MW. Il motivo era nel codice: `aggiungi_import`
+inseriva il blocco solo quando la quantità era positiva, quindi nei periodi di export non
+succedeva nulla e l'offerta interna risultava sovrastimata, con prezzo ricostruito troppo
+basso.
+
+**Correzione (D-16 riformulata).** Lo scambio netto con l'esterno del perimetro entra in modo
+**simmetrico**:
+
+* import (scambio > 0) → offerta di vendita al prezzo minimo: energia già allocata altrove
+  che si colloca comunque, quindi offerta anelastica;
+* export (scambio < 0) → offerta di acquisto al prezzo massimo: domanda proveniente da fuori
+  il perimetro, che compra a qualunque prezzo.
+
+Il nome della grandezza resta "import netto" ma il segno conta, ed è per questo che nel
+codice il blocco è etichettato `SCAMBIO`.
+
+### Effetto della correzione
+
+| Indicatore (gennaio 2025, 744 aste) | Prima | Dopo |
+|---|---|---|
+| Scarto medio | -1,09 €/MWh | **-0,35** |
+| Deviazione standard dello scarto | 5,65 | **1,65** |
+| Scarto massimo in valore assoluto | 85,00 | **15,88** |
+| Match entro ±0,01 €/MWh | 41,0% | **44,5%** |
+| Match entro ±1 €/MWh | 73,1% | **76,7%** |
+| Match entro ±5 €/MWh | 95,4% | **98,1%** |
+| Errore mediano della giornata peggiore | 3,92 | **1,81** |
+
+Sul giorno pilota a quarto d'ora (31/03/2026) non cambia nulla, perché NORD importa in tutti
+i 96 periodi: resta errore mediano 5,25 €/MWh.
+
+### Risultati della validazione mensile
+
+**Complessivo:** mediana dello scarto **0,00 €/MWh**, media -0,35, deviazione standard 1,65.
+Il prezzo ricostruito è **esatto al centesimo nel 44,5% delle ore**, entro 1 €/MWh nel 76,7%
+ed entro 5 €/MWh nel 98,1%. Prezzo ufficiale medio del mese 143,32 €/MWh, ricostruito 142,97.
+
+**Stabilità nel tempo:** l'errore mediano giornaliero ha mediana 0,11 €/MWh e non supera mai
+1,81. Undici giornate su 31 sono ricostruite con errore mediano nullo. Non c'è deriva né
+dipendenza dal livello dei prezzi: il 20/01, giornata più cara del mese (193,93 €/MWh medi),
+ha errore mediano 0,23.
+
+**Per ora del giorno:** l'accuratezza è uniforme. Nelle ore di picco serale (18-21), che sono
+quelle in cui una batteria scaricherebbe, l'errore mediano sta fra 0,00 e 0,21 €/MWh e il
+match entro 1 €/MWh fra il 67,7% e il 90,3% — in linea con le ore notturne. È un punto
+importante: se il modello fosse impreciso proprio nelle ore di picco, la stima del ricavo da
+arbitraggio ne risentirebbe in modo sistematico.
+
+### Risultato controintuitivo: la congestione non peggiora la ricostruzione
+
+Definendo "congestionato" un periodo in cui le sette zone italiane non hanno tutte lo stesso
+prezzo (133 periodi su 744, con spread zonale mediano 15,79 €/MWh e punte di 152,42):
+
+| | Periodi | Errore mediano | Match ±1 € | Match ±5 € |
+|---|---|---|---|---|
+| Non congestionati | 611 | 0,17 | 75,9% | 97,9% |
+| Congestionati | 133 | **0,00** | **80,5%** | **99,3%** |
+
+La correlazione fra spread zonale ed errore assoluto è **0,03**, cioè nulla. Mi aspettavo il
+contrario: ignorando i limiti di transito (D-10) il modello dovrebbe soffrire proprio quando
+i vincoli sono attivi.
+
+**La spiegazione è che il blocco di scambio netto assorbe la congestione.** Lo scambio è
+calibrato sulle quantità effettivamente assegnate, e quelle quantità sono già l'esito
+dell'ottimizzazione con i vincoli di transito: il vincolo entra nel modello sotto forma di
+quantità osservata anziché di vincolo esplicito. Non è quindi vero che il modello "regge alla
+congestione"; è vero che **la congestione è stata calibrata via**, il che va detto con
+chiarezza in tesi. La conseguenza pratica è sulla simulazione della batteria: assumere lo
+scambio fisso significa assumere che una batteria in NORD non modifichi i flussi con le altre
+zone, e questa assunzione è tanto più forte quanto più il periodo è congestionato.
+
+### Errori residui
+Il caso peggiore è ora -15,88 €/MWh (03/01/2025 ore 5). Gli errori superstiti sono in
+prevalenza **negativi** (prezzo ricostruito più basso dell'ufficiale) e concentrati in poche
+giornate: 31/01 compare quattro volte fra i dieci scarti maggiori. Da capire la settimana
+prossima; una pista è la quota di offerte a granularità non prevalente in quelle giornate.
+
+---
+
 ## Prossimi passi
 
 1. Verificare quali zone virtuali di frontiera confinano con NORD e cosa aggiungono in

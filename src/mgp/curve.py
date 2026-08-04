@@ -412,23 +412,54 @@ def import_netto(
 
 def aggiungi_import(offerte: pd.DataFrame, quantita: float) -> pd.DataFrame:
     """
-    Aggiunge alla curva di offerta un blocco price taker che rappresenta l'import netto.
+    Aggiunge lo scambio netto del perimetro con l'esterno come blocco price taker.
 
-    Il blocco entra al prezzo minimo di mercato: l'energia importata e' gia' stata decisa
-    altrove e viene collocata comunque, quindi si comporta come offerta anelastica. La
-    conseguenza sul modello e' che l'import trasla la curva di offerta verso destra senza
-    modificarne la forma.
+    Parameters
+    ----------
+    offerte : pd.DataFrame
+        Offerte dell'asta.
+    quantita : float
+        Scambio netto in MW, con segno: positivo se il perimetro importa, negativo se
+        esporta (vedi `import_netto`).
+
+    Returns
+    -------
+    pd.DataFrame
+        Le offerte con in piu' il blocco di scambio.
+
+    Trattamento simmetrico dei due segni
+    ------------------------------------
+    * **Import** (quantita' > 0): entra come **offerta di vendita al prezzo minimo**.
+      E' energia gia' allocata altrove che viene collocata comunque, quindi si comporta da
+      offerta anelastica e trasla la curva di offerta verso destra.
+    * **Export** (quantita' < 0): entra come **offerta di acquisto al prezzo massimo**.
+      E' domanda proveniente da fuori il perimetro, che compra a qualunque prezzo: trasla
+      la curva di domanda verso destra.
+
+    Perche' la simmetria conta
+    --------------------------
+    Trattando solo l'import e ignorando l'export si sovrastima l'offerta disponibile
+    all'interno del perimetro e il prezzo ricostruito risulta troppo basso. Sul mese di
+    gennaio 2025, prima di introdurre il caso negativo, i dieci periodi con l'errore piu'
+    grande erano **tutti** periodi di export netto (fino a -85 €/MWh di scarto nella sera
+    del 20/01/2025, quando NORD esportava circa 3.700 MW).
     """
-    if quantita <= 0:
+    if quantita == 0:
         return offerte
-    blocco = pd.DataFrame([{
-        "PURPOSE_CD": config.PURPOSE_VENDITA,
-        "ENERGY_PRICE_NO": config.PREZZO_MINIMO,
-        "QUANTITY_NO": float(quantita),
-        "STATUS_CD": "IMPORT",
-        "ZONE_CD": "IMPORT",
-    }])
-    return pd.concat([offerte, blocco], ignore_index=True)
+    if quantita > 0:
+        blocco = {
+            "PURPOSE_CD": config.PURPOSE_VENDITA,
+            "ENERGY_PRICE_NO": config.PREZZO_MINIMO,
+            "QUANTITY_NO": float(quantita),
+        }
+    else:
+        blocco = {
+            "PURPOSE_CD": config.PURPOSE_ACQUISTO,
+            "ENERGY_PRICE_NO": config.PREZZO_MASSIMO,
+            "QUANTITY_NO": float(-quantita),
+        }
+    blocco.update({"STATUS_CD": "SCAMBIO", "ZONE_CD": "SCAMBIO"})
+    return pd.concat([offerte, pd.DataFrame([blocco])], ignore_index=True)
 
 
 def clearing_giorno(
