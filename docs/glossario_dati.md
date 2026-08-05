@@ -47,7 +47,7 @@ Giorno pilota (31/03/2026): 568.185 elementi `OfferteOperatori`, 574 MB.
 | `AWARDED_PRICE_NO` | float | Prezzo di assegnazione, €/MWh | sulle righe `ACC` = **prezzo zonale ufficiale** (D-07) |
 | `OPERATORE` | str | Ragione sociale | `Bilateralista` per i contratti bilaterali |
 | `SUBMITTED_DT` | str | Istante di presentazione | `YYYYMMDDhhmmssmmm` |
-| `BILATERAL_IN` | bool | L'offerta registra un contratto bilaterale | i bilaterali entrano a prezzo 0 (price taker) |
+| `BILATERAL_IN` | bool | L'offerta registra un contratto bilaterale | vedi la nota sui bilaterali in fondo |
 | `OFFER_TYPE` | str | `S` = semplice, `B` = a blocchi | **solo schema recente** |
 | `BLOCK_ID` | str | Identificativo del blocco | valorizzato **solo** sulle righe `OFFER_TYPE='B'` |
 | `PERIOD` | int | **Periodo del giorno** | 1-96 con PT15, 1-48 con PT30, 1-24 con PT60 |
@@ -117,6 +117,20 @@ Conseguenze operative:
   l'ora: non va divisa per quattro quando si mescolano le granularità;
 * l'energia si ottiene moltiplicando per la durata del periodo (`config.in_energia`), e
   serve solo dove conta davvero, cioè nel bilancio di carica e scarica della batteria.
+
+## I contratti bilaterali
+
+Le righe con `OPERATORE = "Bilateralista"` (e `BILATERAL_IN = true`) registrano contratti
+conclusi fuori dal mercato, che devono comunque essere programmati. Nel giorno del
+12/01/2026, zona NORD, sono il 10,5% delle righe e il **13,1% delle quantità**.
+
+Non hanno prezzo mancante: sono presentate ai **limiti di prezzo del mercato** — acquisto al
+massimo (mediana 4.000 €/MWh), vendita al minimo (mediana 0) — che è il modo di dichiarare
+una quantità da collocare a qualunque prezzo. Il 55% ha prezzo esattamente zero.
+
+Si comportano coerentemente con l'asta: **1 riga su 12.422 risulta incoerente** con il prezzo
+di equilibrio, contro lo 0,3% del resto del mercato, e nessuna è assegnata pur essendo fuori
+merito. Restano quindi nelle curve con il prezzo che dichiarano (decisione D-23).
 
 ## Quando l'archivio passa al quarto d'ora
 

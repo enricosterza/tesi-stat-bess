@@ -1105,6 +1105,72 @@ termine di confronto. Il trattamento dell'incertezza resta da impostare.
 
 ---
 
+## 2026-08-04 — D-23 · Le righe bilaterali restano nelle curve
+
+### La domanda
+Le righe con `OPERATORE = "Bilateralista"` registrano contratti conclusi fuori dal mercato.
+L'ipotesi era di escluderle dal clearing, sul presupposto che di quelle offerte non si
+conosca il prezzo ma solo la quantità.
+
+### Il presupposto non regge: un prezzo ce l'hanno
+Sul giorno del 12/01/2026, zona NORD (12.422 righe bilaterali, il 10,5% delle righe e il
+13,1% delle quantità):
+
+| Lato | Prezzo minimo | Mediana | Massimo |
+|---|---|---|---|
+| Acquisto (`BID`) | 300 | **4.000** | 4.000 |
+| Vendita (`OFF`) | 0 | **0** | 219 |
+
+Sono cioè presentate ai **limiti di prezzo del mercato**: acquisto al massimo, vendita al
+minimo. È la forma con cui si registra una quantità che deve essere collocata comunque, e il
+55,4% delle righe ha prezzo esattamente zero. Non è un dato mancante: è la dichiarazione di
+essere price taker.
+
+### Si comportano in modo perfettamente coerente con l'asta
+
+| | Righe | Incoerenti col prezzo di equilibrio | MW incoerenti per asta |
+|---|---|---|---|
+| Bilaterali | 12.422 | **1 (0,0%)** | 1 |
+| Resto del mercato | 54.208 | 175 (0,3%) | 788 |
+
+Nessuna bilaterale risulta assegnata pur essendo fuori merito, e il 98,9% di esse è
+assegnato — esattamente ciò che ci si attende da offerte ai limiti di prezzo. Sono quindi
+**già trattate correttamente** dalla ricostruzione, e non contribuiscono al residuo non
+spiegato: la loro incoerenza vale 1 MW per asta contro i 788 del resto del mercato.
+
+### La prova sperimentale
+
+| Variante (aste a quarto d'ora, 288 aste) | Errore mediano | Dev. standard | Match ±5 € |
+|---|---|---|---|
+| bilaterali incluse (attuale) | **3,04** | **9,64** | **64,9%** |
+| tolte dalle curve | 14,32 | 17,72 | 12,8% |
+| tolte da curve e scambio netto | 3,23 | 9,69 | 63,9% |
+
+| Variante (aste orarie, 72 aste) | Errore mediano | Dev. standard | Match ±5 € |
+|---|---|---|---|
+| bilaterali incluse (attuale) | 0,33 | **1,18** | **100,0%** |
+| tolte dalle curve | 9,74 | 19,54 | 30,6% |
+| tolte da curve e scambio netto | 0,23 | 1,42 | 97,2% |
+
+Toglierle dalle sole curve è disastroso, ed è prevedibile: si rimuove il 13% delle quantità
+da un lato senza riequilibrare l'altro. Toglierle anche dal calcolo dello scambio netto
+riporta il risultato in pari, ma senza alcun guadagno — leggermente peggio su quasi tutti gli
+indicatori.
+
+### Decisione
+**Le righe bilaterali restano nelle curve con il prezzo che dichiarano.** Escluderle non
+migliora la ricostruzione e toglierebbe dal modello il 13% delle quantità realmente scambiate.
+
+### Però l'intuizione dietro la domanda va tenuta
+È vero che quelle righe non esprimono una disponibilità a pagare: sono contratti già decisi.
+La conseguenza rilevante per la tesi non è sul clearing ma sull'**elasticità**: un ottavo
+delle quantità è perfettamente rigido per costruzione, e si somma alla quota di domanda
+presentata al prezzo massimo. Le curve sono quindi più ripide di quanto suggerirebbe il
+numero di offerte, e questo amplifica l'effetto che una batteria produce sul prezzo. Va
+richiamato quando si interpreteranno gli scenari di capacità.
+
+---
+
 ## Prossimi passi
 
 1. Verificare quali zone virtuali di frontiera confinano con NORD e cosa aggiungono in
