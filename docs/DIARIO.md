@@ -1021,7 +1021,7 @@ Aggiunta a questo scopo `curve.surplus()`.
 | con esito osservato (limite) | 2,29 | 5,01 | 31,4% |
 
 L'euristica recupera ora l'86% della riduzione di dispersione ottenibile, contro il 13% della
-versione precedente, e **l'oscillazione sparisce**: 0 giornate su 7 contro 4 su 7. Sulle aste
+versione precedente. Sulle aste
 orarie raggiunge o supera di un soffio il limite (dev. standard 1,06 contro 1,07 dell'oracolo:
 la selezione per surplus può scegliere una configurazione che si adatta meglio dell'esito
 osservato, il che non è un paradosso ma il segno che le due soluzioni sono ormai equivalenti).
@@ -1168,6 +1168,56 @@ delle quantità è perfettamente rigido per costruzione, e si somma alla quota d
 presentata al prezzo massimo. Le curve sono quindi più ripide di quanto suggerirebbe il
 numero di offerte, e questo amplifica l'effetto che una batteria produce sul prezzo. Va
 richiamato quando si interpreteranno gli scenari di capacità.
+
+---
+
+## 2026-08-04 — Correzione: l'oscillazione dell'euristica non è sparita
+
+Nella voce di oggi su D-19 avevo scritto che l'oscillazione dell'euristica sui blocchi
+spariva, "0 giornate su 7 contro 4 su 7". **È sbagliato**, e la frase è stata rimossa.
+
+L'errore è nell'indicatore, non nella misura. Contavo come oscillanti le giornate che
+arrivavano al limite di iterazioni, criterio valido per la versione precedente. La nuova
+versione però **esce appena rivede una configurazione già visitata**, quindi si ferma dopo
+due o tre iterazioni anche quando oscilla: il conteggio delle iterazioni ha smesso di
+misurare ciò che credevo misurasse.
+
+Guardando il flag di convergenza, che è l'unico indicatore valido:
+
+| Campione | Giornate con punto fisso | Senza punto fisso |
+|---|---|---|
+| Gennaio 2025, 31 giornate orarie | 29 | **2** |
+| 12-18 gennaio 2026, 7 giornate a quarto d'ora | 1 | **6** |
+
+L'oscillazione è quindi la norma nel mercato a quarto d'ora, dove i blocchi sono trenta al
+giorno. Quello che D-19 ha cambiato non è la convergenza ma **cosa si fa quando non
+converge**: prima si restituiva l'ultima configurazione raggiunta, che dipendeva solo da dove
+si era interrotta l'iterazione; ora si sceglie fra quelle visitate con un criterio economico.
+Il guadagno misurato — deviazione standard da 8,83 a 5,40 — resta valido, perché confronta i
+prezzi ricostruiti, non la convergenza.
+
+Le giornate senza punto fisso si ricostruiscono peggio delle altre (errore mediano 2,59
+contro 1,67 sul campione a quarto d'ora), il che è coerente: sono quelle in cui la soluzione
+d'asta è genuinamente più difficile da riprodurre.
+
+Corretto anche lo script che riportava l'indicatore sbagliato, e aggiunta la colonna di
+convergenza al report di validazione, così l'informazione sta nel documento e non solo nel
+codice.
+
+---
+
+## 2026-08-04 — Script di validazione allineato alla configurazione adottata
+
+`scripts/03_valida_mese.py` usava ancora il clearing che tratta i blocchi come divisibili,
+mentre la configurazione adottata li tratta come indivisibili (D-18, D-19): i numeri di
+validazione "ufficiali" non coincidevano con quelli della pipeline in uso. Ora lo script usa
+la configurazione adottata e l'opzione `--blocchi-divisibili` riproduce la variante di
+confronto. Aggiunte al report per giornata le colonne dei blocchi accettati e della
+convergenza.
+
+Validazione rieseguita, e i numeri coincidono ora con quelli dello script diagnostico:
+gennaio 2025, 744 aste, errore mediano 0,00 €/MWh, deviazione standard 1,06, prezzo esatto nel
+52,3% delle ore, entro 5 €/MWh nel 99,5%, scarto compreso fra -4,37 e +6,61.
 
 ---
 

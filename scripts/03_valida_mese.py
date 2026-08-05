@@ -22,8 +22,13 @@ La domanda a cui questo script risponde non e' solo "quanto sbaglia" ma "**dove*
 Configurazione adottata
 -----------------------
 Perimetro NORD piu' le zone virtuali di frontiera confinanti (D-10), offerte in gara
-`ACC`+`REJ`+`PREJ` (D-06), tutte le granularita' (D-13), blocco di import netto (D-16),
-granularita' dell'asta dedotta dalla data (D-12).
+`ACC`+`REJ`+`PREJ` (D-06), tutte le granularita' (D-13), quantita' rettificata (D-20),
+blocco di scambio netto simmetrico (D-16), clearing consapevole delle offerte a blocchi
+(D-18 e D-19), granularita' dell'asta dedotta dalla data (D-12).
+
+L'opzione `--blocchi-divisibili` esegue la variante che tratta i blocchi come offerte
+frazionabili: serve a misurare quanto vale il trattamento corretto, non e' la
+configurazione adottata.
 
 Esecuzione
 ----------
@@ -103,6 +108,8 @@ def main() -> None:
     parser.add_argument("--da", help="prima data da elaborare, formato AAAAMMGG")
     parser.add_argument("--a", help="ultima data da elaborare, formato AAAAMMGG")
     parser.add_argument("--etichetta", help="nome da usare nei file prodotti (default: il mese)")
+    parser.add_argument("--blocchi-divisibili", action="store_true",
+                        help="tratta le offerte a blocchi come frazionabili (variante di confronto)")
     parser.add_argument("--no-cache", action="store_true")
     args = parser.parse_args()
 
@@ -125,7 +132,11 @@ def main() -> None:
     )
     out(_sezione(f"VALIDAZIONE {etichetta} — {len(giorni)} giorni"))
     out("Configurazione: perimetro NORD + frontiere confinanti (D-10), offerte in gara")
-    out("ACC+REJ+PREJ (D-06), tutte le granularita' (D-13), blocco di import netto (D-16).")
+    out("ACC+REJ+PREJ (D-06), tutte le granularita' (D-13), quantita' rettificata (D-20),")
+    out("blocco di scambio netto simmetrico (D-16).")
+    out("Offerte a blocchi: " + ("trattate come divisibili (variante di confronto)."
+                                 if args.blocchi_divisibili
+                                 else "clearing iterativo consapevole (D-18, D-19)."))
 
     tutti = []
     per_giorno = []
@@ -138,8 +149,13 @@ def main() -> None:
         zone_presenti = set(df["ZONE_CD"].dropna().unique())
         perimetro = ["NORD"] + [z for z in config.ZONE_FRONTIERA_NORD if z in zone_presenti]
 
-        ric = curve.clearing_giorno(df, granularita=granularita, zone=perimetro,
-                                    includi_altra_granularita=True, con_import=True)
+        if args.blocchi_divisibili:
+            ric = curve.clearing_giorno(df, granularita=granularita, zone=perimetro,
+                                        includi_altra_granularita=True, con_import=True)
+        else:
+            ric = curve.clearing_giorno_con_blocchi(df, granularita=granularita, zone=perimetro,
+                                                    includi_altra_granularita=True,
+                                                    con_import=True)
         uff = io_gme.prezzi_ufficiali(df[df["ZONE_CD"] == "NORD"], granularita=granularita)
 
         giorno = (
@@ -158,6 +174,9 @@ def main() -> None:
         esito["prezzo_medio_ufficiale"] = float(uff["prezzo_ufficiale"].mean())
         esito["import_medio_MW"] = float(ric["import_netto"].mean())
         esito["periodi_congestionati"] = int(giorno["congestionato"].sum())
+        if "blocchi_accettati" in ric.columns:
+            esito["blocchi"] = f"{int(ric['blocchi_accettati'].iloc[0])}/{int(ric['blocchi_totali'].iloc[0])}"
+            esito["convergenza"] = bool(ric["convergenza"].iloc[0])
         per_giorno.append(esito)
 
         out(f"  [{i:>2}/{len(giorni)}] {data}  {granularita}  "
@@ -187,9 +206,14 @@ def main() -> None:
 
     # ----------------------------------------------------------------------------------
     out(_sezione("B. STABILITA' NEL TEMPO (per giorno)"))
-    out(tab_giorni[["prezzo_medio_ufficiale", "errore_mediano", "bias_mediano",
-                    "match_1.0", "match_5.0", "import_medio_MW",
-                    "periodi_congestionati"]].round(2).to_string())
+    colonne_giorno = ["prezzo_medio_ufficiale", "errore_mediano", "bias_mediano",
+                      "match_1.0", "match_5.0", "import_medio_MW", "periodi_congestionati"]
+    colonne_giorno += [c for c in ("blocchi", "convergenza") if c in tab_giorni.columns]
+    out(tab_giorni[colonne_giorno].round(2).to_string())
+    if "convergenza" in tab_giorni.columns:
+        non_convergenti = int((~tab_giorni["convergenza"]).sum())
+        out(f"\nGiornate in cui l'euristica sui blocchi non converge: {non_convergenti} "
+            f"su {len(tab_giorni)}")
     out("\nDispersione fra giornate:")
     out(tab_giorni[["errore_mediano", "bias_mediano", "match_1.0", "match_5.0"]]
         .describe().round(2).to_string())

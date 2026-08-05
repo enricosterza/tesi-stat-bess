@@ -92,7 +92,8 @@ def varianti_giorno(data: str) -> pd.DataFrame:
                 "prezzo_uff": prezzi_uff[periodo],
                 "blocchi_accettati": iterativo.loc[periodo, "blocchi_accettati"],
                 "blocchi_totali": iterativo.loc[periodo, "blocchi_totali"],
-                "iterazioni": iterativo.loc[periodo, "iterazioni"]}
+                "iterazioni": iterativo.loc[periodo, "iterazioni"],
+                "convergenza": iterativo.loc[periodo, "convergenza"]}
         for nome, prezzo in prezzi.items():
             voce[nome] = prezzo
         righe.append(voce)
@@ -278,9 +279,13 @@ def main() -> None:
         100 * per_giorno["blocchi_accettati"] / per_giorno["blocchi_totali"]
     ).round(1)
     out(per_giorno.to_string())
-    non_convergenti = int((per_giorno["iterazioni"] >= 15).sum())
-    out(f"\nGiornate in cui l'euristica non converge (oscillazione): {non_convergenti} "
-        f"su {len(per_giorno)}")
+    # Attenzione: il numero di iterazioni NON indica la convergenza. L'euristica esce
+    # appena rivede una configurazione gia' visitata, quindi anche quando oscilla si ferma
+    # dopo poche iterazioni. L'unico indicatore valido e' il punto fisso raggiunto.
+    if "convergenza" in varianti.columns:
+        conv = varianti.groupby("data")["convergenza"].first()
+        out(f"\nGiornate in cui l'euristica raggiunge il punto fisso: {int(conv.sum())} "
+            f"su {len(conv)}; nelle altre la configurazione e' scelta per surplus (D-19).")
 
     # ----------------------------------------------------------------------------------
     out(_sezione("B. IL RESIDUO: ACCETTAZIONE PARZIALE"))
