@@ -190,22 +190,44 @@ def main() -> None:
         f"nel campione con la sola erosione assoluta.")
 
     # ----------------------------------------------------------------------------------
-    out(_sezione("B. LA SOGLIA K*"))
+    out(_sezione("B. IL PAVIMENTO DI DISCRETEZZA"))
+    out("A capacita' minuscole l'erosione misurata non e' un effetto di mercato ma della")
+    out("discretezza delle curve: in qualche periodo l'equilibrio cade sul bordo di un")
+    out("gradino e bastano pochi MW a farlo saltare. Si misura alla capacita' piu' piccola")
+    out("della griglia e si sottrae giorno per giorno.")
+    erosioni = bt.sottrai_pavimento(erosioni)
+    capacita_minima = float(erosioni["potenza_mw"].min())
+    pavimento = erosioni.loc[erosioni["potenza_mw"] == capacita_minima, "erosione_relativa"]
+    out(f"\nPavimento misurato a {capacita_minima:.0f} MW: mediana {pavimento.median():.2%}, "
+        f"80° percentile {pavimento.quantile(0.8):.2%}, "
+        f"90° percentile {pavimento.quantile(0.9):.2%}, massimo {pavimento.max():.2%}")
+    if pavimento.quantile(args.quantile) >= args.soglia / 2:
+        out("ATTENZIONE: il pavimento e' almeno la meta' della soglia dichiarata. A questo")
+        out("livello la soglia non e' interpretabile: alzare la soglia o migliorare la")
+        out("risoluzione della ricostruzione.")
+
+    # ----------------------------------------------------------------------------------
+    out(_sezione("C. LA SOGLIA K*"))
     out("K* e' la capacita' alla quale il quantile prudenziale dell'erosione attraversa la")
     out("soglia dichiarata. L'intervallo di confidenza al 90% viene dal ricampionamento dei")
     out("giorni con reimmissione: un giorno entra o esce con tutta la sua curva.")
     complessiva = bt.bootstrap_soglia(erosioni, soglia=args.soglia, quantile=args.quantile,
-                                      n_boot=args.n_boot)
-    out("\n" + complessiva.round(1).to_string(index=False))
+                                      n_boot=args.n_boot, colonna_erosione="erosione_netta")
+    lorda = bt.bootstrap_soglia(erosioni, soglia=args.soglia, quantile=args.quantile,
+                                n_boot=args.n_boot)
+    out("\nAl netto del pavimento (stima adottata):")
+    out(complessiva.round(1).to_string(index=False))
+    out("\nSull'erosione lorda, per confronto:")
+    out(lorda.round(1).to_string(index=False))
 
     # ----------------------------------------------------------------------------------
-    out(_sezione("C. STRATIFICAZIONE (D-28)"))
+    out(_sezione("D. STRATIFICAZIONE (D-28)"))
     out("La soglia non e' stazionaria: dipende dal mix produttivo e dal livello dei prezzi.")
     for colonna in ("stagione", "anno"):
         if erosioni[colonna].nunique() > 1:
             tabella = bt.bootstrap_soglia(erosioni, soglia=args.soglia,
                                           quantile=args.quantile, n_boot=args.n_boot,
-                                          strato=colonna)
+                                          strato=colonna, colonna_erosione="erosione_netta")
             out(f"\nPer {colonna}:")
             out(tabella.round(1).to_string(index=False))
         else:

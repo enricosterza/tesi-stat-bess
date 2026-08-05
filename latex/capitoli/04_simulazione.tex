@@ -268,17 +268,21 @@ durata dell'accumulo, e il campione di giorni su cui la si simula.
 
 \subsection{La griglia di capacit\`a}
 
-La capacit\`a aggregata varia su una griglia da poche decine di megawatt ad alcuni gigawatt.
-La scelta degli estremi merita una nota, perch\'e la prima versione era sbagliata: partendo
-dal volume complessivo del mercato — in zona NORD si scambiano fra 15 e 25~GW per asta — si
-era fissata una griglia che iniziava a 250~MW, ritenendo marginale tutto ci\`o che stava
-sotto. La prima simulazione ha smentito il ragionamento, perch\'e gi\`a a 250~MW l'erosione
-risultava di alcuni punti percentuali e la soglia cadeva fuori griglia.
+La capacit\`a aggregata varia su una griglia da 1~MW a 6~GW, infittita nella parte bassa.
+La scelta degli estremi merita una nota, perch\'e le prime due versioni erano inadeguate.
 
-La ragione \`e che ci\`o che determina l'effetto sul prezzo non \`e il volume complessivo
-scambiato ma la \textbf{pendenza della curva attorno all'equilibrio}, dove i gradini sono
-pochi e larghi. Un accumulo di taglia piccola rispetto al mercato pu\`o quindi essere grande
+La prima partiva da 250~MW, ragionando sul volume complessivo del mercato — in zona NORD si
+scambiano fra 15 e 25~GW per asta — e ritenendo marginale tutto ci\`o che stava sotto. La
+simulazione ha smentito il ragionamento: gi\`a a 250~MW l'erosione risultava di alcuni punti
+percentuali e la soglia cadeva fuori griglia. Ci\`o che determina l'effetto sul prezzo non \`e
+infatti il volume complessivo ma la \textbf{pendenza della curva attorno all'equilibrio}, dove
+i gradini sono pochi e larghi: un accumulo piccolo rispetto al mercato pu\`o essere grande
 rispetto alla porzione di curva che effettivamente attraversa.
+
+La seconda partiva da 25~MW e risolveva la soglia principale, ma non quelle definite su
+livelli di erosione pi\`u stringenti, che continuavano a cadere sul primo punto. La griglia
+definitiva scende fino a 1~MW, il che ha anche permesso di individuare e correggere il
+pavimento di discretezza discusso nella Sezione~\ref{sec:pavimento}.
 
 \subsection{La durata}
 
@@ -458,6 +462,64 @@ definita nella Sezione~\ref{sec:erosione}:
 
 Le curve e i prezzi di riferimento si calcolano una sola volta per giornata e si riusano per
 tutte le capacit\`a: cambia soltanto il profilo che vi si inserisce.
+
+\subsection{Ispezione delle curve nei periodi estremi}
+\label{sec:ispezione}
+
+Il risultato dipende interamente dalla pendenza della curva di offerta nelle ore in cui
+l'accumulo opera, cio\`e quella di minimo e quella di massimo prezzo. Poich\'e una pendenza
+sostenuta da poche offerte isolate renderebbe il risultato fragile, le curve sono state
+ispezionate direttamente (Figura~\ref{fig:curve}).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{07_curve_20250120}
+\caption{Curve aggregate di domanda e offerta ricostruite per l'ora di minimo (in alto) e
+         quella di picco (in basso) del 20 gennaio 2025, in vista completa e ingrandite
+         attorno all'equilibrio. I punti sulla curva di offerta sono i singoli gradini.}
+\label{fig:curve}
+\end{figure}
+
+L'ispezione conferma tre cose. La pendenza attorno all'equilibrio poggia su \textbf{decine di
+gradini}: nella finestra ingrandita ne cadono fra 39 e 62, ed entro $\pm 20$~\euromwh{} dal
+prezzo di equilibrio si contano fra 42 e 72 offerte di vendita per 3.500-5.500~MW, la maggiore
+delle quali vale circa un decimo del totale locale. Le offerte presentate ai \textbf{limiti di
+prezzo} — il blocco a $-500$~\euromwh{} che occupa i primi migliaia di megawatt e la domanda
+price taker a 4.000 — stanno agli estremi della curva e non toccano la regione di equilibrio.
+Il prezzo ricostruito \textbf{cade dove atteso}: coincide con quello ufficiale al centesimo in
+tre dei quattro periodi ispezionati, e nel quarto differisce di 1{,}50~\euromwh{} in un
+periodo in cui la curva di offerta \`e visibilmente pi\`u piatta attorno all'incrocio.
+
+Una caratteristica emerge con chiarezza dai grafici: la \textbf{curva di domanda \`e quasi
+verticale} in corrispondenza dell'equilibrio, in tutti i periodi ispezionati. L'effetto
+dell'accumulo passa quindi quasi interamente attraverso la curva di offerta, e ci\`o spiega
+perch\'e sia la pendenza di quest'ultima a determinare la soglia.
+
+\subsection{Il pavimento di discretezza}
+\label{sec:pavimento}
+
+Le curve ricostruite sono funzioni a gradini, e questo introduce un effetto che va corretto
+prima di interpretare i risultati alle capacit\`a pi\`u piccole.
+
+Con una griglia fitta nella parte bassa si osserva che fra 1 e 15~MW l'erosione \textbf{non
+cresce}: resta attorno all'1-1{,}5\% in mediana. Un effetto di mercato dovrebbe invece scalare
+con la capacit\`a installata. L'esame periodo per periodo mostra la ragione: a 1~MW il prezzo
+si muove mediamente in un periodo e mezzo su una decina in cui l'accumulo opera, ma quando si
+muove \textbf{salta di un gradino intero}, fra 1{,}8 e 2{,}7~\euromwh{}. Non \`e uno
+spostamento graduale: sono gli equilibri che cadono esattamente sul bordo di un gradino e che
+pochi megawatt fanno scattare a quello successivo.
+
+Nel mercato reale il fenomeno non si presenta allo stesso modo, perch\'e l'offerta marginale
+viene accettata parzialmente e l'incrocio cade all'interno del gradino. Si tratta quindi di un
+\textbf{artefatto della ricostruzione}, non di un fenomeno da misurare.
+
+Il pavimento viene misurato alla capacit\`a pi\`u piccola della griglia — dove per costruzione
+non pu\`o esserci effetto di mercato — e sottratto giorno per giorno. Vale l'1{,}0\% in
+mediana e il 3{,}6\% al 90\textsuperscript{o} percentile. La correzione sposta la soglia in
+modo sistematico, e in misura tanto maggiore quanto pi\`u basso \`e il livello di erosione
+scelto: a un livello del 20\% la sposta dell'11\%, al 10\% del 22\%, al 5\% del 129\%. Ne segue
+che \textbf{una soglia fissata al 5\% non \`e utilizzabile}, perch\'e il pavimento \`e
+comparabile alla soglia stessa.
 
 \subsection{Dal campione alla soglia: il bootstrap}
 \label{sec:bootstrap}

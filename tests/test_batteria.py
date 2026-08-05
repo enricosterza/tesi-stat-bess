@@ -381,6 +381,36 @@ def test_la_curva_di_erosione_riassume_i_quantili_per_capacita():
     assert (curva["n_giorni"] == 2).all()
 
 
+def test_il_pavimento_si_sottrae_giorno_per_giorno():
+    """
+    Il pavimento e' l'erosione misurata alla capacita' piu' piccola, che per costruzione non
+    puo' essere un effetto di mercato. Va sottratto **per giornata**, perche' dipende da dove
+    cade l'equilibrio in quella giornata, non da una costante generale.
+    """
+    tabella = pd.DataFrame({
+        "data": ["d1", "d1", "d1", "d2", "d2", "d2"],
+        "potenza_mw": [1.0, 100.0, 200.0, 1.0, 100.0, 200.0],
+        "erosione_relativa": [0.02, 0.05, 0.09, 0.00, 0.04, 0.10],
+    })
+    netta = bt.sottrai_pavimento(tabella)
+    assert netta["erosione_netta"].tolist() == pytest.approx([0.0, 0.03, 0.07, 0.0, 0.04, 0.10])
+
+
+def test_il_pavimento_non_produce_valori_negativi():
+    """
+    Se in una giornata l'erosione a capacita' grande fosse minore del pavimento — puo'
+    succedere perche' il salto di gradino sparisce quando la curva si sposta — il risultato
+    va troncato a zero invece di diventare negativo, che non avrebbe senso.
+    """
+    tabella = pd.DataFrame({
+        "data": ["d1", "d1"],
+        "potenza_mw": [1.0, 100.0],
+        "erosione_relativa": [0.05, 0.02],
+    })
+    netta = bt.sottrai_pavimento(tabella)
+    assert netta["erosione_netta"].tolist() == pytest.approx([0.0, 0.0])
+
+
 def test_la_soglia_richiede_le_colonne_attese():
     """Un errore esplicito e' meglio di un risultato calcolato su dati incompleti."""
     with pytest.raises(ValueError, match="colonne mancanti"):

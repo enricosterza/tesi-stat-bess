@@ -728,6 +728,60 @@ def _attraversamento(griglia: np.ndarray, valori: np.ndarray, soglia: float) -> 
     return x0 + (soglia - y0) * (x1 - x0) / (y1 - y0)
 
 
+def sottrai_pavimento(
+    erosioni: pd.DataFrame,
+    capacita_minima: float | None = None,
+    colonna_erosione: str = "erosione_relativa",
+    nome_colonna: str = "erosione_netta",
+) -> pd.DataFrame:
+    """
+    Toglie dall'erosione il "pavimento" dovuto alla discretezza della ricostruzione.
+
+    Parameters
+    ----------
+    erosioni : pd.DataFrame
+        Tabella giorno x capacita' con l'erosione.
+    capacita_minima : float | None
+        Capacita' che rappresenta l'assenza di effetto. Default: la piu' piccola presente
+        nella griglia, che va scelta abbastanza piccola da non poter muovere il mercato.
+    colonna_erosione, nome_colonna : str
+        Colonna di partenza e nome della colonna aggiunta.
+
+    Returns
+    -------
+    pd.DataFrame
+        La tabella con in piu' la colonna dell'erosione netta, troncata a zero.
+
+    Il problema che risolve
+    -----------------------
+    A capacita' minuscole l'erosione misurata non e' nulla, ma non e' nemmeno un effetto di
+    mercato: e' l'effetto della **discretezza delle curve ricostruite**. In alcuni periodi
+    l'equilibrio cade esattamente sul bordo di un gradino, e bastano pochi megawatt a farlo
+    saltare al gradino successivo, con un salto di prezzo di alcuni euro. Misurato sui dati:
+    a 1 MW di capacita' aggregata il prezzo si muove in media in 1,5 periodi su una decina,
+    ma quando si muove salta di 1,8-2,7 €/MWh; e l'erosione a 1 MW e a 5 MW e' praticamente
+    identica, mentre un effetto reale dovrebbe crescere con la capacita'.
+
+    Nel mercato vero questo non accade allo stesso modo, perche' l'offerta marginale viene
+    accettata parzialmente e l'incrocio cade all'interno del gradino: il pavimento e' quindi
+    un artefatto della ricostruzione a gradini, non un fenomeno da misurare.
+
+    Il pavimento vale circa l'1% in mediana e il 3,6% al novantesimo percentile: e' quindi
+    trascurabile rispetto a una soglia del 20%, rilevante rispetto a una del 10%, e
+    **comparabile alla soglia stessa** se la si fissasse al 5%, che percio' non e'
+    utilizzabile.
+    """
+    if capacita_minima is None:
+        capacita_minima = float(erosioni["potenza_mw"].min())
+    pavimento = (erosioni[erosioni["potenza_mw"] == capacita_minima]
+                 .set_index("data")[colonna_erosione])
+    risultato = erosioni.copy()
+    risultato[nome_colonna] = (
+        risultato[colonna_erosione] - risultato["data"].map(pavimento)
+    ).clip(lower=0.0)
+    return risultato
+
+
 def bootstrap_soglia(
     erosioni: pd.DataFrame,
     soglia: float = 0.10,

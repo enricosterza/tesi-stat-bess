@@ -1328,6 +1328,128 @@ un'approssimazione valida solo per effetti piccoli sarebbe circolare.
 
 ---
 
+## 2026-08-04 — Consolidamento su gennaio: tre controlli sui risultati, prima di estendere
+
+Prima di allargare il campione si è verificato che i numeri ottenuti — soglia attorno ai
+60 MW ed erosione oltre il 100% per capacità grandi — siano economia e non artefatti. Nessun
+dato nuovo: solo controlli su quanto già calcolato.
+
+### Controllo 1 · Le curve nei periodi estremi reggono
+
+Scritto `src/mgp/grafici.py` e `scripts/07_ispezione_curve.py`. Ispezionate l'ora di minimo e
+quella di picco di due giornate scelte per differenziale mediano (30/01) e massimo (20/01).
+
+**La pendenza non dipende da poche offerte isolate.** Nella finestra di ingrandimento cadono
+39-62 gradini di offerta; entro ±20 €/MWh dall'equilibrio ci sono 42-72 offerte di vendita per
+3.500-5.500 MW, e la più grande vale 406-530 MW, cioè circa un decimo del totale locale.
+
+**Le offerte ai prezzi limite non distorcono la regione rilevante.** Sono 13-14 per periodo e
+stanno agli estremi della curva: il blocco a −500 €/MWh occupa i primi 2.000-4.500 MW, la
+domanda price taker sta a 4.000 €/MWh. L'equilibrio è lontano da entrambi.
+
+**L'equilibrio cade dove deve**: coincide col prezzo ufficiale al centesimo in tre periodi su
+quattro; nel quarto lo scarto è 1,50 €/MWh, e il grafico mostra che lì la curva di offerta è
+insolitamente piatta attorno all'incrocio, coerentemente con quanto già noto.
+
+**Un fatto emerso dai grafici**: la curva di domanda è quasi verticale all'equilibrio in tutti
+e quattro i periodi. L'effetto dell'accumulo passa quindi quasi interamente dalla curva di
+offerta, il che spiega perché la pendenza di quest'ultima determini il risultato.
+
+**La pendenza misurata** (variazione di prezzo iniettando potenza):
+
+| Potenza | Scaricando | Caricando |
+|---|---|---|
+| 100 MW | 0,00 €/MWh | 0,00 / +0,34 |
+| 500 MW | −3,6 / −5,8 | +0,4 / +6,0 |
+| 1500 MW | −7,9 / −14,0 | +5,7 / +9,0 |
+
+A 100 MW il prezzo spesso non si muove affatto, perché l'equilibrio cade in mezzo a un gradino
+largo. È il primo indizio del punto che emerge nel controllo 3.
+
+### Controllo 2 · Il profitto negativo è economia reale
+
+Scritto `scripts/08_debug_erosione.py`, che traccia periodo per periodo prezzo di riferimento,
+prezzo ricalcolato, quantità e contributo al profitto.
+
+**Nessuna riottimizzazione nascosta.** Il controllo esplicito passa su tutte le capacità
+ispezionate: il piano usato coincide con quello ottimo sui prezzi di riferimento. E a
+1500 MW ottimizzare sui prezzi nuovi darebbe un piano **diverso**, il che conferma che la
+distinzione fra lo scenario non coordinato e quello con riottimizzazione è sostanziale.
+
+**Il meccanismo del profitto negativo**, 02/01/2025 con 1500 MW aggregati:
+
+| | Prezzi di riferimento | Con la flotta |
+|---|---|---|
+| Prezzo medio nei periodi di carica | 125,31 | **139,85** |
+| Prezzo medio nei periodi di scarica | 161,14 | **140,83** |
+
+La flotta finisce per comprare a 141,56 €/MWh e vendere a 140,88: **ha annientato il
+differenziale che stava sfruttando**, e sul residuo perde per il rendimento di ciclo (compra
+11.302 MWh, ne rivende 10.200). Profitto price maker −162.921 € contro i +235.447 attesi,
+erosione 169%.
+
+È economia reale, e va trattato come risultato sostanziale: una flotta non coordinata che
+ignora il proprio effetto non solo erode il margine, ma può distruggerlo del tutto e operare
+in perdita. È esattamente la conseguenza dell'assenza di coordinamento, non un difetto del
+calcolo.
+
+**Un'ipotesi di artefatto verificata e scartata.** Si sospettava che l'erosione relativa fosse
+dominata dal denominatore, cioè che i quantili alti fossero semplicemente le giornate a basso
+differenziale. La correlazione fra differenziale giornaliero ed erosione relativa è però solo
+−0,20 a 25 MW (−0,48 a 1500 MW), e soprattutto l'erosione **assoluta** varia di sessanta volte
+fra le giornate: da 5,79 € a 362,82 € a parità di 25 MW installati. La variabilità è quindi
+nelle curve, non nel denominatore, ed è la ragione per cui la soglia è stocastica: in certe
+giornate l'equilibrio cade su un gradino stretto e pochi MW bastano ad attraversarlo, in altre
+cade in mezzo a un gradino largo e 25 MW non spostano nulla.
+
+### Controllo 3 · La griglia infittita, e un pavimento da correggere
+
+Rifatto il calcolo con griglia da 1 a 6000 MW e passo fine in basso (22 valori). Nessuna delle
+soglie cade più sul bordo: la stima principale passa da 61,4 a **59,7 MW**, praticamente
+invariata, il che conferma che la griglia grossolana non la distorceva.
+
+**Ma la griglia fine ha rivelato un problema.** Fra 1 e 15 MW l'erosione non cresce: resta
+piatta attorno all'1-1,5% in mediana. Un effetto di mercato dovrebbe scalare con la capacità.
+
+L'indagine mostra che a quelle capacità l'erosione non è uno spostamento graduale del prezzo:
+a 1 MW il prezzo si muove in media in **1,5 periodi su una decina di periodi attivi**, e quando
+si muove salta di 1,8-2,7 €/MWh, cioè di un gradino intero. Su una giornata non si muove
+affatto. È l'effetto degli equilibri che cadono **esattamente sul bordo di un gradino**: pochi
+megawatt bastano a farli scattare al gradino successivo.
+
+Nel mercato vero questo non accade allo stesso modo, perché l'offerta marginale viene accettata
+parzialmente e l'incrocio cade all'interno del gradino. È quindi un **artefatto della
+ricostruzione a gradini**, non un fenomeno da misurare.
+
+**Entità del pavimento** (erosione misurata a 1 MW): mediana 1,01%, 80° percentile 2,83%,
+90° percentile 3,56%, massimo 5,20%.
+
+**Correzione adottata (D-30).** Si sottrae, giorno per giorno, l'erosione misurata alla
+capacità più piccola della griglia, che per costruzione non può essere effetto di mercato.
+Effetto sulla soglia:
+
+| Quantile e livello | K* lorda | K* netta |
+|---|---|---|
+| 90°, 5% | 14,9 MW | 34,1 MW |
+| 90°, 10% | 59,7 MW | **73,1 MW** (67-120) |
+| 90°, 20% | 206,2 MW | 229,3 MW |
+| 80°, 10% | 101,3 MW | 119,8 MW |
+
+Il pavimento sposta la stima principale del 22%, dentro l'intervallo di confidenza ma in modo
+sistematico. Sulla soglia al 20% l'effetto è dell'11%, su quella al 5% è del 129%: **la soglia
+al 5% non è utilizzabile**, perché il pavimento è comparabile alla soglia stessa. Lo script
+ora segnala esplicitamente questa condizione.
+
+La curva dell'erosione netta si comporta come deve: nulla a 1-2 MW e crescente da lì.
+
+### Che cosa cambia nei risultati
+La stima adottata per gennaio 2025 diventa **K\* = 73 MW, intervallo 67-120**, al 90° percentile
+con soglia del 10%, al netto del pavimento. Resta un valore molto basso rispetto ai 15-25 GW
+scambiati per asta, e la spiegazione confermata dal controllo 1 è che l'accumulo opera nelle
+ore estreme, dove la curva è ripida, non nell'ora media.
+
+---
+
 ## Prossimi passi
 
 1. Verificare quali zone virtuali di frontiera confinano con NORD e cosa aggiungono in
