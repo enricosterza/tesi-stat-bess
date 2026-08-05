@@ -461,6 +461,52 @@ def intervallo_equilibrio(offerte: pd.DataFrame, tolleranza: float = 1e-6) -> di
     }
 
 
+def offerte_giornata(
+    df: pd.DataFrame,
+    granularita: str,
+    zone: list[str] | str | None = None,
+    stati: list[str] | None = None,
+    includi_altra_granularita: bool = True,
+    con_import: bool = True,
+) -> dict[int, pd.DataFrame]:
+    """
+    Prepara le offerte di tutte le aste di una giornata, gia' pronte per il clearing.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Offerte del giorno.
+    granularita, zone, stati, includi_altra_granularita
+        Come in `offerte_periodo`.
+    con_import : bool
+        Se True include in ciascun periodo il blocco di scambio netto (D-16).
+
+    Returns
+    -------
+    dict[int, pd.DataFrame]
+        Periodo -> offerte dell'asta corrispondente.
+
+    A che serve
+    -----------
+    Le curve di una giornata non dipendono dal profilo dell'accumulo che vi si inserira':
+    calcolarle una volta sola ed estrarle da qui evita di rifiltrare il DataFrame per ogni
+    valore di capacita' simulato. Su una griglia di dieci capacita' per trecento giorni la
+    differenza non e' trascurabile.
+    """
+    periodi = sorted(
+        df.loc[df["GRANULARITY"] == granularita, "PERIOD"].dropna().unique().tolist()
+    )
+    preparate: dict[int, pd.DataFrame] = {}
+    for periodo in periodi:
+        periodo = int(periodo)
+        off = offerte_periodo(df, periodo, granularita, zone=zone, stati=stati,
+                              includi_altra_granularita=includi_altra_granularita)
+        if con_import:
+            off = aggiungi_import(off, import_netto(df, periodo, granularita, zone=zone))
+        preparate[periodo] = off
+    return preparate
+
+
 def import_netto(
     df: pd.DataFrame,
     periodo: int,

@@ -222,6 +222,171 @@ def test_i_cicli_equivalenti_contano_gli_svuotamenti():
     assert esito.energia_ciclata_mwh == pytest.approx(100.0)
 
 
+# --------------------------------------------------------------------------------------
+# Erosione di profitto: i due profitti a piano invariato
+# --------------------------------------------------------------------------------------
+def test_i_due_profitti_coincidono_se_la_taglia_e_trascurabile():
+    """
+    Sotto il margine del gradino l'accumulo non muove il prezzo, quindi il profitto price
+    maker coincide con quello price taker e l'erosione e' nulla. E' la definizione stessa di
+    price taker: non e' un'ipotesi, e' una proprieta' verificabile.
+    """
+    df = _giornata([100.0, 300.0], gradino=100.0)
+    e = bt.erosione(df, potenza_aggregata_mw=10.0, granularita="PT60", durata_ore=1.0,
+                    con_import=False)
+    assert e.erosione_assoluta == pytest.approx(0.0)
+    assert e.erosione_relativa == pytest.approx(0.0)
+    assert e.profitto_price_maker == pytest.approx(e.profitto_price_taker)
+
+
+def test_l_erosione_e_la_quota_di_profitto_distrutta():
+    """
+    Una flotta da 100 MW consuma un gradino e sposta i prezzi da (100, 300) a (110, 290).
+    Il profitto atteso e' 300x100 - 100x100 = 20.000 euro, quello realizzato
+    290x100 - 110x100 = 18.000: l'erosione vale 2.000 euro, cioe' il 10%.
+
+    I rendimenti sono posti pari a uno perche' il conto resti verificabile a mano; con i
+    valori realistici (0,95 per verso) la scarica sarebbe limitata a 90,25 MW e i due
+    profitti varrebbero 17.075 e 15.247 euro.
+    """
+    df = _giornata([100.0, 300.0], gradino=100.0, passo=10.0)
+    e = bt.erosione(df, potenza_aggregata_mw=100.0, granularita="PT60", durata_ore=1.0,
+                    con_import=False, rendimento_carica=1.0, rendimento_scarica=1.0)
+    assert e.profitto_price_taker == pytest.approx(20000.0)
+    assert e.profitto_price_maker == pytest.approx(18000.0)
+    assert e.erosione_assoluta == pytest.approx(2000.0)
+    assert e.erosione_relativa == pytest.approx(0.10)
+
+
+def test_l_erosione_cresce_con_la_capacita_installata():
+    """
+    E' il fenomeno che la tesi vuole misurare: piu' accumulo entra in mercato, piu' esso
+    stesso comprime il differenziale da cui trae profitto.
+    """
+    df = _giornata([100.0, 300.0], gradino=100.0)
+    valori = [bt.erosione(df, potenza_aggregata_mw=k, granularita="PT60", durata_ore=1.0,
+                          con_import=False).erosione_relativa
+              for k in (100.0, 200.0, 300.0)]
+    assert valori[0] < valori[1] < valori[2]
+
+
+def test_il_piano_e_lo_stesso_nei_due_profitti():
+    """
+    L'erosione deve misurare solo l'effetto sul prezzo: il piano non viene riottimizzato sui
+    prezzi nuovi (D-25). Lo si verifica confrontando il piano con quello ottimo calcolato
+    sui soli prezzi di riferimento.
+    """
+    df = _giornata([100.0, 300.0], gradino=100.0)
+    e = bt.erosione(df, potenza_aggregata_mw=100.0, granularita="PT60", durata_ore=1.0,
+                    con_import=False)
+    atteso_carica, atteso_scarica = bt.profilo_ottimo(
+        e.profilo["prezzo_riferimento"].to_numpy(),
+        bt.flotta(100.0, 1.0), 1.0)
+    assert e.profilo["carica_mw"].to_numpy() == pytest.approx(atteso_carica)
+    assert e.profilo["scarica_mw"].to_numpy() == pytest.approx(atteso_scarica)
+
+
+def test_nei_giorni_a_basso_spread_l_erosione_relativa_non_si_calcola():
+    """
+    Con prezzi piatti non c'e' arbitraggio: il profitto atteso e' nullo e il rapporto
+    sarebbe privo di senso. Il giorno resta pero' nel campione con la sua erosione assoluta,
+    per non introdurre un bias verso i giorni ad alto spread (D-29).
+    """
+    df = _giornata([100.0, 100.0], gradino=100.0)
+    e = bt.erosione(df, potenza_aggregata_mw=100.0, granularita="PT60", durata_ore=1.0,
+                    con_import=False)
+    assert e.profitto_price_taker == pytest.approx(0.0)
+    assert np.isnan(e.erosione_relativa)
+    assert np.isfinite(e.erosione_assoluta)
+
+
+def test_la_flotta_aggrega_potenza_e_durata():
+    """K MW con durata di quattro ore sono 4K MWh di capacita' energetica."""
+    f = bt.flotta(250.0, durata_ore=4.0)
+    assert f.potenza_mw == 250.0
+    assert f.capacita_mwh == 1000.0
+    assert f.durata_ore == 4.0
+    assert f.ciclo_chiuso is True
+
+
+# --------------------------------------------------------------------------------------
+# Soglia stocastica e bootstrap
+# --------------------------------------------------------------------------------------
+def _tabella_erosioni(pendenze: dict[str, float], griglia=(100, 200, 300, 400, 500)):
+    """Tabella giorno x capacita' con erosione lineare nella capacita', per giorno."""
+    righe = []
+    for giorno, pendenza in pendenze.items():
+        for k in griglia:
+            righe.append({"data": giorno, "potenza_mw": float(k),
+                          "erosione_relativa": pendenza * k,
+                          "stagione": "inverno" if giorno < "d3" else "estate"})
+    return pd.DataFrame(righe)
+
+
+def test_la_soglia_cade_dove_il_quantile_incrocia_il_livello_dichiarato():
+    """
+    Con quattro giorni la cui erosione cresce di 0,02%, 0,04%, 0,06% e 0,08% ogni 100 MW, il
+    90esimo percentile fra i giorni segue quasi il giorno peggiore. Cercando dove supera il
+    10% si ottiene una soglia vicina ai 130 MW, e comunque compresa fra i 125 del giorno
+    peggiore e i 167 del penultimo.
+    """
+    tabella = _tabella_erosioni({"d1": 0.0002, "d2": 0.0004, "d3": 0.0006, "d4": 0.0008})
+    esito = bt.bootstrap_soglia(tabella, soglia=0.10, quantile=0.90, n_boot=200)
+    assert len(esito) == 1
+    riga = esito.iloc[0]
+    assert 125.0 <= riga["K_stella"] <= 170.0
+    assert riga["K_inf"] <= riga["K_stella"] <= riga["K_sup"]
+    assert riga["n_giorni"] == 4
+
+
+def test_una_soglia_mai_raggiunta_viene_segnalata_e_non_inventata():
+    """
+    Se entro la griglia di capacita' l'erosione non arriva mai al livello dichiarato, la
+    soglia non esiste nel campione simulato: va restituito NaN e contata la quota di
+    ricampionamenti senza attraversamento, non estrapolato un valore.
+    """
+    tabella = _tabella_erosioni({"d1": 0.00001, "d2": 0.00002})
+    esito = bt.bootstrap_soglia(tabella, soglia=0.50, quantile=0.90, n_boot=50)
+    assert np.isnan(esito.iloc[0]["K_stella"])
+    assert esito.iloc[0]["quota_senza_attraversamento"] == pytest.approx(1.0)
+
+
+def test_la_stratificazione_produce_una_soglia_per_strato():
+    """La soglia non e' stazionaria: stratificando si ottiene una stima per gruppo (D-28)."""
+    tabella = _tabella_erosioni({"d1": 0.0002, "d2": 0.0003, "d3": 0.0008, "d4": 0.0009})
+    esito = bt.bootstrap_soglia(tabella, soglia=0.10, quantile=0.90, n_boot=100,
+                                strato="stagione")
+    assert set(esito["strato"]) == {"inverno", "estate"}
+    inverno = esito.loc[esito.strato == "inverno", "K_stella"].iloc[0]
+    estate = esito.loc[esito.strato == "estate", "K_stella"].iloc[0]
+    # In estate l'erosione cresce piu' in fretta, quindi la soglia arriva prima.
+    assert estate < inverno
+
+
+def test_il_bootstrap_e_riproducibile():
+    """Con lo stesso seme si ottiene lo stesso intervallo: i risultati vanno replicabili."""
+    tabella = _tabella_erosioni({"d1": 0.0002, "d2": 0.0005, "d3": 0.0007})
+    primo = bt.bootstrap_soglia(tabella, n_boot=100, seme=7)
+    secondo = bt.bootstrap_soglia(tabella, n_boot=100, seme=7)
+    assert primo.iloc[0]["K_inf"] == secondo.iloc[0]["K_inf"]
+    assert primo.iloc[0]["K_sup"] == secondo.iloc[0]["K_sup"]
+
+
+def test_la_curva_di_erosione_riassume_i_quantili_per_capacita():
+    """La curva quantile-contro-capacita' e' cio' che si porta in tesi accanto alla soglia."""
+    tabella = _tabella_erosioni({"d1": 0.0002, "d2": 0.0006})
+    curva = bt.curva_erosione(tabella, quantili=(0.5, 0.9))
+    assert list(curva["potenza_mw"]) == [100.0, 200.0, 300.0, 400.0, 500.0]
+    assert curva["q50"].is_monotonic_increasing
+    assert (curva["n_giorni"] == 2).all()
+
+
+def test_la_soglia_richiede_le_colonne_attese():
+    """Un errore esplicito e' meglio di un risultato calcolato su dati incompleti."""
+    with pytest.raises(ValueError, match="colonne mancanti"):
+        bt.bootstrap_soglia(pd.DataFrame({"data": ["d1"], "potenza_mw": [100.0]}))
+
+
 def test_la_batteria_grande_erode_il_proprio_margine():
     """
     Il meccanismo centrale della tesi: raddoppiando la taglia il ricavo **non** raddoppia,

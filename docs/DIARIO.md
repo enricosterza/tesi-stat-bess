@@ -1221,6 +1221,113 @@ gennaio 2025, 744 aste, errore mediano 0,00 €/MWh, deviazione standard 1,06, p
 
 ---
 
+## 2026-08-04 — L'impianto metodologico: la soglia stocastica price taker → price maker
+
+Consolidata la domanda di ricerca e il disegno dello studio. Questa voce fissa l'impianto e
+supera alcune decisioni precedenti.
+
+### La domanda di ricerca
+Non "quanto guadagna una batteria", ma **a partire da quale capacità aggregata installata
+l'accumulo smette di essere price taker e diventa price maker**. La transizione non è un
+punto ma un fenomeno graduale e aleatorio, perché dipende dalla forma delle curve d'asta, che
+cambia di giorno in giorno. Va quindi caratterizzata come **soglia stocastica**: non un valore
+puntuale ma una distribuzione, con la sua incertezza.
+
+### La metrica: erosione di profitto
+Per un giorno storico $d$ e una capacità aggregata $K$ si confrontano due profitti.
+
+* $\pi_{PT}(d,K)$ — **price taker ingenuo**: il piano di carica e scarica è valorizzato ai
+  prezzi storici, cioè come se l'accumulo non li muovesse. È quello che si aspetta un
+  investitore che ottimizzi su una serie di prezzi passati.
+* $\pi_{PM}(d,K)$ — **price maker**: lo stesso identico piano viene inserito nelle curve
+  d'asta reali, si ricalcola l'equilibrio di ogni periodo e lo si valorizza ai prezzi nuovi.
+
+L'**erosione** è la quota di profitto che l'accumulo distrugge da sé:
+
+$$E(d,K) = \frac{\pi_{PT}(d,K) - \pi_{PM}(d,K)}{\pi_{PT}(d,K)}$$
+
+Il piano è **lo stesso** nei due casi: la differenza misura solo l'effetto sul prezzo, non un
+diverso comportamento. È la definizione che isola il fenomeno da studiare.
+
+### Le quattro scelte fissate
+
+**1. Scenario: tante batterie piccole non coordinate.** Il piano si ottimizza **una volta
+sola** sui prezzi storici; non c'è riottimizzazione strategica né ricerca di un punto fisso.
+L'equilibrio si ricalcola **una volta sola**, e solo per valorizzare.
+
+La giustificazione è che nessun singolo operatore, essendo piccolo, ha ragione di anticipare
+il proprio effetto sul prezzo: ciascuno ottimizza sul segnale di prezzo che osserva. Tutte le
+batterie seguono lo stesso segnale, quindi i profili si sommano — è coordinamento **implicito
+via prezzo comune**, non collusione. Questo rende legittimo trattare la capacità aggregata $K$
+come un unico profilo, che è ciò che permette di simulare.
+
+**2. Incertezza via bootstrap dei giorni storici.** I giorni si ricampionano con reimmissione
+per costruire la distribuzione di $E(\cdot,K)$. La stocasticità sta **sulle curve d'asta
+reali**, non su un processo di prezzo stimato: le batterie si inseriscono sempre su curve
+effettivamente osservate.
+
+**3. Soglia su un quantile prudenziale.** $K^*$ si definisce sul quantile della distribuzione
+di $E(\cdot,K)$, non sulla media, perché ciò che conta per un investitore è il caso avverso
+ragionevole, non quello tipico. Si usa l'**80° o il 90° percentile, non il 95° o il 99°**: in
+coda la stima è instabile e con qualche centinaio di giorni un quantile estremo dipenderebbe
+da pochissime osservazioni. Intervalli di confidenza via bootstrap.
+
+**4. Stratificazione per stagione, anno o regime.** La soglia non è stazionaria: dipende dal
+mix produttivo e dal livello dei prezzi, che cambiano fra stagioni e fra anni. Stratificare
+serve a misurare quanto la soglia si muove, invece di mediare su condizioni disomogenee.
+
+### Il caso dei giorni a basso spread
+Quando $\pi_{PT} \approx 0$ l'erosione relativa esplode o è priva di senso. Scartare quei
+giorni introdurrebbe però un **bias sistematico**: sono i giorni ad alta produzione
+rinnovabile e basso differenziale, cioè proprio quelli che diventeranno più frequenti. La
+scelta è quindi di **non scartarli** e di riportare accanto all'erosione relativa (%) anche
+quella **in valore assoluto (€)**, che resta interpretabile a qualunque livello di spread.
+
+### Alternative scartate
+
+**Operatore unico con punto fisso fra profilo e prezzi** (era D-21). Descrive un monopolista
+dell'accumulo che internalizza il proprio effetto e riottimizza fino alla convergenza. Non è
+lo scenario di interesse: la domanda riguarda l'ingresso di molta capacità distribuita fra
+operatori in concorrenza. In più il punto fisso spesso **non esiste** — la batteria carica
+dove il prezzo è basso ma caricando lo alza — e nella versione implementata la successione
+oscillava, obbligando a scegliere fra configurazioni con un criterio aggiuntivo. Lo scenario
+non coordinato è insieme più aderente alla domanda e privo di quel problema. La funzione
+resta nel codice come variante di confronto, chiaramente etichettata.
+
+**Soglia definita sulla media dell'erosione.** Scartata: la media nasconde la coda, e la
+decisione di investimento dipende dal caso avverso. Il quantile prudenziale è la scelta
+naturale, con il compromesso sul livello discusso sopra.
+
+**Modellazione stocastica delle curve come dati funzionali (FPCA).** Rappresentare le curve
+d'offerta come funzioni aleatorie e simularne le componenti principali sarebbe elegante e
+darebbe un modello generativo. Scartata per due ragioni: le curve sono a gradini con
+discontinuità che le componenti principali lisciano proprio dove conta, cioè attorno
+all'equilibrio; e introdurrebbe un errore di modello aggiuntivo laddove i giorni reali sono
+già disponibili in numero sufficiente. Il bootstrap empirico usa le curve così come sono.
+
+**Linearizzazione con elasticità locale.** Approssimare l'effetto sul prezzo con una pendenza
+locale $\partial p / \partial q$ stimata attorno all'equilibrio sarebbe enormemente più
+rapido. Scartata perché **si rompe proprio dove serve**: per $K$ grandi la batteria si sposta
+lungo la curva di molti gradini, e la pendenza locale cessa di essere informativa. Le misure
+già raccolte lo confermano: la sensibilità del prezzo è nulla in un quarto delle aste e
+superiore ai 20 €/MWh per 100 MW in altre, quindi fortemente non lineare. Poiché la soglia
+$K^*$ è per definizione il punto in cui l'effetto smette di essere trascurabile, usare
+un'approssimazione valida solo per effetti piccoli sarebbe circolare.
+
+### Limiti dichiarati
+* **Reazione di secondo ordine non catturata.** Gli altri operatori non modificano le proprie
+  offerte in risposta all'ingresso dell'accumulo. Nella realtà lo farebbero, e questo attenua
+  o amplifica l'erosione in modo non prevedibile con questo impianto.
+* **Aggiustamento intra-periodo non catturato.** Le batterie non ricontrattano la propria
+  posizione dopo il MGP, mentre nella realtà opererebbero anche sui mercati infragiornalieri.
+* **Zona NORD isolata.** I vincoli di transito non sono modellati esplicitamente e lo scambio
+  con l'esterno è calibrato sull'esito osservato: si assume quindi che i flussi non reagiscano
+  al prezzo che l'accumulo muove.
+* **Stima in coda del quantile.** Anche all'80° o 90° percentile la stima dipende da un numero
+  limitato di giorni; gli intervalli di confidenza bootstrap servono a renderlo esplicito.
+
+---
+
 ## Prossimi passi
 
 1. Verificare quali zone virtuali di frontiera confinano con NORD e cosa aggiungono in

@@ -1,49 +1,163 @@
 \chapter{Valutazione Economica per gli Investitori}
 \label{cap:valutazione}
 
-% DA COMPLETARE: l'intero capitolo dipende dai risultati della simulazione (Capitolo 4),
-% che non sono ancora disponibili. La struttura e' predisposta.
-
-Questo capitolo traduce i risultati della simulazione in grandezze economiche, dal punto di
-vista di un investitore che debba decidere se e quanto capitale impegnare in un impianto di
-accumulo.
+Questo capitolo presenta il risultato centrale del lavoro — la soglia di capacit\`a oltre la
+quale l'accumulo diventa price maker — e ne trae le conseguenze per chi debba decidere se e
+quanto capitale impegnare.
 
 \section{Metriche finanziarie}
 \label{sec:metriche}
 
-% DA COMPLETARE: definizione delle metriche.
+\subsection{La soglia \texorpdfstring{$K^*$}{K*} come metrica principale}
+
+La grandezza attorno a cui ruota la valutazione \`e la capacit\`a aggregata $K^*$ alla quale
+il quantile prudenziale dell'erosione~\eqref{eq:erosione} attraversa il livello dichiarato:
+\begin{equation}
+K^{*} \;=\; \min \left\{\, K \;:\; Q_{\alpha}\!\left[\,E(\cdot,K)\,\right] \ge \bar{E} \,\right\},
+\label{eq:kstella}
+\end{equation}
+dove $Q_{\alpha}$ \`e il quantile di ordine $\alpha$ della distribuzione dell'erosione fra i
+giorni e $\bar{E}$ il livello convenzionale che segna il passaggio a price maker.
+
+Tre precisazioni sulla lettura di $K^*$.
+
+Non \`e una soglia \emph{tecnica} ma \emph{economica}: sotto $K^*$ l'accumulo pu\`o ancora
+essere installato e remunerato, semplicemente non altera in modo apprezzabile i prezzi da cui
+trae il proprio reddito. Sopra $K^*$ la redditivit\`a marginale di ogni megawatt aggiuntivo
+comincia a dipendere dalla capacit\`a gi\`a installata, e la valutazione di un singolo
+progetto non pu\`o pi\`u prescindere da quella degli altri.
+
+\`E una soglia \textbf{aleatoria}, non un numero: il suo intervallo di confidenza \`e parte
+del risultato, non un'aggiunta. Riportare $K^*$ senza incertezza suggerirebbe una precisione
+che i dati non hanno.
+
+Dipende infine da due \textbf{scelte dichiarate} — il livello $\bar{E}$ e l'ordine $\alpha$
+del quantile — che non sono stimate dai dati. La sensitivit\`a a entrambe \`e riportata nella
+Sezione~\ref{sec:sensitivita}, ed \`e parte integrante del risultato.
+
+\subsection{Metriche di redditivit\`a del singolo progetto}
+
+% DA COMPLETARE: le metriche finanziarie classiche, da sviluppare una volta fissati i costi.
 % Elementi da trattare:
-%   - ricavo lordo annuo da arbitraggio, ottenuto sommando sui periodi il margine
-%     calcolato con i prezzi controfattuali della simulazione;
-%   - costi: investimento iniziale (CAPEX, in euro per MWh installato), costi operativi
-%     annui (OPEX), costo di degrado gia' introdotto nella Sezione 3.3;
-%   - indicatori: valore attuale netto (VAN), tasso interno di rendimento (TIR),
-%     tempo di ritorno dell'investimento, e LCOS (Levelized Cost of Storage);
-%   - orizzonte temporale e tasso di sconto da adottare, con giustificazione.
+%   - ricavo annuo da arbitraggio, ottenuto sommando sui giorni il profitto price maker
+%     alla capacita' aggregata di scenario;
+%   - costi: investimento iniziale (CAPEX per MWh installato), costi operativi annui,
+%     costo di degrado;
+%   - indicatori: valore attuale netto, tasso interno di rendimento, tempo di ritorno,
+%     e costo livellato dell'accumulo (LCOS);
+%   - orizzonte temporale e tasso di sconto, con giustificazione.
+% Nota: il ricavo va calcolato con il profitto price maker alla capacita' aggregata
+% prevista, non con quello price taker, altrimenti si sovrastima sistematicamente.
 
 \section{Risultati di redditività}
 \label{sec:redditivita}
 
-% DA COMPLETARE: risultati, da produrre dopo la simulazione.
-% Elementi attesi:
-%   - redditivita' per ciascuno scenario di potenza e durata definito nella Sezione 4.3;
-%   - individuazione del dimensionamento ottimale, cioe' della combinazione di potenza e
-%     durata che massimizza il valore attuale netto;
-%   - punto centrale della tesi: la redditivita' marginale decresce al crescere della
-%     capacita' installata, perche' l'accumulo comprime da se' il differenziale di prezzo
-%     da cui trae profitto. Da quantificare la capacita' oltre la quale l'investimento
-%     marginale non e' piu' remunerativo.
+\subsection{Come cresce l'erosione con la capacit\`a installata}
+
+% DA COMPLETARE: i valori riportati qui sotto sono un risultato preliminare, calcolato sul
+% solo mese di gennaio 2025 (31 giorni, mercato orario) e con flotta di durata quattro ore.
+% Vanno sostituiti con quelli del campione definitivo, ed e' possibile che cambino in modo
+% sensibile: gennaio e' un mese invernale, con differenziali di prezzo diversi da quelli
+% estivi.
+
+La Tabella~\ref{tab:curva-erosione} riporta la distribuzione dell'erosione fra i giorni al
+variare della capacit\`a aggregata installata.
+
+\begin{table}[H]
+\centering
+\caption{Erosione di profitto in funzione della capacit\`a aggregata. Risultato preliminare
+         su gennaio 2025, 31 giorni, zona NORD, flotta di durata quattro ore.}
+\label{tab:curva-erosione}
+\begin{tabular}{@{}rrrrr@{}}
+\toprule
+\textbf{Capacit\`a} & \multicolumn{3}{c}{\textbf{Erosione relativa}} & \textbf{Erosione mediana} \\
+\cmidrule(lr){2-4}
+(MW) & mediana & 80\textsuperscript{o} perc. & 90\textsuperscript{o} perc. & (\eur/giorno) \\
+\midrule
+   25 &  2{,}7\,\% &  5{,}0\,\% &  6{,}3\,\% &      127 \\
+   50 &  3{,}7\,\% &  6{,}4\,\% &  8{,}8\,\% &      335 \\
+  100 &  5{,}9\,\% &  9{,}9\,\% & 14{,}2\,\% &      955 \\
+  200 & 11{,}7\,\% & 15{,}9\,\% & 19{,}6\,\% &    3\,583 \\
+  400 & 20{,}4\,\% & 31{,}0\,\% & 35{,}2\,\% &   13\,551 \\
+  800 & 39{,}9\,\% & 58{,}4\,\% & 68{,}9\,\% &   52\,434 \\
+ 1500 & 75{,}5\,\% & 100{,}6\,\% & 116{,}6\,\% &  202\,312 \\
+ 3000 & 178{,}9\,\% & 218{,}2\,\% & 262{,}4\,\% &  848\,932 \\
+ 6000 & 407{,}5\,\% & 518{,}2\,\% & 559{,}6\,\% & 4\,026\,618 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Due osservazioni. La prima \`e che l'erosione supera il 100\% gi\`a attorno ai 1500~MW: oltre
+quella capacit\`a il profitto price maker diventa \textbf{negativo}, cio\`e la flotta, eseguendo
+il piano che sembrava conveniente sui prezzi di partenza, perde denaro. La seconda \`e che la
+distanza fra la mediana e il 90\textsuperscript{o} percentile \`e ampia a ogni capacit\`a: la
+transizione non avviene nello stesso momento in tutte le giornate, ed \`e questo che rende
+necessario trattare la soglia come aleatoria.
+
+\subsection{La soglia}
+
+\begin{table}[H]
+\centering
+\caption{Soglia $K^*$ al 90\textsuperscript{o} percentile con livello di erosione del 10\%.
+         Risultato preliminare, gennaio 2025, intervallo di confidenza al 90\% da 1000
+         ricampionamenti.}
+\label{tab:soglia}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Campione} & $K^*$ (MW) & \textbf{Estremo inferiore} & \textbf{Estremo superiore} \\
+\midrule
+Gennaio 2025, 31 giorni & 61 & 45 & 110 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Il valore \`e sorprendentemente basso rispetto alla dimensione del mercato: in zona NORD si
+scambiano fra 15 e 25~GW per asta, e bastano poche decine di megawatt di accumulo aggregato
+perch\'e nel 10\% delle giornate peggiori un decimo del profitto atteso venga distrutto
+dall'accumulo stesso.
+
+La spiegazione sta nella forma delle curve, non nel volume: l'accumulo non opera nell'ora
+media ma nelle \textbf{ore estreme}, quella di minimo e quella di massimo prezzo, che sono
+proprio quelle in cui la curva \`e pi\`u ripida e i gradini pi\`u larghi. Il rapporto fra la
+taglia dell'accumulo e il volume complessivo del mercato \`e quindi un riferimento fuorviante:
+ci\`o che conta \`e il rapporto fra la sua taglia e l'ampiezza dei gradini che attraversa.
 
 \section{Analisi di sensitività}
 \label{sec:sensitivita}
 
-% DA COMPLETARE: analisi di sensitivita' dei risultati alle ipotesi.
-% Parametri rispetto a cui far variare i risultati:
+\subsection{Sensitivit\`a alle scelte dichiarate}
+
+Il livello di erosione e l'ordine del quantile non sono stimati dai dati: sono convenzioni, e
+il risultato va letto sapendo quanto vi dipende.
+
+\begin{table}[H]
+\centering
+\caption{Soglia $K^*$ in MW al variare del quantile e del livello di erosione. Risultato
+         preliminare su gennaio 2025; fra parentesi l'intervallo di confidenza al 90\%.}
+\label{tab:sensitivita-soglia}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Quantile} & $\bar{E} = 5\,\%$ & $\bar{E} = 10\,\%$ & $\bar{E} = 20\,\%$ \\
+\midrule
+80\textsuperscript{o} percentile & 25 \,(25--50) & 102 \,(61--128) & 254 \,(206--307) \\
+90\textsuperscript{o} percentile & 25 \,(25--25) & 61 \,(45--109) & 206 \,(197--254) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+La soglia si muove di un fattore otto fra le combinazioni estreme, il che conferma che $K^*$
+va sempre riportata insieme alle convenzioni che la definiscono. Si noti che con
+$\bar{E} = 5\%$ la soglia cade sul primo punto della griglia: l'erosione supera quel livello
+gi\`a alla capacit\`a minima simulata, quindi il valore va letto come un limite superiore.
+
+\subsection{Sensitivit\`a alle ipotesi tecniche ed economiche}
+
+% DA COMPLETARE: da produrre quando il campione definitivo sara' disponibile.
+% Parametri rispetto a cui far variare il risultato:
+%   - durata della flotta (1, 2, 4, 8 ore): a parita' di potenza una durata maggiore
+%     distribuisce l'effetto su piu' periodi, quindi dovrebbe alzare la soglia;
 %   - rendimento di ciclo completo;
-%   - costo di investimento per MWh;
-%   - tasso di sconto;
-%   - costo di degrado per ciclo;
-%   - anno di riferimento dei prezzi, per distinguere l'effetto delle condizioni di
-%     mercato di un anno particolare da quello strutturale;
-%   - assunzioni del modello di mercato: in particolare il perimetro zonale (Sezione 4.1)
-%     e l'ipotesi che i flussi di scambio con l'esterno non reagiscano al prezzo.
+%   - stagione e anno (stratificazione D-28), per misurare la non stazionarieta';
+%   - perimetro zonale: NORD isolata contro NORD piu' le frontiere;
+%   - costo di investimento, tasso di sconto e costo di degrado, per le metriche
+%     finanziarie della Sezione 5.1.

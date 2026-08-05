@@ -263,17 +263,45 @@ validazione senza dover allineare dataset aggiuntivi.
 \section{Definizione degli Scenari}
 \label{sec:scenari}
 
-% DA COMPLETARE: definizione degli scenari di capacita' di accumulo.
-% Elementi da fissare:
-%   - griglia di potenze installate (MW) da simulare, ad esempio da 100 MW a diversi GW,
-%     scelta in rapporto alla dimensione del mercato della zona NORD (la quantita'
-%     scambiata mediana e' dell'ordine dei 15-25 GW per asta);
-%   - griglia delle durate (rapporto energia/potenza): 1, 2, 4, 8 ore;
-%   - scenario di riferimento senza accumulo, rispetto al quale misurare le differenze;
-%   - se simulare un operatore unico che ottimizza il portafoglio complessivo oppure
-%     una pluralita' di operatori che agiscono in concorrenza: la distinzione conta,
-%     perche' nel primo caso l'operatore internalizza l'effetto di retroazione e nel
-%     secondo no.
+Uno scenario \`e individuato da tre elementi: la capacit\`a aggregata installata $K$, la
+durata dell'accumulo, e il campione di giorni su cui la si simula.
+
+\subsection{La griglia di capacit\`a}
+
+La capacit\`a aggregata varia su una griglia da poche decine di megawatt ad alcuni gigawatt.
+La scelta degli estremi merita una nota, perch\'e la prima versione era sbagliata: partendo
+dal volume complessivo del mercato — in zona NORD si scambiano fra 15 e 25~GW per asta — si
+era fissata una griglia che iniziava a 250~MW, ritenendo marginale tutto ci\`o che stava
+sotto. La prima simulazione ha smentito il ragionamento, perch\'e gi\`a a 250~MW l'erosione
+risultava di alcuni punti percentuali e la soglia cadeva fuori griglia.
+
+La ragione \`e che ci\`o che determina l'effetto sul prezzo non \`e il volume complessivo
+scambiato ma la \textbf{pendenza della curva attorno all'equilibrio}, dove i gradini sono
+pochi e larghi. Un accumulo di taglia piccola rispetto al mercato pu\`o quindi essere grande
+rispetto alla porzione di curva che effettivamente attraversa.
+
+\subsection{La durata}
+
+Il rapporto fra capacit\`a energetica e potenza determina per quanti periodi consecutivi
+l'accumulo pu\`o caricare o scaricare a potenza piena. Il valore di riferimento \`e
+\textbf{quattro ore}, il taglio pi\`u diffuso negli impianti in costruzione; durate diverse
+sono trattate nell'analisi di sensitivit\`a (Sezione~\ref{sec:sensitivita}).
+
+La durata non \`e un dettaglio tecnico: a parit\`a di potenza, una durata maggiore obbliga
+l'accumulo a operare anche in periodi meno favorevoli, spalmando l'effetto su pi\`u ore e
+quindi riducendo l'impatto su ciascuna.
+
+\subsection{Il campione dei giorni}
+
+Il campione \`e costituito da giorni di mercato effettivamente osservati, ciascuno con le sue
+curve d'asta. I risultati vengono prodotti sia sul campione complessivo sia
+\textbf{stratificati} per stagione e per anno, perch\'e la soglia non \`e stazionaria: dipende
+dal mix produttivo e dal livello dei prezzi, che cambiano nel corso dell'anno e fra anni
+successivi. Stratificare serve a misurare quanto la soglia si muove, invece di mediare su
+condizioni disomogenee.
+
+% DA COMPLETARE: fissare l'estensione definitiva del campione una volta deciso il perimetro
+% temporale (si veda la questione aperta sulla non omogeneita' dell'anno 2025).
 
 \section{Esecuzione della simulazione}
 \label{sec:esecuzione}
@@ -412,14 +440,54 @@ diverso fra i quarti, come prevede un clearing indipendente.
 
 % DA COMPLETARE: il 12,2% non spiegato resta da attribuire.
 
-\subsection{Simulazione dell'accumulo}
+\subsection{Il calcolo dell'erosione, giorno per giorno}
+\label{sec:calcolo-erosione}
 
-% DA COMPLETARE: e' il passo successivo del lavoro.
-% La funzione che misura l'effetto di retroazione e' gia' implementata: dato un insieme di
-% offerte e una potenza da iniettare, restituisce la variazione del prezzo di equilibrio.
-% Sui dati esaminati la sensibilita' mediana e' di 0,10 EUR/MWh per 100 MW nelle aste orarie
-% e 0,00 in quelle a quarto d'ora, con code molto piu' alte in un quarto delle aste: la
-% distribuzione e' fortemente asimmetrica, il che significa che l'effetto di un accumulo
-% sul prezzo e' concentrato in poche ore e trascurabile nelle altre.
-% Da produrre: profilo ottimale di carica e scarica per ciascuno scenario, prezzi
-% controfattuali, e differenza rispetto allo scenario senza accumulo.
+Per ciascun giorno del campione e ciascuna capacit\`a della griglia la procedura \`e quella
+definita nella Sezione~\ref{sec:erosione}:
+
+\begin{enumerate}
+  \item si ricostruiscono le curve d'asta di tutti i periodi della giornata e se ne ricava il
+        prezzo di riferimento $p^{0}_t$, cio\`e quello senza accumulo;
+  \item si ottimizza \emph{una volta sola} il piano di carica e scarica su quei prezzi;
+  \item lo si valorizza ai prezzi di riferimento, ottenendo $\pi_{PT}$;
+  \item si inserisce lo stesso piano nelle curve, si ricalcola l'equilibrio di ogni periodo e
+        lo si valorizza ai prezzi nuovi, ottenendo $\pi_{PM}$;
+  \item la differenza fornisce l'erosione, in valore assoluto e in quota.
+\end{enumerate}
+
+Le curve e i prezzi di riferimento si calcolano una sola volta per giornata e si riusano per
+tutte le capacit\`a: cambia soltanto il profilo che vi si inserisce.
+
+\subsection{Dal campione alla soglia: il bootstrap}
+\label{sec:bootstrap}
+
+La soglia $K^*$ si stima ricampionando i giorni con reimmissione. Per ciascun
+ricampionamento si calcola, a ogni capacit\`a della griglia, il quantile prudenziale
+dell'erosione fra i giorni estratti; si ottiene cos\`i una curva che lega il quantile alla
+capacit\`a, crescente perch\'e pi\`u accumulo erode di pi\`u; e si individua per interpolazione
+la capacit\`a alla quale quella curva attraversa il livello di erosione dichiarato. La
+distribuzione delle $K^*$ cos\`i ottenute fornisce l'intervallo di confidenza.
+
+Due scelte vanno dichiarate perch\'e non sono stimate dai dati. Il \textbf{livello di
+erosione} che definisce il passaggio a price maker \`e convenzionale: si adotta il 10\%, e la
+sensibilit\`a a questa scelta \`e riportata nel Capitolo~\ref{cap:valutazione}. Il
+\textbf{quantile} \`e l'80\textsuperscript{o} o il 90\textsuperscript{o} percentile, e non uno
+pi\`u estremo: con qualche centinaio di giorni un quantile al 95\textsuperscript{o} o al
+99\textsuperscript{o} percentile poggerebbe su pochissime osservazioni e la sua stima sarebbe
+instabile proprio nella parte che determina il risultato.
+
+\subsection{Le giornate a basso differenziale}
+
+Quando il differenziale di prezzo giornaliero \`e piccolo, $\pi_{PT}$ tende a zero e il
+rapporto~\eqref{eq:erosione} diventa privo di significato o esplode. Scartare quelle giornate
+sarebbe per\`o metodologicamente pericoloso: sono le giornate ad alta produzione rinnovabile
+e prezzi compressi, cio\`e proprio quelle destinate a diventare pi\`u frequenti, e escluderle
+introdurrebbe un \textbf{bias sistematico} nella direzione opposta a quella dell'evoluzione
+del sistema.
+
+La scelta \`e quindi di mantenerle nel campione e di riportare, accanto all'erosione
+relativa, anche quella in \textbf{valore assoluto} (euro al giorno), che resta interpretabile
+a qualunque livello di differenziale. Il rapporto viene semplicemente omesso dove il profitto
+di riferimento \`e trascurabile, e il numero di casi in cui ci\`o accade \`e riportato con i
+risultati.

@@ -2,9 +2,22 @@
 \label{cap:strategia}
 
 Questo capitolo formalizza il problema decisionale dell'operatore di un sistema di accumulo
-che opera sul Mercato del Giorno Prima. La formulazione della funzione obiettivo e del
-modello fisico \`e impostata; il modello di degrado e la gestione dell'incertezza sono
-ancora da sviluppare.
+che opera sul Mercato del Giorno Prima, e definisce la grandezza attorno a cui ruota l'intero
+lavoro: l'\emph{erosione di profitto} che l'accumulo provoca a s\'e stesso quando la
+capacit\`a installata diventa rilevante.
+
+\paragraph{La domanda di ricerca.}
+\label{sec:domanda}
+La domanda non \`e quanto guadagni una batteria, ma \textbf{a partire da quale capacit\`a
+aggregata installata l'accumulo smette di essere price taker e diventa price maker}, cio\`e
+sposta i prezzi che sta sfruttando al punto da erodere il proprio margine.
+
+La transizione fra i due regimi non \`e un punto ma un fenomeno graduale, e soprattutto
+\textbf{aleatorio}: dipende dalla forma delle curve d'asta attorno all'equilibrio, che cambia
+da un giorno all'altro con il mix produttivo e con il livello della domanda. Lo stesso
+quantitativo di accumulo pu\`o essere ininfluente in una giornata e determinante in un'altra.
+La soglia va quindi caratterizzata come \textbf{soglia stocastica}: non un valore puntuale ma
+una distribuzione, di cui riportare l'incertezza.
 
 \section{Definizione della Funzione Obiettivo}
 \label{sec:obiettivo}
@@ -59,8 +72,80 @@ dove $\Phi$ rappresenta il costo di degrado associato al profilo di utilizzo
 direzioni: comprando fa salire il prezzo di acquisto, vendendo fa scendere quello di vendita.
 Il margine di arbitraggio si riduce quindi al crescere della taglia dell'accumulo, ed \`e
 questo il meccanismo che rende il dimensionamento un problema non banale — al di sopra di una
-certa capacit\`a, l'accumulo distrugge da s\'e la propria fonte di reddito. La misura di
-questo effetto \`e riportata nella Sezione~\ref{sec:esecuzione}.
+certa capacit\`a, l'accumulo distrugge da s\'e la propria fonte di reddito.
+
+\subsection{I due profitti e l'erosione}
+\label{sec:erosione}
+
+Per rendere misurabile quel meccanismo si confrontano due profitti, calcolati sullo
+\textbf{stesso identico piano} di carica e scarica. Sia $d$ un giorno di mercato e $K$ la
+capacit\`a aggregata installata.
+
+\paragraph{Profitto price taker.} Il piano viene valorizzato ai prezzi $p_t^{0}$ che si
+formerebbero \emph{senza} accumulo:
+\begin{equation}
+\pi_{PT}(d,K) \;=\; \sum_{t} p^{0}_{t}\, \Delta \left(s_t - c_t\right).
+\label{eq:pi-pt}
+\end{equation}
+\`E il profitto che si aspetta chi ottimizza su una serie storica di prezzi ignorando il
+proprio effetto: non \`e un profitto conseguibile quando $K$ \`e rilevante, ma \`e il termine
+di confronto naturale, perch\'e coincide con l'aspettativa di un investitore.
+
+\paragraph{Profitto price maker.} Lo stesso piano viene inserito nelle curve d'asta reali —
+la carica come domanda addizionale al prezzo massimo, la scarica come offerta addizionale al
+prezzo minimo — si ricalcola l'equilibrio $p_t^{K}$ di ciascun periodo con
+la~\eqref{eq:clearing}, e lo si valorizza ai prezzi nuovi:
+\begin{equation}
+\pi_{PM}(d,K) \;=\; \sum_{t} p^{K}_{t}\, \Delta \left(s_t - c_t\right).
+\label{eq:pi-pm}
+\end{equation}
+
+\paragraph{Erosione.} La quota di profitto che l'accumulo distrugge da s\'e \`e
+\begin{equation}
+E(d,K) \;=\; \frac{\pi_{PT}(d,K) - \pi_{PM}(d,K)}{\pi_{PT}(d,K)}.
+\label{eq:erosione}
+\end{equation}
+
+Poich\'e il piano \`e lo stesso nei due termini, la differenza misura \textbf{soltanto}
+l'effetto sul prezzo e non un diverso comportamento dell'operatore. \`E questa la propriet\`a
+che rende $E$ una misura pulita della transizione fra i due regimi: $E \approx 0$ significa
+price taker, valori crescenti segnalano il passaggio a price maker.
+
+\paragraph{Una precisazione sui prezzi di riferimento.} I prezzi $p^{0}_t$ della
+\eqref{eq:pi-pt} sono quelli \emph{ricostruiti} senza accumulo, non quelli ufficiali. La
+ragione \`e che l'errore di ricostruzione entrerebbe altrimenti in un solo termine del
+confronto: usando la stessa fonte per entrambi, esso si semplifica nella differenza e
+l'erosione isola il solo effetto di prezzo. La ricostruzione \`e comunque validata contro i
+prezzi ufficiali (Sezione~\ref{sec:esecuzione}), ed \`e quella validazione a garantire che le
+curve su cui si simula siano quelle vere.
+
+\subsection{Lo scenario simulato: molte batterie non coordinate}
+\label{sec:scenario}
+
+Il modo in cui il piano viene determinato dipende da chi si suppone lo determini, e la scelta
+non \`e neutrale.
+
+Lo scenario adottato \`e quello di \textbf{molte batterie piccole e non coordinate}. Il piano
+si ottimizza \emph{una volta sola} sui prezzi di riferimento, e l'equilibrio si ricalcola
+\emph{una volta sola}, al solo scopo di valorizzare. Non c'\`e riottimizzazione strategica.
+
+La giustificazione \`e economica: nessun singolo operatore, essendo piccolo, ha ragione di
+anticipare il proprio effetto sul prezzo, quindi ciascuno ottimizza sul segnale che osserva.
+Tutti osservano lo stesso segnale e i profili risultanti si sommano — \`e coordinamento
+\textbf{implicito attraverso il prezzo comune}, non collusione. \`E questo che rende
+legittimo trattare la capacit\`a aggregata $K$ come un unico profilo: se le batterie hanno
+gli stessi vincoli, lineari, e ottimizzano sullo stesso vettore di prezzi, la somma dei
+profili ottimi coincide con il profilo ottimo della somma.
+
+\paragraph{L'alternativa scartata.} Si potrebbe invece supporre un operatore unico che
+internalizza il proprio effetto e riottimizza finch\'e piano e prezzi non sono coerenti fra
+loro, cercando un punto fisso. Questa formulazione descrive per\`o un monopolista
+dell'accumulo, mentre la domanda di ricerca riguarda l'ingresso di capacit\`a distribuita fra
+molti operatori in concorrenza. Vi si aggiunge un problema tecnico: il punto fisso spesso
+\textbf{non esiste} — la batteria carica dove il prezzo \`e basso, ma caricando lo alza, e sul
+prezzo alzato non converrebbe pi\`u caricare — e la successione oscilla, obbligando a
+scegliere fra configurazioni con un criterio aggiuntivo e arbitrario. Lo scenario non
+coordinato \`e insieme pi\`u aderente alla domanda e privo di quel problema.
 
 \section{Modello fisico della batteria}
 \label{sec:modello-fisico}
@@ -116,13 +201,53 @@ sono ammessi fino a $-500$~\euromwh{}.
 \section{Gestione dell'incertezza}
 \label{sec:incertezza}
 
-% DA COMPLETARE: trattamento dell'incertezza sui prezzi.
-% Il punto di partenza e' che la strategia ottimizzata sui prezzi realizzati costituisce
-% un limite superiore irraggiungibile (perfect foresight): serve come termine di confronto,
-% non come strategia realistica.
-% Elementi da trattare:
-%   - quantificazione del divario fra strategia con previsione perfetta e strategie
-%     realizzabili sulla base dell'informazione disponibile alla chiusura del MGP;
-%   - possibili impostazioni: ottimizzazione stocastica su scenari di prezzo, oppure
-%     regole di decisione basate su previsioni puntuali con analisi dell'errore;
-%   - collegamento con la Sezione 2.4 sull'aleatorieta' del prezzo.
+L'incertezza rilevante per la domanda di ricerca non \`e quella sul prezzo di un singolo
+giorno, ma quella \textbf{sulla soglia}: poich\'e $E(d,K)$ varia da giorno a giorno con la
+forma delle curve, la capacit\`a a cui l'accumulo diventa price maker \`e essa stessa una
+variabile aleatoria.
+
+\subsection*{Bootstrap dei giorni storici}
+
+La distribuzione di $E(\cdot,K)$ si costruisce ricampionando con reimmissione i \textbf{giorni
+storici}, e inserendo le batterie sulle curve d'asta effettivamente osservate. La
+stocasticit\`a sta quindi sulle curve reali, non su un processo di prezzo stimato.
+
+L'unit\`a di ricampionamento \`e la giornata, non la singola osservazione: un giorno entra o
+esce con tutta la sua curva $E(d,\cdot)$. \`E la struttura corretta, perch\'e le erosioni a
+capacit\`a diverse dello stesso giorno sono calcolate sulle stesse curve d'asta e quindi
+fortemente dipendenti fra loro.
+
+\paragraph{Alternative scartate.} Due impostazioni pi\`u sofisticate sono state considerate e
+messe da parte.
+
+La prima \`e modellare le curve d'offerta come \textbf{dati funzionali}, stimandone le
+componenti principali e simulandone di nuove. Sarebbe elegante e fornirebbe un modello
+generativo, ma le curve sono funzioni a gradini con discontinuit\`a che le componenti
+principali lisciano proprio nella regione che conta, cio\`e attorno all'equilibrio; e
+introdurrebbe un errore di modello dove i giorni reali sono gi\`a disponibili in numero
+sufficiente.
+
+La seconda \`e \textbf{linearizzare} l'effetto sul prezzo con un'elasticit\`a locale
+$\partial p / \partial q$ stimata attorno all'equilibrio, il che renderebbe il calcolo
+immediato. Questa approssimazione per\`o si rompe esattamente dove serve: per $K$ grandi
+l'accumulo percorre molti gradini della curva, e la pendenza locale cessa di essere
+informativa. Le misure raccolte lo confermano — la sensibilit\`a del prezzo \`e nulla in circa
+un quarto delle aste e supera i 20~\euromwh{} per 100~MW in altre, quindi \`e fortemente non
+lineare. Poich\'e $K^*$ \`e per definizione il punto in cui l'effetto smette di essere
+trascurabile, usare un'approssimazione valida solo per effetti piccoli sarebbe circolare.
+
+\subsection*{La previsione perfetta}
+
+Il piano \`e ottimizzato conoscendo i prezzi di tutti i periodi della giornata. Il profitto
+che ne risulta \`e quindi un \textbf{limite superiore}, non un risultato conseguibile da un
+operatore reale.
+
+Questa assunzione \`e per\`o meno onerosa di quanto sembri per l'oggetto dello studio: poich\'e
+l'erosione~\eqref{eq:erosione} \`e un rapporto fra due profitti calcolati sullo stesso piano,
+un piano subottimo ridurrebbe entrambi i termini, e l'effetto sul rapporto \`e di secondo
+ordine. La previsione perfetta distorce quindi il \emph{livello} dei profitti pi\`u di quanto
+distorca la \emph{soglia}.
+
+% DA COMPLETARE: quantificare l'affermazione precedente ripetendo il calcolo dell'erosione
+% con piani subottimi (ad esempio ottimizzati su una previsione rumorosa dei prezzi) e
+% verificando di quanto si sposta K*.

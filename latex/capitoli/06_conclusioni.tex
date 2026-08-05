@@ -28,6 +28,18 @@ di quanto si sposta il prezzo di equilibrio quando si inietta potenza nel mercat
 stessa grandezza che determina il ricavo di un accumulo e che ne limita la scala, perch\'e
 una batteria che carica alza il prezzo a cui compra e che scarica abbassa quello a cui vende.
 
+Su questa base \`e stata definita la misura centrale del lavoro, l'\textbf{erosione di
+profitto}~\eqref{eq:erosione}: la quota di margine che l'accumulo distrugge da s\'e, ottenuta
+confrontando lo stesso piano valorizzato ai prezzi senza accumulo e ai prezzi che l'accumulo
+stesso genera. La soglia $K^*$ a cui il quantile prudenziale dell'erosione supera un livello
+dichiarato caratterizza il passaggio da price taker a price maker come fenomeno aleatorio,
+con il suo intervallo di confidenza.
+
+% DA COMPLETARE: sintesi dei risultati quantitativi definitivi. Il risultato preliminare su
+% gennaio 2025 colloca K* attorno ai 60 MW con intervallo 45-110, un valore molto basso
+% rispetto ai 15-25 GW scambiati per asta: la ragione e' che l'accumulo opera nelle ore
+% estreme, dove la curva e' piu' ripida, e non nell'ora media.
+
 \section{Limiti del modello e sviluppi futuri}
 \label{sec:limiti}
 
@@ -51,18 +63,44 @@ allo 0{,}74\% del volume scambiato, non attribuiti ad alcuna causa nota. Due ipo
 state formulate e scartate sulla base dei dati — l'accettazione parziale delle offerte e
 l'esistenza di vincoli fra quarti d'ora consecutivi — e la ricerca resta aperta.
 
-\paragraph{Previsione perfetta.} Il profilo di carica e scarica \`e ottimizzato conoscendo i
-prezzi di tutti i periodi della giornata. Il ricavo che ne risulta \`e quindi un limite
-superiore, non un risultato conseguibile da un operatore reale, e va letto come termine di
-confronto.
+\paragraph{Reazione di secondo ordine non catturata.} \`E il limite pi\`u rilevante per
+l'interpretazione dei risultati. Gli altri operatori del mercato non modificano le proprie
+offerte in risposta all'ingresso dell'accumulo: le curve d'asta restano quelle osservate
+storicamente. Nella realt\`a un produttore che vedesse comprimersi il prezzo serale
+riformulerebbe le proprie offerte, e cos\`i farebbe un consumatore flessibile. L'erosione
+misurata \`e quindi l'effetto \emph{di primo ordine}, e non \`e possibile stabilire con questo
+impianto se la reazione degli altri operatori la attenuerebbe o l'amplificherebbe.
 
-\paragraph{Esistenza dell'equilibrio con l'accumulo.} Profilo e prezzi si determinano a
-vicenda, e il punto fisso pu\`o non esistere: la batteria carica dove il prezzo \`e basso, ma
-caricando lo alza, e sul prezzo alzato non converrebbe pi\`u caricare. Nei casi in cui la
-successione oscilla si sceglie il profilo con il ricavo realizzato pi\`u alto, il che
-corrisponde per\`o a un operatore che internalizza il proprio effetto sul prezzo, mentre il
-punto fisso descrive un operatore che non lo internalizza. La distinzione va riportata nei
-risultati.
+\paragraph{Aggiustamento intra-periodo non catturato.} Le batterie non ricontrattano la
+propria posizione dopo la chiusura del Mercato del Giorno Prima, mentre nella realt\`a
+opererebbero anche sui mercati infragiornalieri, dove potrebbero recuperare parte del margine
+eroso. La stima dell'erosione sul solo MGP \`e quindi conservativa rispetto alla redditivit\`a
+complessiva, ma non necessariamente rispetto alla soglia.
+
+\paragraph{Previsione perfetta.} Il profilo di carica e scarica \`e ottimizzato conoscendo i
+prezzi di tutti i periodi della giornata. Il profitto che ne risulta \`e un limite superiore,
+non un risultato conseguibile da un operatore reale. Poich\'e per\`o l'erosione \`e un rapporto
+fra due profitti calcolati sullo stesso piano, un piano subottimo ridurrebbe entrambi i
+termini e l'effetto sulla soglia \`e di secondo ordine.
+
+\paragraph{Stima in coda del quantile.} La soglia \`e definita su un quantile della
+distribuzione dell'erosione fra i giorni. Anche restando all'80\textsuperscript{o} o al
+90\textsuperscript{o} percentile — e si \`e evitato deliberatamente di spingersi oltre — la
+stima poggia su un numero limitato di giornate, e gli intervalli di confidenza bootstrap
+riportati insieme a $K^*$ servono a rendere esplicita questa fragilit\`a.
+
+\paragraph{Flotta omogenea.} La capacit\`a aggregata \`e trattata come un'unica batteria
+equivalente. L'equivalenza vale finch\'e le batterie hanno gli stessi vincoli, lineari, e
+ottimizzano sullo stesso segnale di prezzo; si rompe se le durate o gli stati iniziali sono
+diversi, perch\'e in quel caso la somma dei profili ottimi non coincide con il profilo ottimo
+della somma.
+
+\paragraph{Esistenza dell'equilibrio nella variante a operatore unico.} Nella formulazione
+alternativa, in cui un operatore unico riottimizza tenendo conto del proprio effetto, profilo
+e prezzi si determinano a vicenda e il punto fisso pu\`o non esistere. \`E una delle ragioni
+per cui quella formulazione non \`e stata adottata, ma resta implementata come termine di
+confronto: il divario fra i due scenari misura quanto valga, per l'accumulo, internalizzare
+il proprio effetto sul prezzo.
 
 \paragraph{Mercati non considerati.} L'analisi riguarda il solo Mercato del Giorno Prima.
 Un sistema di accumulo reale opera anche sui Mercati Infragiornalieri e sul Mercato per il

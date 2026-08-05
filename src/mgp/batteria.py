@@ -1,30 +1,50 @@
 """
-Simulazione di un sistema di accumulo che fa arbitraggio sul MGP.
+Accumulo che fa arbitraggio sul MGP: dal piano di carica e scarica alla soglia di capacita'
+oltre la quale l'accumulo smette di essere price taker.
 
-Che cosa fa questo modulo
+La domanda a cui serve questo modulo
+------------------------------------
+Non "quanto guadagna una batteria", ma **a partire da quale capacita' aggregata installata
+l'accumulo diventa price maker**, cioe' sposta i prezzi che sta sfruttando al punto da
+erodere il proprio margine. La transizione non e' un punto ma un fenomeno graduale e
+aleatorio, perche' dipende dalla forma delle curve d'asta, che cambia ogni giorno: va quindi
+caratterizzata come **soglia stocastica** (decisione D-24).
+
+La metrica: erosione di profitto
+--------------------------------
+Per un giorno storico e una capacita' aggregata K si confrontano due profitti calcolati sullo
+**stesso identico piano** di carica e scarica:
+
+* `profitto_price_taker`: il piano valorizzato ai prezzi storici, cioe' come se l'accumulo
+  non li muovesse. E' quello che si aspetta chi ottimizza su una serie di prezzi passati;
+* `profitto_price_maker`: lo stesso piano inserito nelle curve d'asta reali, con l'equilibrio
+  di ogni periodo ricalcolato e il piano valorizzato ai prezzi nuovi.
+
+L'erosione e' la quota di profitto che l'accumulo distrugge da se':
+
+    E(d, K) = (profitto_price_taker - profitto_price_maker) / profitto_price_taker
+
+Poiche' il piano e' lo stesso nei due casi, la differenza misura **solo** l'effetto sul
+prezzo, non un diverso comportamento.
+
+Lo scenario simulato: tante batterie piccole non coordinate (D-25)
+------------------------------------------------------------------
+Il piano si ottimizza **una volta sola** sui prezzi storici, e l'equilibrio si ricalcola
+**una volta sola**, solo per valorizzare. Non c'e' riottimizzazione strategica ne' ricerca di
+un punto fisso fra profilo e prezzi.
+
+La giustificazione e' economica: nessun singolo operatore, essendo piccolo, ha ragione di
+anticipare il proprio effetto sul prezzo, quindi ciascuno ottimizza sul segnale che osserva.
+Tutte le batterie osservano lo stesso segnale e i loro profili si sommano — e' coordinamento
+**implicito via prezzo comune**, non collusione. E' questo che rende legittimo trattare la
+capacita' aggregata K come un unico profilo.
+
+Come partecipa al mercato
 -------------------------
-Dato un profilo di prezzi e le caratteristiche fisiche di una batteria, calcola il profilo
-ottimo di carica e scarica; e, dato l'insieme delle offerte di una giornata, ricalcola i
-prezzi di equilibrio con la batteria inserita nel mercato.
-
-La distinzione fra le due cose e' il punto centrale della tesi. Una batteria di taglia
-trascurabile prende i prezzi come dati: compra dove costa poco, vende dove costa molto, e il
-mercato non se ne accorge. Una batteria di taglia rilevante, invece, **sposta i prezzi che
-sta sfruttando**: caricando aggiunge domanda e alza il prezzo di acquisto, scaricando
-aggiunge offerta e abbassa quello di vendita. Il margine di arbitraggio si riduce quindi al
-crescere della taglia, ed e' questo meccanismo che rende il dimensionamento un problema
-economico e non solo tecnico.
-
-Come e' modellata la partecipazione al mercato
-----------------------------------------------
-La batteria partecipa come **price taker**: presenta la carica come domanda al prezzo
-massimo e la scarica come offerta al prezzo minimo. E' l'ipotesi naturale per un accumulo
-che ha gia' deciso il proprio profilo e vuole eseguirlo: accetta qualunque prezzo pur di
-ottenere il volume. Non e' l'unica possibile — un operatore strategico presenterebbe offerte
-a prezzo limite — ed e' un'assunzione da dichiarare.
-
-Il prezzo che ne risulta e' pero' **endogeno**: la batteria e' price taker nel modo in cui
-offre, non nell'effetto che produce.
+L'accumulo si presenta come **price taker nel modo di offrire**: la carica entra come domanda
+al prezzo massimo, la scarica come offerta al prezzo minimo, cioe' accetta qualunque prezzo
+pur di ottenere il volume programmato. Il prezzo che ne risulta e' pero' endogeno: price
+taker nel modo di offrire non significa privo di effetto.
 """
 
 from __future__ import annotations
@@ -220,6 +240,282 @@ def stato_di_carica(
     return batteria.energia_iniziale_mwh + np.cumsum(accumulo)
 
 
+def flotta(potenza_aggregata_mw: float, durata_ore: float = 4.0, **parametri) -> Batteria:
+    """
+    Costruisce la batteria equivalente a una flotta di accumuli non coordinati.
+
+    Parameters
+    ----------
+    potenza_aggregata_mw : float
+        Capacita' aggregata installata K, in MW di potenza.
+    durata_ore : float
+        Rapporto fra capacita' energetica e potenza, in ore. Quattro ore e' il taglio piu'
+        diffuso negli impianti in costruzione.
+    **parametri
+        Altri campi di `Batteria` (rendimenti, ciclo chiuso, energia iniziale).
+
+    Returns
+    -------
+    Batteria
+
+    Perche' una flotta si puo' trattare come un'unica batteria
+    ----------------------------------------------------------
+    Nello scenario adottato (D-25) le batterie sono molte e piccole, nessuna di esse ha
+    ragione di anticipare il proprio effetto sul prezzo, e tutte osservano **lo stesso
+    segnale di prezzo**. Ottimizzando ciascuna sullo stesso vettore di prezzi e con gli
+    stessi parametri tecnici, i profili risultanti sono proporzionali fra loro e la loro
+    somma coincide con il profilo che si otterrebbe ottimizzando una sola batteria di taglia
+    pari alla somma. E' coordinamento implicito via prezzo comune, non collusione, e vale
+    finche' i vincoli sono lineari e uguali per tutte.
+
+    L'equivalenza si rompe se le batterie hanno durate diverse o vincoli iniziali diversi:
+    in quel caso la somma dei profili ottimi non e' il profilo ottimo della somma. E' una
+    delle direzioni in cui il modello si puo' raffinare.
+    """
+    parametri.setdefault("ciclo_chiuso", True)
+    return Batteria(potenza_mw=potenza_aggregata_mw,
+                    capacita_mwh=potenza_aggregata_mw * durata_ore,
+                    **parametri)
+
+
+# --------------------------------------------------------------------------------------
+# I due profitti e l'erosione (impianto D-24, D-25)
+# --------------------------------------------------------------------------------------
+def profitto_price_taker(
+    carica: np.ndarray,
+    scarica: np.ndarray,
+    prezzi: np.ndarray | list[float],
+    durata_periodo_ore: float,
+) -> float:
+    """
+    Valorizza un piano ai prezzi dati, come se l'accumulo non li muovesse.
+
+    Parameters
+    ----------
+    carica, scarica : array
+        Potenze in MW per ciascun periodo.
+    prezzi : array
+        Prezzi di riferimento, in €/MWh.
+    durata_periodo_ore : float
+        Durata di un periodo in ore.
+
+    Returns
+    -------
+    float
+        Profitto in euro: $\\sum_t p_t \\Delta (s_t - c_t)$.
+
+    Che cosa rappresenta
+    --------------------
+    E' il profitto che un investitore si aspetta guardando una serie storica di prezzi e
+    ottimizzandoci sopra: ignora completamente il fatto che l'accumulo, entrando in mercato,
+    sposta quei prezzi. E' il termine di confronto rispetto a cui si misura l'erosione, e non
+    e' un profitto realizzabile quando la capacita' installata e' rilevante.
+    """
+    prezzi = np.asarray(prezzi, dtype=float)
+    netto = (np.asarray(scarica, dtype=float) - np.asarray(carica, dtype=float))
+    return float(np.nansum(prezzi * netto * durata_periodo_ore))
+
+
+def profitto_price_maker(
+    carica: np.ndarray,
+    scarica: np.ndarray,
+    offerte_giorno: dict[int, pd.DataFrame],
+    periodi: list[int],
+    durata_periodo_ore: float,
+) -> tuple[float, np.ndarray]:
+    """
+    Inserisce il piano nelle curve d'asta, ricalcola l'equilibrio e valorizza ai prezzi nuovi.
+
+    Parameters
+    ----------
+    carica, scarica : array
+        Potenze in MW per ciascun periodo, nello stesso ordine di `periodi`.
+    offerte_giorno : dict[int, pd.DataFrame]
+        Offerte di ciascuna asta, da `curve.offerte_giornata`.
+    periodi : list[int]
+        Periodi della giornata, nell'ordine.
+    durata_periodo_ore : float
+        Durata di un periodo in ore.
+
+    Returns
+    -------
+    (profitto, prezzi) : tuple[float, np.ndarray]
+        Profitto in euro ai prezzi ricalcolati, e il vettore di quei prezzi.
+
+    Come entra la batteria nelle curve
+    ----------------------------------
+    Nei periodi di carica come **domanda addizionale al prezzo massimo**, in quelli di
+    scarica come **offerta addizionale al prezzo minimo**: e' il modo di offrire di chi ha
+    gia' deciso il proprio programma e accetta qualunque prezzo pur di eseguirlo.
+
+    L'equilibrio si ricalcola **una volta sola** e serve soltanto a valorizzare (D-25). Non
+    si riottimizza il piano sui prezzi nuovi: farlo significherebbe simulare un operatore che
+    anticipa il proprio effetto, cioe' un altro scenario. La differenza fra questo profitto e
+    quello price taker misura percio' esattamente l'effetto sul prezzo, a piano invariato.
+    """
+    prezzi = np.empty(len(periodi), dtype=float)
+    for i, periodo in enumerate(periodi):
+        offerte = offerte_giorno[int(periodo)]
+        netto = float(scarica[i] - carica[i])
+        if netto != 0.0:
+            offerte = curve.aggiungi_import(offerte, netto)
+        eq = curve.prezzo_equilibrio(offerte)
+        prezzi[i] = np.nan if eq.prezzo is None else eq.prezzo
+    profitto = profitto_price_taker(carica, scarica, prezzi, durata_periodo_ore)
+    return profitto, prezzi
+
+
+@dataclass
+class Erosione:
+    """
+    Esito del confronto fra profitto price taker e price maker per un giorno e una capacita'.
+
+    Attributes
+    ----------
+    data : str
+        Giorno di mercato.
+    potenza_mw : float
+        Capacita' aggregata K simulata, in MW.
+    profitto_price_taker : float
+        Profitto atteso ai prezzi di riferimento, in euro.
+    profitto_price_maker : float
+        Profitto ai prezzi ricalcolati con l'accumulo in mercato, in euro.
+    erosione_assoluta : float
+        Differenza fra i due, in euro. Resta interpretabile anche nei giorni a basso spread.
+    erosione_relativa : float
+        Quota di profitto eroso. Vale NaN quando il profitto price taker e' trascurabile,
+        perche' il rapporto non sarebbe informativo (D-29).
+    variazione_prezzo_media : float
+        Media sui periodi della differenza fra prezzo con accumulo e prezzo di riferimento.
+    energia_ciclata_mwh : float
+    cicli_equivalenti : float
+    """
+
+    data: str
+    potenza_mw: float
+    profitto_price_taker: float
+    profitto_price_maker: float
+    erosione_assoluta: float
+    erosione_relativa: float
+    variazione_prezzo_media: float
+    energia_ciclata_mwh: float
+    cicli_equivalenti: float
+    profilo: pd.DataFrame = field(default_factory=pd.DataFrame)
+
+
+#: Sotto questo profitto price taker (euro) l'erosione relativa non viene calcolata: il
+#: rapporto sarebbe dominato dal rumore. I giorni restano comunque nel campione, con la sola
+#: erosione assoluta (D-29).
+PROFITTO_MINIMO_PER_RAPPORTO: float = 1.0
+
+
+def erosione(
+    df: pd.DataFrame,
+    potenza_aggregata_mw: float,
+    granularita: str,
+    data: str = "",
+    durata_ore: float = 4.0,
+    zone: list[str] | str | None = None,
+    prezzi_riferimento: np.ndarray | None = None,
+    offerte_giorno: dict[int, pd.DataFrame] | None = None,
+    con_import: bool = True,
+    **parametri_batteria,
+) -> Erosione:
+    """
+    Calcola l'erosione di profitto di una giornata per una data capacita' aggregata.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Offerte del giorno.
+    potenza_aggregata_mw : float
+        Capacita' aggregata K, in MW.
+    granularita : str
+        Granularita' delle aste.
+    data : str
+        Etichetta del giorno, riportata nell'esito.
+    durata_ore : float
+        Rapporto energia/potenza della flotta.
+    zone : list[str] | str | None
+        Perimetro zonale.
+    prezzi_riferimento : array | None
+        Prezzi su cui ottimizzare e valorizzare il profitto price taker. Se None si usano i
+        prezzi ricostruiti **senza** accumulo (vedi nota).
+    offerte_giorno : dict[int, pd.DataFrame] | None
+        Curve gia' preparate da `curve.offerte_giornata`. Passarle evita di ricostruirle a
+        ogni capacita' della griglia: sulle stesse curve cambia solo il profilo inserito.
+    con_import : bool
+        Se includere il blocco di scambio netto.
+    **parametri_batteria
+        Rendimenti, ciclo chiuso, energia iniziale.
+
+    Returns
+    -------
+    Erosione
+
+    Perche' i prezzi di riferimento sono quelli ricostruiti e non quelli ufficiali
+    -----------------------------------------------------------------------------
+    Sarebbe naturale usare i prezzi ufficiali come "prezzi storici". Cosi' facendo, pero',
+    la differenza fra i due profitti conterrebbe **due** cose: l'effetto dell'accumulo sul
+    prezzo, che e' l'oggetto dello studio, e l'errore della ricostruzione, che non lo e'.
+    Usando per entrambi i profitti i prezzi ricostruiti senza accumulo, l'errore di
+    ricostruzione entra in modo identico nei due termini e si semplifica nella differenza:
+    l'erosione isola cosi' il solo effetto di prezzo.
+
+    La ricostruzione e' comunque validata contro i prezzi ufficiali (si veda
+    `curve.confronta_con_ufficiale` e lo script di validazione mensile), ed e' quella
+    validazione a garantire che le curve su cui si simula siano quelle vere. Passando
+    `prezzi_riferimento` si puo' rifare il calcolo sui prezzi ufficiali come controllo di
+    sensibilita'.
+    """
+    if offerte_giorno is None:
+        offerte_giorno = curve.offerte_giornata(df, granularita, zone=zone,
+                                                con_import=con_import)
+    periodi = sorted(offerte_giorno)
+    delta = config.DURATA_ORE[granularita]
+
+    if prezzi_riferimento is None:
+        base = np.array(
+            [curve.prezzo_equilibrio(offerte_giorno[p]).prezzo for p in periodi],
+            dtype=float,
+        )
+    else:
+        base = np.asarray(prezzi_riferimento, dtype=float)
+
+    accumulo = flotta(potenza_aggregata_mw, durata_ore, **parametri_batteria)
+    riferimento = np.nan_to_num(base, nan=float(np.nanmean(base)) if np.isfinite(base).any() else 0.0)
+    carica, scarica = profilo_ottimo(riferimento, accumulo, delta)
+
+    pi_pt = profitto_price_taker(carica, scarica, base, delta)
+    pi_pm, prezzi_nuovi = profitto_price_maker(carica, scarica, offerte_giorno, periodi, delta)
+
+    assoluta = pi_pt - pi_pm
+    relativa = (assoluta / pi_pt) if abs(pi_pt) >= PROFITTO_MINIMO_PER_RAPPORTO else float("nan")
+    energia_ciclata = float(np.sum(scarica) * delta)
+
+    profilo = pd.DataFrame({
+        "PERIOD": periodi,
+        "prezzo_riferimento": base,
+        "prezzo_con_accumulo": prezzi_nuovi,
+        "carica_mw": carica,
+        "scarica_mw": scarica,
+        "energia_mwh": stato_di_carica(carica, scarica, accumulo, delta),
+    })
+
+    return Erosione(
+        data=data,
+        potenza_mw=potenza_aggregata_mw,
+        profitto_price_taker=pi_pt,
+        profitto_price_maker=pi_pm,
+        erosione_assoluta=assoluta,
+        erosione_relativa=relativa,
+        variazione_prezzo_media=float(np.nanmean(prezzi_nuovi - base)),
+        energia_ciclata_mwh=energia_ciclata,
+        cicli_equivalenti=energia_ciclata / accumulo.capacita_mwh if accumulo.capacita_mwh else 0.0,
+        profilo=profilo,
+    )
+
+
 # --------------------------------------------------------------------------------------
 # Simulazione con effetto di retroazione sul prezzo
 # --------------------------------------------------------------------------------------
@@ -274,18 +570,25 @@ def simula_giorno(
     con il **ricavo effettivamente realizzato** piu' alto, cioe' valutato ai prezzi che quel
     profilo stesso genera. Il campo `convergenza` distingue i due casi e va riportato.
 
+    Non e' lo scenario adottato
+    ---------------------------
+    Questa funzione simula un **operatore unico che riottimizza** finche' profilo e prezzi
+    non sono coerenti fra loro. E' l'alternativa scartata con D-25: descrive un monopolista
+    dell'accumulo, mentre la domanda di ricerca riguarda l'ingresso di capacita' distribuita
+    fra molti operatori in concorrenza, che non riottimizzano affatto.
+
+    Resta nel modulo come **variante di confronto**: il divario fra questo scenario e quello
+    non coordinato misura quanto vale, per l'accumulo, internalizzare il proprio effetto sul
+    prezzo. Per l'impianto principale si usano invece `erosione` e le funzioni collegate.
+
     Interpretazione economica
     -------------------------
-    Il punto fisso, quando esiste, e' l'equilibrio di un operatore che **non internalizza**
-    il proprio effetto sul prezzo: ottimizza credendo di essere price taker e poi subisce lo
-    spostamento che ha causato. E' il comportamento di una pluralita' di operatori in
-    concorrenza fra loro.
-
-    La selezione per ricavo realizzato, usata quando il punto fisso non esiste, corrisponde
-    invece a un operatore che **internalizza** l'effetto, cioe' sceglie il profilo sapendo
-    come muovera' i prezzi: e' piu' vicino al caso di un monopolista dell'accumulo. Le due
-    letture non coincidono, e nel riportare i risultati va detto quale delle due si sta
-    usando per ciascuna giornata.
+    Il punto fisso, quando esiste, e' l'equilibrio di un operatore che ottimizza credendo di
+    essere price taker e poi subisce lo spostamento che ha causato. La selezione per ricavo
+    realizzato, usata quando il punto fisso non esiste, corrisponde invece a un operatore che
+    **internalizza** l'effetto, cioe' sceglie il profilo sapendo come muovera' i prezzi. Le
+    due letture non coincidono, e nel riportare i risultati va detto quale vale per ciascuna
+    giornata.
     """
     periodi = sorted(
         df.loc[df["GRANULARITY"] == granularita, "PERIOD"].dropna().unique().tolist()
@@ -399,3 +702,164 @@ def simula_giorno(
             "simultaneita": int(np.sum((carica > 1e-6) & (scarica > 1e-6))),
         },
     )
+
+
+# --------------------------------------------------------------------------------------
+# La soglia stocastica: bootstrap sui giorni (D-26, D-27, D-28)
+# --------------------------------------------------------------------------------------
+def _attraversamento(griglia: np.ndarray, valori: np.ndarray, soglia: float) -> float:
+    """
+    Trova per interpolazione lineare il punto in cui una curva crescente supera una soglia.
+
+    Restituisce NaN se la curva non attraversa la soglia entro la griglia: e' un esito
+    informativo — significa che entro le capacita' simulate l'erosione non raggiunge mai il
+    livello dichiarato — e va contato, non silenziato.
+    """
+    sopra = np.flatnonzero(valori >= soglia)
+    if sopra.size == 0:
+        return float("nan")
+    i = int(sopra[0])
+    if i == 0:
+        return float(griglia[0])
+    x0, x1 = float(griglia[i - 1]), float(griglia[i])
+    y0, y1 = float(valori[i - 1]), float(valori[i])
+    if not np.isfinite(y0) or y1 == y0:
+        return x1
+    return x0 + (soglia - y0) * (x1 - x0) / (y1 - y0)
+
+
+def bootstrap_soglia(
+    erosioni: pd.DataFrame,
+    soglia: float = 0.10,
+    quantile: float = 0.90,
+    n_boot: int = 1000,
+    colonna_erosione: str = "erosione_relativa",
+    strato: str | None = None,
+    seme: int | None = 12345,
+) -> pd.DataFrame:
+    """
+    Stima la soglia di capacita' K* e la sua incertezza, ricampionando i giorni storici.
+
+    Parameters
+    ----------
+    erosioni : pd.DataFrame
+        Una riga per coppia (giorno, capacita'), con almeno le colonne `data`, `potenza_mw`
+        e quella indicata da `colonna_erosione`. E' l'output dello script che calcola
+        `erosione` sulla griglia.
+    soglia : float
+        Livello di erosione che definisce il passaggio a price maker, per esempio 0,10 per
+        il 10% di profitto eroso. E' una scelta dichiarata, non stimata dai dati.
+    quantile : float
+        Quantile prudenziale della distribuzione dell'erosione fra i giorni (D-27). Si usa
+        0,80 o 0,90: piu' in coda la stima diventa instabile perche' poggia su pochi giorni.
+    n_boot : int
+        Numero di ricampionamenti.
+    colonna_erosione : str
+        `erosione_relativa` oppure `erosione_assoluta` (D-29).
+    strato : str | None
+        Nome di una colonna su cui stratificare, per esempio la stagione o l'anno (D-28).
+        Se indicata, la stima viene ripetuta separatamente per ciascun livello.
+    seme : int | None
+        Seme del generatore, per rendere il risultato riproducibile.
+
+    Returns
+    -------
+    pd.DataFrame
+        Una riga per strato, con `K_stella` (stima sul campione osservato), `K_inf` e `K_sup`
+        (estremi dell'intervallo di confidenza al 90%), `quota_senza_attraversamento` (quota
+        di ricampionamenti in cui l'erosione non raggiunge mai la soglia entro la griglia),
+        `n_giorni` e `n_capacita`.
+
+    Come funziona
+    -------------
+    Si ricampionano **i giorni** con reimmissione, non le singole osservazioni: un giorno
+    entra o esce con tutta la sua curva di erosione sulle capacita'. E' la struttura corretta,
+    perche' l'unita' statistica e' la giornata di mercato — le erosioni a capacita' diverse
+    dello stesso giorno sono fortemente dipendenti fra loro, essendo calcolate sulle stesse
+    curve d'asta.
+
+    Per ogni ricampionamento si calcola, a ciascuna capacita' della griglia, il quantile
+    dell'erosione fra i giorni estratti; si ottiene cosi' una curva quantile-contro-capacita',
+    crescente perche' piu' accumulo erode di piu'; e si individua per interpolazione la
+    capacita' a cui quella curva attraversa la soglia dichiarata. La distribuzione delle K*
+    cosi' ottenute fornisce l'intervallo di confidenza.
+
+    Perche' il quantile e non la media
+    ----------------------------------
+    La media descrive il giorno tipico, ma chi investe sopporta il rischio del giorno
+    sfavorevole: la soglia rilevante e' quella oltre cui l'erosione diventa grave in una quota
+    non trascurabile di giornate. Il quantile risponde a quella domanda, la media no.
+    """
+    richieste = {"data", "potenza_mw", colonna_erosione}
+    mancanti = richieste - set(erosioni.columns)
+    if mancanti:
+        raise ValueError(f"colonne mancanti in `erosioni`: {sorted(mancanti)}")
+
+    gruppi = [(None, erosioni)] if strato is None else list(erosioni.groupby(strato))
+    generatore = np.random.default_rng(seme)
+    righe = []
+
+    for etichetta, fetta in gruppi:
+        tabella = fetta.pivot_table(index="data", columns="potenza_mw",
+                                    values=colonna_erosione, aggfunc="mean")
+        tabella = tabella.sort_index(axis=1)
+        griglia = tabella.columns.to_numpy(dtype=float)
+        valori = tabella.to_numpy(dtype=float)      # giorni x capacita'
+        n_giorni = valori.shape[0]
+        if n_giorni == 0 or griglia.size == 0:
+            continue
+
+        osservata = np.nanquantile(valori, quantile, axis=0)
+        k_osservata = _attraversamento(griglia, osservata, soglia)
+
+        stime = np.empty(n_boot, dtype=float)
+        for b in range(n_boot):
+            estratti = generatore.integers(0, n_giorni, size=n_giorni)
+            campione = valori[estratti]
+            with np.errstate(invalid="ignore"):
+                curva = np.nanquantile(campione, quantile, axis=0)
+            stime[b] = _attraversamento(griglia, curva, soglia)
+
+        valide = stime[np.isfinite(stime)]
+        righe.append({
+            "strato": etichetta if etichetta is not None else "tutti i giorni",
+            "K_stella": k_osservata,
+            "K_inf": float(np.percentile(valide, 5)) if valide.size else float("nan"),
+            "K_sup": float(np.percentile(valide, 95)) if valide.size else float("nan"),
+            "quota_senza_attraversamento": float(1 - valide.size / n_boot),
+            "n_giorni": int(n_giorni),
+            "n_capacita": int(griglia.size),
+            "quantile": quantile,
+            "soglia": soglia,
+        })
+
+    return pd.DataFrame(righe)
+
+
+def curva_erosione(
+    erosioni: pd.DataFrame,
+    quantili: tuple[float, ...] = (0.5, 0.8, 0.9),
+    colonna_erosione: str = "erosione_relativa",
+    strato: str | None = None,
+) -> pd.DataFrame:
+    """
+    Riassume l'erosione osservata in funzione della capacita' installata.
+
+    Returns
+    -------
+    pd.DataFrame
+        Per ciascuna capacita' (ed eventuale strato): mediana e quantili richiesti
+        dell'erosione fra i giorni, piu' il numero di giorni su cui sono calcolati.
+
+    A che serve
+    -----------
+    E' la curva che si porta in tesi accanto alla soglia: mostra **come** l'erosione cresce
+    con la capacita', non solo dove attraversa un livello convenzionale. La distanza fra il
+    quantile mediano e quello prudenziale dice quanto la transizione dipende dalla giornata.
+    """
+    chiavi = ["potenza_mw"] if strato is None else [strato, "potenza_mw"]
+    aggregazioni = {f"q{int(q * 100)}": (colonna_erosione, lambda s, q=q: s.quantile(q))
+                    for q in quantili}
+    aggregazioni["media"] = (colonna_erosione, "mean")
+    aggregazioni["n_giorni"] = (colonna_erosione, "count")
+    return erosioni.groupby(chiavi).agg(**aggregazioni).reset_index()
