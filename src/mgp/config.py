@@ -173,6 +173,85 @@ def in_energia(potenza_mw: float, granularita: str) -> float:
 PREZZO_MASSIMO: float = 4000.0
 PREZZO_MINIMO: float = -500.0
 
+# --------------------------------------------------------------------------------------
+# Parametri tecnici dell'accumulo elettrochimico (decisione D-32)
+# --------------------------------------------------------------------------------------
+#: FONTE: Alonso-Perez, S. e Arcos-Vargas, A. (2026), "Storage deployment and its impact on
+#: wholesale electricity prices", Energy Reports 15, 108991.
+#:
+#: Perche' presi da li' invece che scelti da noi: quello studio affronta la stessa domanda di
+#: ricerca (effetto dell'aggiunta di capacita' di accumulo sui prezzi del mercato del giorno
+#: prima) sul mercato spagnolo con dati OMIE 2024. I suoi parametri tecnici sono quindi
+#: **citabili**, mentre i valori usati in precedenza qui (rendimenti 0,95 e costo variabile
+#: assente) erano posti da noi senza fonte.
+#:
+#: ATTENZIONE - cosa NON e' trasferibile da quel lavoro:
+#:   * le soglie di saturazione che gli autori trovano (~15 e ~32 GWh) valgono per la Spagna
+#:     del 2024 e non sono trasferibili all'Italia: non vanno usate ne' come valore atteso
+#:     ne' come griglia di capacita'. Per la zona NORD l'ordine di grandezza misurato e' di
+#:     decine-centinaia di MW (D-30), cioe' due ordini di grandezza piu' basso;
+#:   * i loro dati sono orari (24 periodi al giorno), i nostri anche a quarto d'ora (96):
+#:     nessuna costante di questo progetto deve assumere 24 periodi;
+#:   * mercato (OMIE/Spagna contro GME/Italia zona NORD) e impianto metodologico
+#:     (deterministico puntuale contro stocastico distribuzionale, vedi D-24) restano diversi.
+PARAMETRI_BESS: dict[str, float] = {
+    #: Rendimento di ciclo completo (round-trip). I rendimenti di carica e di scarica si
+    #: ottengono come sua radice quadrata, ipotizzando che la perdita si ripartisca in parti
+    #: uguali fra le due direzioni: 0,9592 ciascuno.
+    "rendimento_ciclo": 0.92,
+
+    #: Costo variabile per MWh ciclato, in €/MWh: e' il costo opportunita' del degrado, cioe'
+    #: la quota di vita utile consumata da un ciclo. Si applica **solo alla scarica**, in modo
+    #: che un ciclo completo costi 12 €/MWh e non 24 (vedi D-32).
+    "costo_variabile_eur_mwh": 12.0,
+
+    #: Cicli equivalenti l'anno. NON e' un vincolo del programma lineare, che e' giornaliero:
+    #: serve al calcolo economico annuale (capitolo 5) per il degrado. Corrobora pero' il
+    #: vincolo di ciclo chiuso giornaliero, che ne implica 365: 350 e' il 96% di quel valore.
+    "cicli_anno": 350.0,
+
+    #: Rapporto fra capacita' energetica e potenza, in ore. Equivale alla condizione "potenza
+    #: del convertitore pari al 25% della capacita' energetica": sono la stessa affermazione,
+    #: perche' P = 0,25 * E se e solo se E / P = 4 ore. Gli autori mostrano che oltre il 25%
+    #: il dimensionamento del convertitore smette di essere vincolante.
+    "durata_ore": 4.0,
+
+    #: Orizzonte di ottimizzazione, in giorni. Gli autori misurano che un orizzonte di 3
+    #: giorni cattura oltre il 99% del profitto ottenibile con 5 giorni: il rendimento
+    #: decrescente dell'orizzonte e' quindi rapido, e la giornata singola adottata qui (con
+    #: ciclo chiuso, D-22) e' un troncamento accettabile. Resta un limite dichiarato.
+    "orizzonte_giorni": 1.0,
+}
+
+
+def rendimenti_da_ciclo(rendimento_ciclo: float | None = None) -> tuple[float, float]:
+    """
+    Ripartisce un rendimento di ciclo completo fra carica e scarica.
+
+    Parameters
+    ----------
+    rendimento_ciclo : float, opzionale
+        Rendimento round-trip. Se omesso si usa `PARAMETRI_BESS["rendimento_ciclo"]`.
+
+    Returns
+    -------
+    (rendimento_carica, rendimento_scarica) : tuple[float, float]
+        Entrambi pari alla radice quadrata del rendimento di ciclo.
+
+    Assunzione
+    ----------
+    La perdita si ripartisce **in parti uguali** fra le due direzioni. E' una convenzione: la
+    fonte da' il solo valore round-trip, che e' anche l'unica grandezza misurabile a morsetti.
+    Il modello e' peraltro insensibile alla ripartizione quando il ciclo e' chiuso e i prezzi
+    sono positivi, perche' entra solo il prodotto dei due rendimenti; la ripartizione conta
+    soltanto con prezzi negativi, dove caricare e' remunerato.
+    """
+    if rendimento_ciclo is None:
+        rendimento_ciclo = PARAMETRI_BESS["rendimento_ciclo"]
+    radice = float(rendimento_ciclo) ** 0.5
+    return radice, radice
+
+
 #: Colonne effettivamente utili all'analisi (le altre vengono scartate in lettura).
 COLONNE_UTILI: list[str] = [
     "PURPOSE_CD",             # BID / OFF

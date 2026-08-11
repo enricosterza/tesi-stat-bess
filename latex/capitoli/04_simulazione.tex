@@ -295,6 +295,52 @@ La durata non \`e un dettaglio tecnico: a parit\`a di potenza, una durata maggio
 l'accumulo a operare anche in periodi meno favorevoli, spalmando l'effetto su pi\`u ore e
 quindi riducendo l'impatto su ciascuna.
 
+\subsection{I parametri tecnici di riferimento}
+\label{sec:parametri}
+
+I parametri fisici dell'accumulo sono ripresi da \textcite{alonsoperez2026storage}, in modo che
+non siano scelte arbitrarie di questo lavoro ma valori documentati in letteratura
+(Tabella~\ref{tab:parametri}).
+
+\begin{table}[H]
+\centering
+\caption{Parametri tecnici di riferimento dell'accumulo.}
+\label{tab:parametri}
+\begin{tabular}{@{}lrl@{}}
+\toprule
+\textbf{Parametro} & \textbf{Valore} & \textbf{Ruolo nel modello} \\
+\midrule
+Rendimento di ciclo completo & 92\,\%          & bilancio energetico \\
+Costo variabile              & 12~\euromwh{}   & penalizza l'energia scaricata \\
+Durata                       & 4 ore           & rapporto capacit\`a/potenza \\
+Cicli equivalenti annui      & 350             & solo per il calcolo economico annuo \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Tre precisazioni evitano altrettanti fraintendimenti.
+
+La condizione «potenza del convertitore pari al 25\% della capacit\`a energetica», che gli
+autori indicano come soglia oltre la quale il dimensionamento del convertitore cessa di essere
+vincolante, \textbf{coincide} con una durata di quattro ore: $P = 0{,}25\,E$ se e solo se
+$E/P = 4$~h. Non \`e quindi un parametro aggiuntivo, ma una conferma indipendente della scelta
+gi\`a adottata.
+
+Il \textbf{costo variabile} rappresenta il costo opportunit\`a del degrado, cio\`e la quota di
+vita utile che ogni megawattora ciclato consuma. Si applica alla sola scarica, cos\`i che un
+ciclo completo lo sconti una volta e non due. La sua introduzione non \`e neutrale: rende
+l'accumulo pi\`u selettivo, gli fa compiere meno cicli e ne riduce di conseguenza l'effetto sul
+prezzo. Sul campione di gennaio 2025 questo alza la soglia $K^*$ da 73 a 136~MW rispetto a un
+modello che ignori il degrado — un modello privo di costo variabile sovrastima l'aggressivit\`a
+dell'accumulo e sottostima la capacit\`a che il mercato pu\`o assorbire.
+
+I \textbf{350 cicli annui} non entrano nel programma lineare, che \`e giornaliero: sarebbero un
+vincolo annuale imposto a un modello che non vede l'anno. Servono al calcolo economico del
+Capitolo~\ref{cap:valutazione}. Corroborano per\`o il vincolo di ciclo chiuso giornaliero, che
+ne implica 365. Va segnalato che il modello, ottimizzando in previsione perfetta, ne produce
+circa 450: il divario \`e coerente con il fatto che la previsione perfetta fornisce un limite
+superiore, e non un risultato conseguibile.
+
 \subsection{Il campione dei giorni}
 
 Il campione \`e costituito da giorni di mercato effettivamente osservati, ciascuno con le sue
@@ -495,31 +541,84 @@ verticale} in corrispondenza dell'equilibrio, in tutti i periodi ispezionati. L'
 dell'accumulo passa quindi quasi interamente attraverso la curva di offerta, e ci\`o spiega
 perch\'e sia la pendenza di quest'ultima a determinare la soglia.
 
+\subsection{La curva di impatto marginale}
+\label{sec:impatto}
+
+Accanto al ricalcolo esatto dell'equilibrio, con cui si producono i risultati, \`e utile una
+rappresentazione che renda leggibile in un colpo d'occhio quanto un periodo sia elastico: la
+curva $\Delta p = f(\Delta q)$ della variazione di prezzo in funzione della quantit\`a aggiunta
+o sottratta, con l'\textbf{origine centrata sul punto di clearing osservato} del periodo. La
+tecnica \`e ripresa da \textcite{alonsoperez2026storage}, che la usano come proxy
+dell'elasticit\`a del mercato spagnolo.
+
+Si legge cos\`i: il ramo destro ($\Delta q > 0$) \`e l'accumulo che scarica, aggiunge offerta e
+abbassa il prezzo; quello sinistro \`e l'accumulo che carica, aggiunge domanda e lo alza. I
+tratti piatti sono i gradini larghi, dove l'accumulo passa inosservato; i salti sono i confini
+fra un gradino e il successivo. L'asimmetria fra i due rami \`e la ragione per cui l'effetto
+dell'accumulo non si riassume in un unico numero di elasticit\`a.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{07_impatto_20250120}
+\caption{Curva di impatto marginale dell'ora di minimo e dell'ora di picco del 20 gennaio
+         2025. L'origine \`e il prezzo di equilibrio effettivamente ricostruito per quel
+         periodo.}
+\label{fig:impatto}
+\end{figure}
+
+La Figura~\ref{fig:impatto} rende visibile il meccanismo che governa l'intero risultato.
+Attorno all'origine si estende un \textbf{pianoro} largo alcune centinaia di megawatt in cui il
+prezzo non si muove affatto: l'equilibrio cade in mezzo a un gradino, e finch\'e l'accumulo non
+lo esaurisce il prezzo marginale resta lo stesso. Superato il gradino la curva scende a
+scalini, ciascuno dei quali \`e un'offerta che entra o esce dalla soluzione. \`E questa
+struttura — non l'ampiezza del mercato — a determinare la soglia: ci\`o che conta \`e il
+rapporto fra la taglia dell'accumulo e la larghezza dei gradini che attraversa.
+
+La curva non \`e ottenuta ripetendo il clearing a ogni punto, ma invertendo la funzione di
+eccesso di offerta. Aggiungere una quantit\`a $q$ di offerta price taker trasla $S(p)-D(p)$
+verso l'alto di $q$ a ogni prezzo, da cui
+\begin{equation}
+p^{*}(q) \;=\; \min\left\{\, p \;:\; S(p) - D(p) \ge -q \,\right\},
+\label{eq:impatto}
+\end{equation}
+che \`e esatta, non approssimata, e sfrutta la monotonia dell'eccesso di offerta gi\`a
+richiamata nella Sezione~\ref{sec:mgp}.
+
+Due limiti vanno dichiarati. La curva \`e una diagnostica \textbf{per periodo}, costruita a
+curve fisse: non rivaluta le offerte a blocchi, che sono indivisibili e coprono pi\`u periodi,
+quindi per capacit\`a elevate il prezzo che vi si legge pu\`o discostarsi da quello del
+clearing di giornata. E l'asse in energia dipende dalla durata del periodo: su aste a quarto
+d'ora un megawatt vale $0{,}25$~MWh, e le due scale coincidono soltanto sulle aste orarie.
+
 \subsection{Il pavimento di discretezza}
 \label{sec:pavimento}
 
 Le curve ricostruite sono funzioni a gradini, e questo introduce un effetto che va corretto
 prima di interpretare i risultati alle capacit\`a pi\`u piccole.
 
-Con una griglia fitta nella parte bassa si osserva che fra 1 e 15~MW l'erosione \textbf{non
-cresce}: resta attorno all'1-1{,}5\% in mediana. Un effetto di mercato dovrebbe invece scalare
-con la capacit\`a installata. L'esame periodo per periodo mostra la ragione: a 1~MW il prezzo
-si muove mediamente in un periodo e mezzo su una decina in cui l'accumulo opera, ma quando si
-muove \textbf{salta di un gradino intero}, fra 1{,}8 e 2{,}7~\euromwh{}. Non \`e uno
-spostamento graduale: sono gli equilibri che cadono esattamente sul bordo di un gradino e che
-pochi megawatt fanno scattare a quello successivo.
+Con una griglia fitta nella parte bassa si osserva che fra 1 e 15~MW l'erosione cresce
+\textbf{molto meno che proporzionalmente}: passa dallo 0{,}7\% all'1{,}3\% in mediana, cio\`e
+raddoppia appena mentre la capacit\`a si moltiplica per quindici. Un effetto di mercato
+dovrebbe invece scalare con la capacit\`a installata, e il valore a 1~MW dovrebbe essere
+prossimo a zero.
+
+L'esame periodo per periodo mostra la ragione: a 1~MW il prezzo si muove mediamente in due
+periodi e mezzo sui tredici in cui l'accumulo opera, ma quando si muove \textbf{salta di un
+gradino intero}, in media 1{,}4~\euromwh{}. Non \`e uno spostamento graduale: sono gli
+equilibri che cadono esattamente sul bordo di un gradino e che pochi megawatt fanno scattare a
+quello successivo.
 
 Nel mercato reale il fenomeno non si presenta allo stesso modo, perch\'e l'offerta marginale
 viene accettata parzialmente e l'incrocio cade all'interno del gradino. Si tratta quindi di un
 \textbf{artefatto della ricostruzione}, non di un fenomeno da misurare.
 
 Il pavimento viene misurato alla capacit\`a pi\`u piccola della griglia — dove per costruzione
-non pu\`o esserci effetto di mercato — e sottratto giorno per giorno. Vale l'1{,}0\% in
-mediana e il 3{,}6\% al 90\textsuperscript{o} percentile. La correzione sposta la soglia in
+non pu\`o esserci effetto di mercato — e sottratto giorno per giorno. Vale lo 0{,}7\% in
+mediana e il 2{,}8\% al 90\textsuperscript{o} percentile. La correzione sposta la soglia in
 modo sistematico, e in misura tanto maggiore quanto pi\`u basso \`e il livello di erosione
-scelto: a un livello del 20\% la sposta dell'11\%, al 10\% del 22\%, al 5\% del 129\%. Ne segue
-che \textbf{una soglia fissata al 5\% non \`e utilizzabile}, perch\'e il pavimento \`e
-comparabile alla soglia stessa.
+scelto: a un livello del 20\% la sposta del 21\%, al 10\% del 75\%, al 5\% del 117\%. Ne segue
+che una soglia fissata al 5\% \`e la \textbf{meno affidabile}, perch\'e il pavimento vale pi\`u
+della met\`a della soglia stessa.
 
 \subsection{Dal campione alla soglia: il bootstrap}
 \label{sec:bootstrap}

@@ -108,6 +108,9 @@ def erosioni_giorno(data: str, griglia: list[float], durata_ore: float) -> pd.Da
             "erosione_relativa": e.erosione_relativa,
             "variazione_prezzo_media": e.variazione_prezzo_media,
             "cicli_equivalenti": e.cicli_equivalenti,
+            # D-31: giornate in cui il differenziale non copre il costo di degrado e il
+            # piano ottimo e' non fare nulla. Restano nel campione con erosione nulla.
+            "piano_vuoto": e.piano_vuoto,
             "prezzo_medio_riferimento": float(np.nanmean(riferimento)),
             "spread_giornaliero": float(np.nanmax(riferimento) - np.nanmin(riferimento)),
         })
@@ -120,7 +123,7 @@ def main() -> None:
     parser.add_argument("--giorni", help="date AAAAMMGG separate da virgola")
     parser.add_argument("--etichetta", help="nome per i file prodotti")
     parser.add_argument("--griglia", help="capacita' in MW separate da virgola")
-    parser.add_argument("--durata", type=float, default=4.0,
+    parser.add_argument("--durata", type=float, default=bt.DURATA_RIFERIMENTO_ORE,
                         help="rapporto energia/potenza della flotta, in ore")
     parser.add_argument("--quantile", type=float, default=0.90,
                         help="quantile prudenziale (0,80 o 0,90; non usare code estreme)")
@@ -238,19 +241,29 @@ def main() -> None:
     out(_sezione("D. SENSIBILITA' DELLA SOGLIA ALLE SCELTE DICHIARATE"))
     out("Quantile e livello di erosione non sono stimati dai dati ma scelti: conviene")
     out("mostrare quanto la soglia dipende da quella scelta.")
+    # La sensibilita' si calcola sull'erosione NETTA, cioe' sulla stessa grandezza della
+    # stima adottata nella sezione C: altrimenti le due tabelle non sarebbero confrontabili
+    # e i valori riportati nella tesi non sarebbero riproducibili da qui. La colonna lorda
+    # resta affiancata come termine di paragone.
     prove = []
     for quantile in (0.80, 0.90):
         for livello in (0.05, 0.10, 0.20):
             riga = bt.bootstrap_soglia(erosioni, soglia=livello, quantile=quantile,
-                                       n_boot=max(200, args.n_boot // 5))
+                                       n_boot=max(200, args.n_boot // 5),
+                                       colonna_erosione="erosione_netta")
+            grezza = bt.bootstrap_soglia(erosioni, soglia=livello, quantile=quantile,
+                                         n_boot=max(200, args.n_boot // 5))
             if len(riga):
                 voce = riga.iloc[0].to_dict()
                 voce["quantile"] = quantile
                 voce["soglia"] = livello
+                voce["K_lorda"] = grezza.iloc[0]["K_stella"] if len(grezza) else float("nan")
                 prove.append(voce)
     if prove:
         tabella = pd.DataFrame(prove)[["quantile", "soglia", "K_stella", "K_inf", "K_sup",
-                                       "quota_senza_attraversamento"]]
+                                       "K_lorda", "quota_senza_attraversamento"]]
+        out("\nK_stella e' al netto del pavimento (stima adottata); K_lorda e' senza la")
+        out("correzione, per confronto.")
         out("\n" + tabella.round(2).to_string(index=False))
 
     # ----------------------------------------------------------------------------------

@@ -71,42 +71,42 @@ variare della capacit\`a aggregata installata.
 \label{tab:curva-erosione}
 \begin{tabular}{@{}rrrr@{}}
 \toprule
-\textbf{Capacit\`a} & \multicolumn{2}{c}{\textbf{Erosione relativa netta}} & \textbf{Erosione lorda mediana} \\
+\textbf{Capacit\`a} & \multicolumn{2}{c}{\textbf{Erosione relativa netta}} & \textbf{Erosione assoluta mediana} \\
 \cmidrule(lr){2-3}
 (MW) & mediana & 90\textsuperscript{o} perc. & (\eur/giorno) \\
 \midrule
-    5 &  0{,}0\,\% &  0{,}7\,\% &       12 \\
-   25 &  1{,}1\,\% &  4{,}0\,\% &      127 \\
-   50 &  1{,}9\,\% &  7{,}2\,\% &      335 \\
-  100 &  5{,}0\,\% & 11{,}0\,\% &      955 \\
-  200 & 10{,}3\,\% & 17{,}7\,\% &    3\,583 \\
-  400 & 19{,}6\,\% & 33{,}6\,\% &   13\,551 \\
-  800 & — & — &   52\,434 \\
- 1500 & — & — &  202\,312 \\
- 6000 & — & — & 4\,026\,618 \\
+    5 &   0{,}0\,\% &   0{,}6\,\% &          10 \\
+   25 &   1{,}0\,\% &   3{,}6\,\% &         106 \\
+   50 &   1{,}5\,\% &   4{,}8\,\% &         282 \\
+  100 &   3{,}7\,\% &   8{,}2\,\% &         840 \\
+  200 &   8{,}8\,\% &  15{,}0\,\% &      3\,401 \\
+  400 &  16{,}2\,\% &  24{,}9\,\% &     12\,771 \\
+  800 &  31{,}4\,\% &  53{,}6\,\% &     48\,115 \\
+ 1500 &  57{,}3\,\% &  94{,}7\,\% &    152\,342 \\
+ 6000 & 313{,}3\,\% & 454{,}3\,\% & 3\,257\,621 \\
 \bottomrule
 \end{tabular}
 \end{table}
-
-% DA COMPLETARE: completare le due colonne dell'erosione netta oltre i 400 MW, dove i valori
-% lordi sono rispettivamente 39,9% / 68,9% (800 MW), 75,5% / 116,6% (1500 MW) e
-% 407,5% / 559,6% (6000 MW); la correzione del pavimento li abbassa di circa un punto.
 
 La distanza fra la mediana e il 90\textsuperscript{o} percentile \`e ampia a ogni capacit\`a:
 la transizione non avviene nello stesso momento in tutte le giornate, ed \`e questo che rende
 necessario trattare la soglia come aleatoria. La ragione \`e verificabile sulle curve: in
 alcune giornate l'equilibrio cade su un gradino stretto e pochi megawatt bastano ad
 attraversarlo, in altre cade in mezzo a un gradino largo e nemmeno alcune decine lo spostano.
-A parit\`a di 25~MW installati, l'erosione in valore assoluto varia di sessanta volte fra le
-giornate del campione, da meno di 6~\eur{} a oltre 360.
+A parit\`a di 25~MW installati, l'erosione in valore assoluto varia di quattordici volte fra il
+decimo e il novantesimo percentile delle giornate del campione, da 17 a 236~\eur{}, con un
+massimo di 359 e una giornata in cui \`e praticamente nulla.
 
 \subsection{Quando la flotta si autodanneggia}
 \label{sec:autodanno}
 
-Oltre i 1500~MW circa l'erosione supera il 100\%: il profitto price maker diventa
-\textbf{negativo}. Non \`e un artefatto di calcolo, ed \`e un risultato con un contenuto
-economico preciso, verificato periodo per periodo. La Tabella~\ref{tab:autodanno} riporta il
-caso del 2 gennaio 2025 con 1500~MW aggregati.
+Per capacit\`a sufficientemente grandi l'erosione supera il 100\% e il profitto price maker
+diventa \textbf{negativo}. Non \`e un artefatto di calcolo, ed \`e un risultato con un
+contenuto economico preciso, verificato periodo per periodo.
+
+Il fenomeno compare gradualmente: nel campione di gennaio 2025 nessuna giornata presenta
+profitto negativo fino a 800~MW, due su trentuno a 1500~MW, ventitr\'e su trentuno a 3000~MW e
+tutte a 6000~MW. La Tabella~\ref{tab:autodanno} riporta una delle due giornate a 1500~MW.
 
 \begin{table}[H]
 \centering
@@ -117,17 +117,18 @@ caso del 2 gennaio 2025 con 1500~MW aggregati.
 \toprule
  & \textbf{Prezzi di riferimento} & \textbf{Con la flotta in mercato} \\
 \midrule
-Prezzo medio nei periodi di carica  & 125{,}31 & 139{,}85 \\
-Prezzo medio nei periodi di scarica & 161{,}14 & 140{,}83 \\
+Prezzo medio nei periodi di carica  & 124{,}43 & 138{,}37 \\
+Prezzo medio nei periodi di scarica & 162{,}17 & 142{,}36 \\
 \midrule
-Profitto & $+235\,447$~\eur{} & $-162\,921$~\eur{} \\
+Profitto & $+247\,711$~\eur{} & $-84\,621$~\eur{} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-La flotta finisce per comprare a 141{,}56~\euromwh{} e vendere a 140{,}88: \textbf{ha
-annientato il differenziale che stava sfruttando}, e sull'energia residua perde per il
-rendimento di ciclo, avendo acquistato 11.302~MWh e rivenduto 10.200.
+La flotta finisce per comprare a 139{,}95~\euromwh{} e vendere a 142{,}46: il differenziale
+residuo, appena 2{,}5~\euromwh{}, \textbf{non copre pi\`u n\'e il rendimento di ciclo n\'e il
+costo di degrado}, avendo acquistato 9.516~MWh e rivenduto 8.755. Il margine lordo che il
+piano prometteva \`e stato in larga parte annientato dall'esecuzione del piano stesso.
 
 \`E la conseguenza diretta dell'assenza di coordinamento. Ciascun operatore decide il proprio
 programma su prezzi che, al momento della decisione, promettono un margine; l'esecuzione
@@ -150,16 +151,16 @@ informazioni di cui dispone.
 \toprule
 \textbf{Erosione} & $K^*$ (MW) & \textbf{Estremo inferiore} & \textbf{Estremo superiore} \\
 \midrule
-Al netto del pavimento (adottata) & \textbf{73} & 67 & 120 \\
-Lorda, per confronto              & 60 & 45 & 108 \\
+Al netto del pavimento (adottata) & \textbf{136} & 83 & 179 \\
+Lorda, per confronto              & 78 & 70 & 142 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Il valore \`e sorprendentemente basso rispetto alla dimensione del mercato: in zona NORD si
-scambiano fra 15 e 25~GW per asta, e bastano poche decine di megawatt di accumulo aggregato
-perch\'e nel 10\% delle giornate peggiori un decimo del profitto atteso venga distrutto
-dall'accumulo stesso.
+Il valore \`e basso rispetto alla dimensione del mercato: in zona NORD si scambiano fra 15 e
+25~GW per asta, e basta poco pi\`u di un centinaio di megawatt di accumulo aggregato perch\'e
+nel 10\% delle giornate peggiori un decimo del profitto atteso venga distrutto dall'accumulo
+stesso.
 
 La spiegazione sta nella forma delle curve, non nel volume: l'accumulo non opera nell'ora
 media ma nelle \textbf{ore estreme}, quella di minimo e quella di massimo prezzo, che sono
@@ -184,22 +185,21 @@ il risultato va letto sapendo quanto vi dipende.
 \toprule
 \textbf{Quantile} & $\bar{E} = 5\,\%$ & $\bar{E} = 10\,\%$ & $\bar{E} = 20\,\%$ \\
 \midrule
-80\textsuperscript{o} percentile & 53 & 120 & 293 \\
-90\textsuperscript{o} percentile & 34 & \textbf{73} & 229 \\
+80\textsuperscript{o} percentile & 61 & 164 & 346 \\
+90\textsuperscript{o} percentile & 52 & \textbf{136} & 328 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-La soglia si muove di un fattore sette fra le combinazioni estreme, il che conferma che $K^*$
-va sempre riportata insieme alle convenzioni che la definiscono.
+La soglia si muove di un fattore sei fra le combinazioni estreme, il che conferma che $K^*$ va
+sempre riportata insieme alle convenzioni che la definiscono.
 
-I valori nella colonna $\bar{E} = 5\%$ vanno per\`o considerati inaffidabili, e non per il
-motivo che sembrerebbe naturale. Il pavimento di discretezza discusso nella
-Sezione~\ref{sec:pavimento} vale il 3{,}6\% al 90\textsuperscript{o} percentile, cio\`e \`e
-dello stesso ordine di grandezza della soglia: anche dopo averlo sottratto, ci\`o che resta a
-quel livello \`e la parte del segnale meno separabile dal rumore della ricostruzione. Il
-livello del 10\% \`e il pi\`u basso a cui i risultati siano interpretabili con questa
-risoluzione.
+I valori nella colonna $\bar{E} = 5\%$ vanno per\`o considerati i meno affidabili, e non per
+il motivo che sembrerebbe naturale. Il pavimento di discretezza discusso nella
+Sezione~\ref{sec:pavimento} vale il 2{,}8\% al 90\textsuperscript{o} percentile, cio\`e pi\`u
+della met\`a della soglia stessa: anche dopo averlo sottratto, ci\`o che resta a quel livello
+\`e la parte del segnale meno separabile dal rumore della ricostruzione. Il livello del 10\%
+resta il pi\`u basso a cui i risultati siano interpretabili con questa risoluzione.
 
 \subsection{Sensitivit\`a alle ipotesi tecniche ed economiche}
 

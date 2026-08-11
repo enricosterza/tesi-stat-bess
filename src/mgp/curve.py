@@ -658,6 +658,106 @@ def impatto_prezzo(offerte: pd.DataFrame, delta_mw: float) -> dict[str, float]:
     }
 
 
+def curva_impatto(
+    offerte: pd.DataFrame,
+    griglia_mw: np.ndarray | list[float],
+    granularita: str | None = None,
+) -> pd.DataFrame:
+    """
+    Curva di impatto marginale di un periodo: variazione di prezzo in funzione della
+    quantita' aggiunta o sottratta, con l'origine sul punto di clearing reale.
+
+    Parameters
+    ----------
+    offerte : pd.DataFrame
+        Offerte dell'asta di **un solo periodo**, blocco di scambio gia' incluso.
+    griglia_mw : array
+        Quantita' con segno, in MW: positive = offerta addizionale (accumulo che scarica),
+        negative = domanda addizionale (accumulo che carica). Lo zero viene sempre aggiunto,
+        perche' e' l'origine della curva.
+    granularita : str | None
+        Se indicata, si aggiunge la colonna `delta_mwh` con la quantita' convertita in
+        energia del periodo tramite `config.DURATA_ORE`.
+
+    Returns
+    -------
+    pd.DataFrame
+        Colonne `delta_mw`, `prezzo`, `variazione` (e `delta_mwh` se `granularita` e' data),
+        ordinate per `delta_mw`. `variazione` e' il prezzo meno quello di equilibrio a
+        delta nullo, quindi vale zero nell'origine per costruzione.
+
+    A cosa serve
+    ------------
+    E' lo strumento **diagnostico** che rende leggibile in un colpo d'occhio quanto e'
+    elastico un periodo: dove la curva e' piatta l'accumulo non muove il prezzo, dove e'
+    ripida bastano pochi MW. Affianca — non sostituisce — il ricalcolo esatto
+    dell'equilibrio con cui si producono i risultati: qui si guarda un periodo alla volta
+    per capire il meccanismo, la' si valorizza un piano su tutta la giornata.
+
+    La rappresentazione dell'impatto marginale come curva DeltaPrezzo = f(DeltaQuantita'),
+    ottenuta sottraendo orizzontalmente offerta e domanda e centrando l'origine sul clearing
+    osservato, e' ripresa da Alonso-Perez e Arcos-Vargas (2026), che la usano come proxy
+    dell'elasticita' del mercato spagnolo. Qui e' adottata la tecnica, non l'impianto: le
+    soglie di quel lavoro sono deterministiche e puntuali, mentre questa tesi stima una
+    soglia stocastica (D-24).
+
+    Come e' calcolata, e perche' e' esatta
+    --------------------------------------
+    Non per differenze finite ne' rifacendo il clearing a ogni punto della griglia, ma
+    **invertendo la curva di eccesso**. Aggiungere una quantita' Q di offerta price taker
+    trasla l'eccesso S(p) - D(p) verso l'alto di Q a ogni prezzo, quindi il nuovo prezzo di
+    equilibrio e'
+
+        p*(Q) = min { p : S(p) - D(p) >= -Q }
+
+    Basta percio' una sola costruzione della curva di eccesso, gia' monotona non decrescente,
+    e una ricerca binaria per ciascun punto della griglia: il risultato coincide **al
+    centesimo** con il ricalcolo esplicito via `aggiungi_import` + `prezzo_equilibrio`, ma
+    costa O(n log m) invece di un clearing completo per punto. L'equivalenza e' verificata
+    da un test.
+
+    Limiti da tenere presenti
+    -------------------------
+    * E' una diagnostica **per periodo**, a curve fisse: non rivaluta le offerte a blocchi,
+      che sono indivisibili e coprono piu' periodi (D-18). Per capacita' grandi il prezzo
+      che si legge qui puo' quindi differire da quello del clearing di giornata.
+    * L'asse in energia usa la durata del periodo (`config.DURATA_ORE`): con PT15 un MW vale
+      0,25 MWh. Le due scale coincidono solo sulle aste orarie.
+    """
+    griglia = np.unique(np.concatenate([np.asarray(griglia_mw, dtype=float), [0.0]]))
+
+    eccesso = curva_eccesso(offerte)
+    if eccesso.empty:
+        vuoto = pd.DataFrame({"delta_mw": griglia,
+                              "prezzo": np.nan,
+                              "variazione": np.nan})
+        if granularita is not None:
+            vuoto["delta_mwh"] = vuoto["delta_mw"] * config.DURATA_ORE[granularita]
+        return vuoto
+
+    prezzi = eccesso["prezzo"].to_numpy(dtype=float)
+    valori = eccesso["eccesso"].to_numpy(dtype=float)
+
+    # L'eccesso e' monotono non decrescente: il primo prezzo con eccesso >= -Q si trova
+    # con una ricerca binaria. Se nemmeno il prezzo massimo basta, il mercato non chiude.
+    posizioni = np.searchsorted(valori, -griglia, side="left")
+    trovato = posizioni < len(prezzi)
+    risultato = np.full(len(griglia), np.nan)
+    risultato[trovato] = prezzi[posizioni[trovato]]
+
+    base = risultato[griglia == 0.0]
+    prezzo_base = float(base[0]) if len(base) and np.isfinite(base[0]) else float("nan")
+
+    esito = pd.DataFrame({
+        "delta_mw": griglia,
+        "prezzo": risultato,
+        "variazione": risultato - prezzo_base,
+    })
+    if granularita is not None:
+        esito.insert(1, "delta_mwh", esito["delta_mw"] * config.DURATA_ORE[granularita])
+    return esito
+
+
 def clearing_giorno(
     df: pd.DataFrame,
     granularita: str,

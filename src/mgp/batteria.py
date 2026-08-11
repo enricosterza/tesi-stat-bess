@@ -76,6 +76,8 @@ class Batteria:
         Quota dell'energia prelevata dalla rete che finisce nell'accumulo.
     rendimento_scarica : float
         Quota dell'energia immagazzinata che viene immessa in rete.
+    costo_variabile_eur_mwh : float
+        Costo opportunita' del degrado, in €/MWh, applicato all'energia **scaricata**.
     energia_iniziale_mwh : float
         Stato di carica a inizio giornata.
     ciclo_chiuso : bool
@@ -88,12 +90,20 @@ class Batteria:
     Il rapporto fra capacita' e potenza e' la **durata** dell'accumulo, in ore: una batteria
     da 100 MW e 400 MWh ha durata 4 ore, cioe' impiega quattro ore a scaricarsi a potenza
     piena. E' uno dei due parametri di dimensionamento che la tesi si propone di ottimizzare.
+
+    I valori predefiniti di rendimento e costo variabile vengono da `config.PARAMETRI_BESS`,
+    che ne documenta la fonte (D-32). Non sono scelte di comodo: cambiarli cambia il piano
+    ottimo e quindi tutti i risultati a valle.
     """
 
     potenza_mw: float
     capacita_mwh: float
-    rendimento_carica: float = 0.95
-    rendimento_scarica: float = 0.95
+    rendimento_carica: float = field(
+        default_factory=lambda: config.rendimenti_da_ciclo()[0])
+    rendimento_scarica: float = field(
+        default_factory=lambda: config.rendimenti_da_ciclo()[1])
+    costo_variabile_eur_mwh: float = field(
+        default_factory=lambda: config.PARAMETRI_BESS["costo_variabile_eur_mwh"])
     energia_iniziale_mwh: float = 0.0
     ciclo_chiuso: bool = True
 
@@ -106,6 +116,26 @@ class Batteria:
     def rendimento_ciclo(self) -> float:
         """Rendimento di ciclo completo: energia restituita su energia prelevata."""
         return self.rendimento_carica * self.rendimento_scarica
+
+    @property
+    def spread_minimo_eur_mwh(self) -> float:
+        """
+        Differenziale di prezzo sotto il quale un ciclo non e' conveniente.
+
+        Perche' serve
+        -------------
+        Rende esplicita la soglia implicita nei parametri tecnici: comprare a `p_c` e
+        rivendere a `p_s` conviene solo se `p_s * rendimento_ciclo - p_c > costo variabile`.
+        A parita' di prezzo di carica p, il differenziale minimo e' quindi
+
+            p * (1 - rendimento_ciclo) + costo_variabile / ... circa  cv + p * (1 - eta)
+
+        Il valore restituito e' la componente indipendente dal livello dei prezzi, cioe' il
+        solo costo variabile riportato all'energia prelevata. E' la ragione per cui, con i
+        parametri adottati, nelle giornate a basso differenziale il piano ottimo e' **non
+        fare nulla** (decisione D-31).
+        """
+        return self.costo_variabile_eur_mwh * self.rendimento_scarica
 
 
 @dataclass
@@ -173,11 +203,21 @@ def profilo_ottimo(
 
     Il problema risolto
     -------------------
-    Massimizza $\\sum_t p_t \\Delta (s_t - c_t)$ sotto i vincoli di potenza, di capacita' e
-    di bilancio energetico
+    Massimizza $\\sum_t (p_t - k)\\, \\Delta s_t - \\sum_t p_t \\Delta c_t$ sotto i vincoli di
+    potenza, di capacita' e di bilancio energetico
     $e_t = e_{t-1} + \\eta^{c} c_t \\Delta - s_t \\Delta / \\eta^{s}$.
     E' un programma lineare: la funzione obiettivo e i vincoli sono lineari nelle variabili
     $c_t$ e $s_t$, e i vincoli di capacita' si scrivono come somme cumulate.
+
+    Il termine $k$ e' il **costo variabile** dell'accumulo (`costo_variabile_eur_mwh`), cioe'
+    il costo opportunita' del degrado: ogni MWh ciclato consuma una quota di vita utile.
+    Si applica alla sola **scarica**, cosi' che un ciclo completo costi $k$ una volta e non
+    due (D-32).
+
+    Conseguenza da tenere presente: con $k > 0$ l'arbitraggio richiede un differenziale
+    minimo, e nelle giornate in cui i prezzi sono troppo piatti la soluzione ottima e'
+    **non fare nulla** — carica e scarica identicamente nulle. Non e' un fallimento del
+    solutore ma la risposta corretta, ed e' il caso trattato da D-31.
 
     Il vincolo di non simultaneita' ($c_t s_t = 0$) **non** e' imposto, perche' renderebbe il
     problema non lineare. Con rendimenti minori di uno e prezzi positivi la soluzione ottima
@@ -198,7 +238,10 @@ def profilo_ottimo(
     delta = durata_periodo_ore
 
     # Variabili: [c_1..c_n, s_1..s_n]. linprog minimizza, quindi si cambia segno.
-    costo = np.concatenate([prezzi * delta, -prezzi * delta])
+    # Il costo variabile penalizza la sola scarica: rende meno conveniente ogni MWh
+    # immesso in rete, e con differenziali piccoli azzera del tutto il piano (D-31, D-32).
+    cv = batteria.costo_variabile_eur_mwh
+    costo = np.concatenate([prezzi * delta, -(prezzi - cv) * delta])
 
     # Somme cumulate dell'energia immagazzinata.
     triangolare = np.tril(np.ones((n, n)))
@@ -240,7 +283,13 @@ def stato_di_carica(
     return batteria.energia_iniziale_mwh + np.cumsum(accumulo)
 
 
-def flotta(potenza_aggregata_mw: float, durata_ore: float = 4.0, **parametri) -> Batteria:
+#: Durata di riferimento della flotta, in ore (fonte in `config.PARAMETRI_BESS`, D-32).
+DURATA_RIFERIMENTO_ORE: float = config.PARAMETRI_BESS["durata_ore"]
+
+
+def flotta(potenza_aggregata_mw: float,
+           durata_ore: float = DURATA_RIFERIMENTO_ORE,
+           **parametri) -> Batteria:
     """
     Costruisce la batteria equivalente a una flotta di accumuli non coordinati.
 
@@ -400,6 +449,7 @@ class Erosione:
     variazione_prezzo_media: float
     energia_ciclata_mwh: float
     cicli_equivalenti: float
+    piano_vuoto: bool = False
     profilo: pd.DataFrame = field(default_factory=pd.DataFrame)
 
 
@@ -414,7 +464,7 @@ def erosione(
     potenza_aggregata_mw: float,
     granularita: str,
     data: str = "",
-    durata_ore: float = 4.0,
+    durata_ore: float = DURATA_RIFERIMENTO_ORE,
     zone: list[str] | str | None = None,
     prezzi_riferimento: np.ndarray | None = None,
     offerte_giorno: dict[int, pd.DataFrame] | None = None,
@@ -491,6 +541,19 @@ def erosione(
 
     assoluta = pi_pt - pi_pm
     relativa = (assoluta / pi_pt) if abs(pi_pt) >= PROFITTO_MINIMO_PER_RAPPORTO else float("nan")
+
+    # D-31 - giornate in cui il piano ottimo e' non fare nulla. Con un costo variabile
+    # positivo il differenziale di prezzo puo' non coprire il degrado: il solutore
+    # restituisce allora carica e scarica identicamente nulle. In quel caso non c'e'
+    # profitto da erodere e la flotta non tocca il mercato, quindi l'erosione e' nulla per
+    # definizione - non indefinita (0/0) e non mancante. La giornata resta nel campione,
+    # coerentemente con D-29: escluderla introdurrebbe il bias verso i giorni ad alta
+    # rinnovabile che D-29 vuole proprio evitare.
+    piano_vuoto = not (np.any(carica > 0) or np.any(scarica > 0))
+    if piano_vuoto:
+        assoluta = 0.0
+        relativa = 0.0
+
     energia_ciclata = float(np.sum(scarica) * delta)
 
     profilo = pd.DataFrame({
@@ -512,6 +575,7 @@ def erosione(
         variazione_prezzo_media=float(np.nanmean(prezzi_nuovi - base)),
         energia_ciclata_mwh=energia_ciclata,
         cicli_equivalenti=energia_ciclata / accumulo.capacita_mwh if accumulo.capacita_mwh else 0.0,
+        piano_vuoto=piano_vuoto,
         profilo=profilo,
     )
 

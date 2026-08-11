@@ -112,6 +112,19 @@ def main() -> None:
         percorso = grafici.salva(figura, f"07_curve_{data}")
         out(f"  figura: {percorso}")
 
+        # Curva di impatto marginale dei due periodi estremi: rende leggibile in un colpo
+        # d'occhio quanto ciascuno sia elastico, e l'asimmetria fra carica e scarica.
+        figura_imp = grafici.curva_impatto(
+            {int(periodo_minimo): offerte_giorno[int(periodo_minimo)],
+             int(periodo_massimo): offerte_giorno[int(periodo_massimo)]},
+            griglia_mw=np.linspace(-2000, 2000, 161),
+            granularita=granularita,
+            etichette={int(periodo_minimo): "ora di minimo",
+                       int(periodo_massimo): "ora di picco"},
+            titolo=f"Impatto marginale sul prezzo — {data}",
+        )
+        out(f"  figura: {grafici.salva(figura_imp, f'07_impatto_{data}')}")
+
         diagnostica["prezzo_ufficiale"] = diagnostica["PERIOD"].map(mappa_ufficiali)
         diagnostica["scarto"] = diagnostica["prezzo"] - diagnostica["prezzo_ufficiale"]
         diagnostiche.append(diagnostica)

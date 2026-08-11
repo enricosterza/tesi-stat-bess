@@ -1450,18 +1450,232 @@ ore estreme, dove la curva è ripida, non nell'ora media.
 
 ---
 
+## 2026-08-11 — Un lavoro pubblicato sulla stessa domanda: benchmark, non modello
+
+Individuato uno studio che affronta la stessa domanda di ricerca su un altro mercato:
+
+> Alonso-Perez, S. e Arcos-Vargas, A. (2026), *Storage deployment and its impact on
+> wholesale electricity prices*, **Energy Reports** 15, 108991.
+
+Studiano l'effetto dell'aggiunta di capacità di accumulo sui prezzi del mercato del giorno
+prima **spagnolo** (dati OMIE 2024), confrontano strategie price taker e price maker e usano
+le curve di offerta e domanda reali come proxy dell'elasticità. Trovano che il differenziale
+si comprime al crescere della capacità fino a saturarsi, con soglie attorno a **15 e 32 GWh**.
+
+*(Nota di servizio: i dati bibliografici sono trascritti come forniti e vanno verificati sulla
+pagina dell'editore prima della consegna.)*
+
+### Perché è un benchmark e non un modello da replicare
+
+La differenza è nell'impianto, non nei dettagli.
+
+**Il loro modello è deterministico e produce soglie puntuali**: un numero singolo, 32 GWh, che
+descrive il giorno rappresentativo o la media del campione.
+
+**Questa tesi stima una soglia stocastica**: non un numero ma una distribuzione, ottenuta per
+bootstrap sui giorni storici (D-26), letta su un quantile prudenziale con intervalli di
+confidenza (D-27) e stratificabile per stagione e regime (D-28). È esattamente ciò che quel
+lavoro dichiara come proprio limite e come sviluppo futuro.
+
+Il punto non è stilistico. Il controllo 2 del 04/08 ha mostrato che **a parità di 25 MW
+installati l'erosione assoluta varia di sessanta volte fra le giornate del campione**, da 5,79
+a 362,82 €. Una soglia puntuale su un campione simile descriverebbe una giornata che non
+esiste. È la ragione per cui l'incertezza è il contributo, non un'aggiunta: il loro risultato
+è il termine di paragone rispetto al quale mostrarlo.
+
+**Conseguenza operativa: l'impianto stocastico resta intatto.** Non si converte nulla al loro
+approccio. Di quel lavoro si prendono tecniche e parametri, che sono trasferibili, non il
+disegno dello studio, che è ciò da cui questa tesi si differenzia.
+
+### Che cosa è stato preso — parametri tecnici (D-32)
+
+I parametri fisici dell'accumulo erano finora scelti da noi senza fonte: rendimenti 0,95 in
+carica e 0,95 in scarica, costo variabile assente. Sono stati sostituiti con quelli dello
+studio, che hanno il pregio di essere **citabili**, e centralizzati in `config.PARAMETRI_BESS`
+con la fonte nel commento.
+
+| Parametro | Prima | Ora | Effetto sul modello |
+|---|---|---|---|
+| Rendimento di ciclo | 0,9025 (0,95 · 0,95) | **0,92** (0,9592 per lato) | cambia il piano ottimo |
+| Costo variabile | assente | **12 €/MWh**, sola scarica | cambia il piano ottimo, ed è il cambiamento maggiore |
+| Durata | 4 ore | 4 ore | nessuno (conferma) |
+| Cicli l'anno | — | 350 | nessuno sul LP giornaliero |
+
+Due chiarimenti che hanno evitato altrettanti errori.
+
+**«Potenza del convertitore pari al 25% della capacità» e «durata 4 ore» sono la stessa
+affermazione**, perché $P = 0{,}25\,E \iff E/P = 4\text{h}$. Non è un parametro in più da
+configurare: è una conferma indipendente di una scelta già fatta per altre ragioni.
+
+**I 350 cicli l'anno non vanno nel programma lineare**, che è giornaliero: sarebbe un vincolo
+annuale imposto a un modello che non vede l'anno. Il posto giusto è il calcolo economico del
+capitolo 5. Corroborano però il vincolo di ciclo chiuso giornaliero, che ne implica 365: 350
+è il 96% di quel valore, quindi l'assunzione di un ciclo al giorno non è eccentrica.
+
+**Il costo si applica alla sola scarica**, così che un ciclo completo costi 12 €/MWh e non 24.
+È una convenzione, dichiarata qui perché il raddoppio sarebbe un errore silenzioso.
+
+### Che cosa è stato preso — la curva di impatto marginale
+
+Implementata `curve.curva_impatto()`: la rappresentazione $\Delta\text{Prezzo} = f(\Delta Q)$
+con l'origine centrata sul punto di clearing osservato del periodo. È la tecnica che gli autori
+usano come proxy dell'elasticità, adottata qui come **strumento diagnostico** accanto — non al
+posto — del ricalcolo esatto dell'equilibrio con cui si producono i risultati.
+
+Una nota di implementazione. La curva non è ottenuta rifacendo il clearing a ogni punto della
+griglia, ma **invertendo la curva di eccesso** già disponibile: aggiungere $Q$ di offerta price
+taker trasla l'eccesso di $Q$ a ogni prezzo, quindi
+
+$$p^*(Q) = \min\{p : S(p) - D(p) \ge -Q\}$$
+
+Basta una costruzione dell'eccesso, già monotono, più una ricerca binaria per punto. Il
+risultato è **esatto**, non approssimato, e un test lo verifica confrontandolo con il
+ricalcolo esplicito via `aggiungi_import` su nove punti di griglia: senza quel test
+l'affermazione resterebbe indimostrata.
+
+Limiti scritti in docstring: è una diagnostica **per periodo** a curve fisse, che non rivaluta
+le offerte a blocchi (D-18); e l'asse in energia usa la durata del periodo, quindi su PT15 un
+MW vale 0,25 MWh.
+
+### Che cosa NON è trasferibile
+
+* **Le soglie di 15 e 32 GWh sono spagnole e del 2024.** Non vanno usate né come valore atteso
+  né per calibrare la griglia di capacità. Per la zona NORD l'ordine di grandezza misurato è di
+  decine-centinaia di MW (D-30), cioè **due ordini di grandezza più basso**. Entrano nel testo
+  solo come confronto qualitativo.
+* **I loro dati sono orari** (24 periodi al giorno), i nostri anche a quarto d'ora (96).
+  Nessuna costante del progetto deve assumere 24 periodi; la conversione fra potenza ed energia
+  passa sempre da `config.DURATA_ORE`.
+* **Mercato e perimetro sono diversi**: OMIE/Spagna contro GME/Italia zona NORD con le
+  frontiere confinanti.
+* **L'orizzonte di ottimizzazione.** Gli autori misurano che 3 giorni catturano oltre il 99%
+  del profitto ottenibile con 5. Il rendimento decrescente è quindi rapido, il che sostiene la
+  giornata singola con ciclo chiuso adottata qui (D-22) come troncamento accettabile — ma
+  resta un'estrapolazione dal loro mercato al nostro, e va tenuta come limite dichiarato, non
+  come validazione.
+
+### La conseguenza metodologica che il costo variabile porta con sé (D-31)
+
+Un costo di 12 €/MWh è di fatto una **soglia sul differenziale**: sotto una certa ampiezza
+l'arbitraggio non copre il degrado e il piano ottimo diventa *non fare nulla*, con carica e
+scarica identicamente nulle.
+
+Questo tocca D-29, che impone di **non scartare** le giornate a basso differenziale, perché
+sono quelle ad alta produzione rinnovabile, cioè quelle destinate a diventare più frequenti.
+Con il costo attivo, in quelle giornate $\pi_{PT} = 0$ **esattamente**, e l'erosione relativa
+diventa $0/0$: indefinita, non semplicemente instabile.
+
+**Decisione D-31**: quelle giornate restano nel campione con **erosione nulla per
+definizione**. La motivazione è sostanziale e non di comodo: la flotta è ferma, quindi non
+c'è profitto da erodere *e* non c'è alcun effetto sul mercato. Zero è la risposta corretta,
+non un riempimento. Scartarle reintrodurrebbe esattamente il bias che D-29 vuole evitare.
+
+Resta distinto il caso, già previsto da D-29, di un piano **non vuoto** con profitto irrisorio:
+lì l'erosione relativa continua a non calcolarsi (NaN) e si riporta quella assoluta. Due test
+separati fissano i due comportamenti, perché è la distinzione più facile da perdere in una
+modifica futura.
+
+### Il rerun di gennaio: la soglia si alza dell'86%
+
+I parametri nuovi cambiano il piano ottimo, quindi tutti i risultati a valle. Gennaio 2025 è
+stato ricalcolato sulla stessa griglia di 22 capacità; i risultati precedenti sono conservati
+in `output/tabelle/_pre_D32/` come termine di confronto.
+
+| | Prima (D-30) | Dopo (D-32) |
+|---|---|---|
+| **K\* al netto del pavimento** | 73,1 MW (67-120) | **136,0 MW (83-179)** |
+| K\* lorda | 59,7 MW | 77,8 MW |
+| Pavimento, mediana | 1,01% | 0,67% |
+| Pavimento, 90° percentile | 3,56% | 2,76% |
+
+**L'erosione cala a ogni capacità**, in modo sistematico e non marginale: da 5,85% a 4,68% in
+mediana a 100 MW, da 39,9% a 32,0% a 800 MW, con riduzioni fra il 20 e il 30% su tutta la
+griglia. Il pavimento scende in proporzione.
+
+**Il meccanismo, verificato invece che dedotto.** Il costo di degrado rende la flotta più
+selettiva: sfrutta solo i differenziali che lo ripagano, quindi cicla di meno e muove meno i
+prezzi. Sul 15/01/2025, con 100 MW e quattro ore, il confronto diretto fra i due insiemi di
+parametri dà
+
+| | Energia scaricata | Cicli | Ore di scarica |
+|---|---|---|---|
+| Parametri vecchi (0,95/0,95, costo nullo) | 580 MWh | 1,45 | 6 |
+| Parametri nuovi (0,92 rt, 12 €/MWh) | 500 MWh | 1,25 | 5 |
+
+Meno energia immessa nel mercato significa meno effetto sul prezzo, quindi meno erosione,
+quindi una soglia più alta. È un risultato con un contenuto economico, non un riassestamento
+numerico: **tenere conto del costo di degrado sposta la soglia da 73 a 136 MW**, cioè quasi la
+raddoppia. Un modello che ignora il degrado sovrastima l'aggressività dell'accumulo e
+sottostima di conseguenza la capacità che il mercato può assorbire prima di risentirne.
+
+**D-31 non si attiva mai in gennaio**: zero piani vuoti su 682 coppie (giorno, capacità). La
+ragione è che il differenziale giornaliero minimo del mese è 37,8 €/MWh, ben sopra la soglia
+di convenienza implicata da un costo di 12 €/MWh. La decisione è quindi implementata ma
+**dormiente su questo campione**: diventerà operante sui mesi estivi e sulle giornate ad alta
+produzione rinnovabile, che è esattamente il caso per cui è stata scritta. Va verificata di
+nuovo quando il campione sarà esteso all'anno.
+
+**Un'incoerenza minore, che vale la pena registrare.** Il modello produce in media 1,23 cicli
+equivalenti al giorno, cioè circa 450 l'anno, contro i 350 del parametro di riferimento. Il
+divario è coerente con l'ipotesi di previsione perfetta (D-22), che consente di cogliere ogni
+occasione utile: 350 cicli l'anno è verosimilmente ciò che si ottiene operando su previsioni
+imperfette. È un ulteriore indizio che il profitto price taker calcolato qui sia un limite
+superiore, e va ricordato quando si passerà alle metriche finanziarie.
+
+### Un difetto trovato aggiornando: la tabella di sensibilità era lorda
+
+Nel controllare i numeri è emerso che `scripts/06_soglia_price_maker.py` calcolava la tabella
+di sensibilità (quantile × livello) sull'erosione **lorda**, mentre la stima adottata nella
+sezione precedente dello stesso report è **netta**. I valori riportati nel capitolo 5 della
+tesi erano netti — calcolati a parte nella sessione del 04/08 — e quindi **non erano
+riproducibili eseguendo lo script**, contro la regola che ogni numero citato debba esserlo.
+
+Corretto: la tabella si calcola ora sulla colonna netta e affianca quella lorda come
+confronto. Il controllo di coerenza è che la cella (90°, 10%) coincida con la stima adottata,
+e ora coincide: 136,0 in entrambe.
+
+| Quantile e livello | K\* netta | K\* lorda |
+|---|---|---|
+| 80°, 5% | 61,0 MW | 39,6 |
+| 80°, 10% | 164,1 MW | 130,8 |
+| 80°, 20% | 346,5 MW | 328,7 |
+| 90°, 5% | 52,2 MW | 24,1 |
+| **90°, 10%** | **136,0 MW** | 77,8 |
+| 90°, 20% | 327,8 MW | 270,2 |
+
+Il livello del 5% resta il meno affidabile — il pavimento al 90° percentile vale 2,76%, cioè
+più della metà della soglia — ma il margine è ora meno stretto di prima (era 3,56% contro 5%).
+
+---
+
 ## Prossimi passi
 
-1. Verificare quali zone virtuali di frontiera confinano con NORD e cosa aggiungono in
-   quantità e in prezzo alla curva di offerta (presupposto di D-10).
-2. `src/mgp/curve.py`: costruzione delle curve aggregate a gradini e funzione
-   `prezzo_equilibrio(offerte_periodo)`, con test su casi giocattolo in `tests/`.
-3. Validazione sul giorno pilota con il perimetro allargato (D-10) e le offerte `ACC`+`REJ`
-   (D-06): confronto fra prezzo ricostruito e prezzo ufficiale sui 96 periodi.
-4. Estendere la validazione a gennaio 2025 (granularità oraria) e misurare la frequenza di
-   match sulle due risoluzioni temporali; confronto delle varianti di D-13.
-5. Elaborazione dell'anno 2025 completo, con caricamento incrementale dei 365 file.
-6. Simulazione della batteria: domanda addizionale nelle ore di carica, offerta addizionale in
-   quelle di scarica, ricalcolo del prezzo di equilibrio (effetto di feedback).
-7. Dimensionamento ottimale (capacità in MWh, potenza in MW, durata di carica/scarica) via
-   ottimizzazione, tenendo conto dell'effetto di feedback sul prezzo.
+*Sezione viva, riscritta man mano: a differenza delle voci datate qui sopra, non è
+append-only. Ultimo allineamento 2026-08-11.*
+
+**Fatti** (erano i punti 1-4 e 6 dell'elenco iniziale): perimetro di frontiera verificato,
+`curve.py` con il clearing consapevole dei blocchi, validazione sul giorno pilota e su gennaio
+2025, `batteria.py` con la simulazione dell'effetto di retroazione.
+
+1. **Estendere il campione ad almeno un anno.** È il passo che sblocca tutto il resto: senza
+   dodici mesi la stratificazione per stagione e regime (D-28) non è calcolabile, e i
+   risultati economici restano dichiarati come preliminari. Da decidere prima di partire il
+   perimetro temporale, che è una delle domande aperte per il relatore: l'anno solare 2025 non
+   è omogeneo, perché il mercato passa a 15 minuti il 01/10/2025 e le aste a quarto d'ora si
+   ricostruiscono peggio (dev. standard 5,40 contro 1,06). Da valutare anche il costo di
+   calcolo: la stima della soglia su 31 giorni richiede già una griglia di capacità per ogni
+   giorno, e cresce linearmente.
+2. **Aggiornare il report per il relatore.** L'ultimo (`2026-08-10`) precede l'intero impianto
+   della soglia: non contiene D-24…D-30 né alcun risultato economico. Domande da portare:
+   accuratezza accettabile, perimetro temporale, offerte integrative GSE, e la scelta del
+   livello di erosione ora che il 5% è risultato inutilizzabile (D-30).
+3. **Stratificare** i risultati per stagione e regime di prezzo una volta disponibile l'anno,
+   e misurare quanto la soglia si sposta: la non stazionarietà è essa stessa un risultato.
+4. **Sensitività alle ipotesi tecniche**: durata della flotta (1, 2, 4, 8 ore), rendimento di
+   ciclo, perimetro zonale. A parità di potenza una durata maggiore distribuisce l'effetto su
+   più periodi e dovrebbe alzare la soglia — è una previsione da verificare, non un risultato.
+5. **Metriche finanziarie** (capitolo 5 della tesi): ricavo annuo, CAPEX, degrado, VAN, TIR,
+   LCOS. Richiede ipotesi di costo non ancora fissate, e il ricavo va calcolato sul profitto
+   price maker alla capacità aggregata prevista, non su quello price taker.
+6. **Dimensionamento ottimale** (potenza, capacità, durata) tenendo conto dell'effetto di
+   retroazione: è l'obiettivo dichiarato della tesi, e presuppone i punti 4 e 5.

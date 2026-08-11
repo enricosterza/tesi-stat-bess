@@ -49,7 +49,7 @@ def main() -> None:
     parser.add_argument("--giorno", default="20250120")
     parser.add_argument("--capacita", default="25,100,1500",
                         help="capacita' aggregate da ispezionare, in MW")
-    parser.add_argument("--durata", type=float, default=4.0)
+    parser.add_argument("--durata", type=float, default=bt.DURATA_RIFERIMENTO_ORE)
     args = parser.parse_args()
 
     capacita = [float(x) for x in args.capacita.split(",")]

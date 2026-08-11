@@ -206,6 +206,89 @@ def figura_giornata(
     return figura, pd.DataFrame(righe)
 
 
+def curva_impatto(
+    offerte_per_periodo: dict[int, pd.DataFrame],
+    griglia_mw: np.ndarray | list[float],
+    granularita: str,
+    etichette: dict[int, str] | None = None,
+    in_energia: bool = False,
+    titolo: str | None = None,
+) -> plt.Figure:
+    """
+    Disegna la curva di impatto marginale DeltaPrezzo = f(DeltaQuantita') di uno o piu'
+    periodi, con l'origine sul punto di clearing reale di ciascuno.
+
+    Parameters
+    ----------
+    offerte_per_periodo : dict[int, pd.DataFrame]
+        Offerte di ciascun periodo da rappresentare, blocco di scambio gia' incluso.
+        Tipicamente due: l'ora di minimo e quella di picco.
+    griglia_mw : array
+        Quantita' con segno, in MW. Positive = accumulo che scarica (offerta addizionale),
+        negative = accumulo che carica (domanda addizionale).
+    granularita : str
+        Serve a convertire in energia e a etichettare l'asse.
+    etichette : dict[int, str] | None
+        Nome descrittivo di ciascun periodo (es. "ora di minimo").
+    in_energia : bool
+        Se True l'asse delle ascisse e' in MWh anziche' in MW.
+    titolo : str | None
+
+    Returns
+    -------
+    plt.Figure
+
+    Come si legge
+    -------------
+    Il quadrante di **destra** (delta positivo) e' l'accumulo che scarica: aggiunge offerta e
+    abbassa il prezzo, quindi la curva scende. Quello di **sinistra** e' l'accumulo che
+    carica: aggiunge domanda e alza il prezzo. La pendenza attorno all'origine e' l'elasticita'
+    locale del periodo; i tratti piatti sono i gradini larghi, dove l'accumulo passa
+    inosservato, e i salti sono i bordi fra un gradino e il successivo.
+
+    Le due curve insieme mostrano l'asimmetria fra carica e scarica, che e' la ragione per cui
+    l'erosione non si puo' dedurre da un solo numero di elasticita'.
+
+    Nota sull'asse in energia
+    -------------------------
+    Con `in_energia=True` le ascisse valgono `MW * durata del periodo`: su PT15 un MW vale
+    0,25 MWh. Le due scale coincidono **solo** sulle aste orarie, e per questo l'asse porta
+    sempre l'unita' esplicita.
+    """
+    _stile()
+    griglia = np.asarray(griglia_mw, dtype=float)
+    etichette = etichette or {}
+    colori = [COLORE_OFFERTA, COLORE_DOMANDA, "#7d3fb8", "#008300"]
+    tratti = ["-", "--", "-.", ":"]
+
+    figura, ax = plt.subplots(figsize=(7.5, 4.6))
+    for i, (periodo, offerte) in enumerate(sorted(offerte_per_periodo.items())):
+        dati = curve.curva_impatto(offerte, griglia, granularita=granularita)
+        x = dati["delta_mwh"] if in_energia else dati["delta_mw"]
+        nome = etichette.get(periodo, f"periodo {periodo}")
+        ax.plot(x, dati["variazione"], color=colori[i % len(colori)],
+                linestyle=tratti[i % len(tratti)], linewidth=2.0,
+                label=f"{nome} (periodo {periodo})")
+
+    # L'origine e' il clearing osservato: si marca, perche' e' il riferimento di lettura.
+    ax.axhline(0.0, color=INCHIOSTRO_TENUE, linewidth=0.9)
+    ax.axvline(0.0, color=INCHIOSTRO_TENUE, linewidth=0.9)
+
+    unita = "MWh" if in_energia else "MW"
+    ax.set_xlabel(f"Quantita' aggiunta [{unita}]   "
+                  f"(< 0: l'accumulo carica   ·   > 0: l'accumulo scarica)")
+    ax.set_ylabel("Variazione del prezzo [€/MWh]")
+    ax.set_title(titolo or "Impatto marginale sul prezzo, origine sul clearing osservato")
+    ax.grid(True, linewidth=0.7)
+    ax.set_axisbelow(True)
+    for lato in ("top", "right"):
+        ax.spines[lato].set_visible(False)
+    ax.legend(loc="best")
+
+    figura.tight_layout()
+    return figura
+
+
 def salva(figura: plt.Figure, nome: str) -> str:
     """Salva una figura in `output/figure/` in PNG e PDF, e restituisce il path del PNG."""
     config.assicura_cartelle()

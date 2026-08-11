@@ -71,6 +71,26 @@ Il terzo \`e \textbf{determinare il dimensionamento ottimale} dell'accumulo — 
 energetica, potenza e durata di carica e scarica — e valutarne la redditivit\`a dal punto di
 vista di un investitore.
 
+\paragraph{Il contributo rispetto alla letteratura.} La domanda non \`e inedita.
+\textcite{alonsoperez2026storage} la affrontano sul mercato spagnolo con i dati OMIE del 2024,
+confrontando strategie price taker e price maker e usando le curve d'asta reali come proxy
+dell'elasticit\`a; trovano che il differenziale si comprime al crescere della capacit\`a
+installata fino a saturarsi, e individuano soglie attorno ai 15 e ai 32~GWh.
+
+Il loro modello \`e per\`o \textbf{deterministico}, e restituisce quindi una soglia
+\emph{puntuale}: un numero singolo. Il contributo originale di questa tesi \`e trattare la
+stessa transizione come una \textbf{soglia stocastica} — una distribuzione, stimata per
+bootstrap sui giorni storici, letta su un quantile prudenziale con intervalli di confidenza e
+stratificabile per stagione e regime di mercato.
+
+La differenza non \`e formale. Come mostra la Sezione~\ref{sec:redditivita}, a parit\`a di
+capacit\`a installata l'erosione di profitto varia di oltre \emph{dieci volte} fra le giornate
+del campione, perch\'e dipende dalla forma delle curve d'asta del giorno. Una soglia puntuale
+stimata su un campione con questa dispersione descrive una giornata che non esiste, e non
+fornisce a un investitore l'informazione di cui ha bisogno, che riguarda il caso avverso
+ragionevole e non quello medio. La caratterizzazione dell'incertezza \`e per l'appunto ci\`o
+che quel lavoro indica come proprio limite e come sviluppo futuro.
+
 \section{Organizzazione del documento}
 \label{sec:organizzazione}
 

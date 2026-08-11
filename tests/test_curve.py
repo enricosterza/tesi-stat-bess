@@ -488,3 +488,61 @@ def test_confronto_con_ufficiale_calcola_la_frequenza_di_match():
     assert esito["match_0.01"] == pytest.approx(50.0)
     assert esito["match_1.0"] == pytest.approx(75.0)
     assert esito["errore_mediano"] == pytest.approx(0.2)
+
+
+# --------------------------------------------------------------------------------------
+# Curva di impatto marginale (diagnostica)
+# --------------------------------------------------------------------------------------
+def test_curva_impatto_ha_origine_sul_clearing_reale():
+    """
+    A delta nullo la curva deve restituire esattamente il prezzo di equilibrio dell'asta, e
+    variazione zero: e' la condizione di "origine centrata sul clearing osservato".
+    """
+    df = offerte(vendite=[(10, 100), (20, 100), (30, 100)],
+                 acquisti=[(100, 150), (25, 100)])
+    atteso = curve.prezzo_equilibrio(df).prezzo
+    imp = curve.curva_impatto(df, [-200, -100, 0, 100, 200])
+    riga = imp[imp["delta_mw"] == 0.0].iloc[0]
+    assert riga["prezzo"] == pytest.approx(atteso)
+    assert riga["variazione"] == pytest.approx(0.0)
+
+
+def test_curva_impatto_coincide_col_ricalcolo_esplicito():
+    """
+    La curva e' calcolata invertendo l'eccesso invece di rifare il clearing a ogni punto.
+    Questo test verifica che le due strade diano lo stesso identico prezzo: senza di esso
+    l'affermazione "e' esatta, non approssimata" resterebbe indimostrata.
+    """
+    df = offerte(vendite=[(5, 80), (12, 60), (18, 90), (25, 120), (40, 70)],
+                 acquisti=[(100, 140), (30, 80), (15, 60)])
+    griglia = [-250, -120, -50, -10, 0, 10, 50, 120, 250]
+    imp = curve.curva_impatto(df, griglia).set_index("delta_mw")["prezzo"]
+
+    for delta in griglia:
+        esplicito = curve.prezzo_equilibrio(curve.aggiungi_import(df, delta)).prezzo
+        assert imp.loc[float(delta)] == pytest.approx(esplicito), f"delta = {delta}"
+
+
+def test_curva_impatto_e_monotona_non_crescente():
+    """
+    Aggiungere offerta non puo' alzare il prezzo, aggiungere domanda non puo' abbassarlo:
+    la curva DeltaPrezzo = f(DeltaQuantita') deve quindi essere non crescente. E' la stessa
+    monotonia dell'eccesso di offerta, vista dall'altro lato.
+    """
+    df = offerte(vendite=[(5, 80), (12, 60), (18, 90), (25, 120), (40, 70)],
+                 acquisti=[(100, 140), (30, 80), (15, 60)])
+    imp = curve.curva_impatto(df, [-200, -100, -50, 0, 50, 100, 200])
+    variazioni = imp.sort_values("delta_mw")["variazione"].to_numpy()
+    assert all(variazioni[i] >= variazioni[i + 1] for i in range(len(variazioni) - 1))
+
+
+def test_curva_impatto_converte_in_energia_secondo_la_granularita():
+    """
+    L'asse in MWh dipende dalla durata del periodo: 100 MW valgono 25 MWh su PT15 e 100 su
+    PT60. Verifica che non sia cablata l'ipotesi di aste orarie.
+    """
+    df = offerte(vendite=[(10, 100), (20, 100)], acquisti=[(100, 150)])
+    q15 = curve.curva_impatto(df, [100], granularita="PT15")
+    q60 = curve.curva_impatto(df, [100], granularita="PT60")
+    assert q15[q15["delta_mw"] == 100.0]["delta_mwh"].iloc[0] == pytest.approx(25.0)
+    assert q60[q60["delta_mw"] == 100.0]["delta_mwh"].iloc[0] == pytest.approx(100.0)

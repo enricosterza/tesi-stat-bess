@@ -20,7 +20,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from mgp import batteria as bt  # noqa: E402
-from mgp import curve  # noqa: E402
+from mgp import config, curve  # noqa: E402
 
 
 def _batteria(**kwargs) -> bt.Batteria:
@@ -286,18 +286,73 @@ def test_il_piano_e_lo_stesso_nei_due_profitti():
     assert e.profilo["scarica_mw"].to_numpy() == pytest.approx(atteso_scarica)
 
 
-def test_nei_giorni_a_basso_spread_l_erosione_relativa_non_si_calcola():
+def test_col_piano_vuoto_l_erosione_e_nulla_per_definizione():
     """
-    Con prezzi piatti non c'e' arbitraggio: il profitto atteso e' nullo e il rapporto
-    sarebbe privo di senso. Il giorno resta pero' nel campione con la sua erosione assoluta,
-    per non introdurre un bias verso i giorni ad alto spread (D-29).
+    Con prezzi piatti il differenziale non copre il costo di degrado e il piano ottimo e'
+    non fare nulla. La batteria non tocca il mercato e non ha profitto da erodere: l'erosione
+    e' allora **zero per definizione**, non indefinita (0/0) e non mancante (D-31).
+
+    Il giorno resta nel campione, coerentemente con D-29: scartarlo introdurrebbe proprio il
+    bias verso i giorni ad alta rinnovabile che D-29 vuole evitare.
     """
     df = _giornata([100.0, 100.0], gradino=100.0)
     e = bt.erosione(df, potenza_aggregata_mw=100.0, granularita="PT60", durata_ore=1.0,
                     con_import=False)
+    assert e.piano_vuoto
     assert e.profitto_price_taker == pytest.approx(0.0)
+    assert e.erosione_relativa == 0.0
+    assert e.erosione_assoluta == 0.0
+    assert e.energia_ciclata_mwh == pytest.approx(0.0)
+
+
+def test_col_piano_non_vuoto_ma_profitto_irrisorio_il_rapporto_non_si_calcola():
+    """
+    Caso distinto dal precedente: il piano c'e' ma il profitto e' cosi' piccolo che il
+    rapporto sarebbe dominato dal rumore. Qui l'erosione relativa resta NaN (D-29), mentre
+    quella assoluta e' definita. Serve a verificare che D-31 non abbia inghiottito D-29.
+    """
+    df = _giornata([100.0, 100.1], gradino=100.0)
+    e = bt.erosione(df, potenza_aggregata_mw=1.0, granularita="PT60", durata_ore=1.0,
+                    con_import=False, costo_variabile_eur_mwh=0.0,
+                    rendimento_carica=1.0, rendimento_scarica=1.0)
+    assert not e.piano_vuoto
+    assert 0.0 < e.profitto_price_taker < bt.PROFITTO_MINIMO_PER_RAPPORTO
     assert np.isnan(e.erosione_relativa)
     assert np.isfinite(e.erosione_assoluta)
+
+
+def test_il_costo_variabile_impone_un_differenziale_minimo():
+    """
+    Il costo di degrado si applica alla sola scarica: un ciclo completo costa `k` una volta,
+    non due (D-32). Con k = 12 EUR/MWh un differenziale di 5 EUR non basta a giustificare il
+    ciclo, mentre uno di 60 si'.
+    """
+    piatta = _giornata([100.0, 105.0], gradino=100.0)
+    ampia = _giornata([100.0, 160.0], gradino=100.0)
+
+    ferma = bt.erosione(piatta, potenza_aggregata_mw=10.0, granularita="PT60",
+                        durata_ore=1.0, con_import=False)
+    attiva = bt.erosione(ampia, potenza_aggregata_mw=10.0, granularita="PT60",
+                         durata_ore=1.0, con_import=False)
+
+    assert ferma.piano_vuoto
+    assert not attiva.piano_vuoto
+    assert attiva.profitto_price_taker > 0.0
+
+
+def test_i_parametri_di_riferimento_arrivano_dalla_configurazione():
+    """
+    I default di rendimento, costo variabile e durata non sono scritti in `batteria.py` ma
+    presi da `config.PARAMETRI_BESS`, che ne documenta la fonte (D-32). Se qualcuno cambia
+    la configurazione, il modello deve seguirla.
+    """
+    b = bt.flotta(100.0)
+    assert b.rendimento_ciclo == pytest.approx(config.PARAMETRI_BESS["rendimento_ciclo"])
+    assert b.rendimento_carica == pytest.approx(b.rendimento_scarica)
+    assert b.costo_variabile_eur_mwh == pytest.approx(
+        config.PARAMETRI_BESS["costo_variabile_eur_mwh"])
+    assert b.durata_ore == pytest.approx(config.PARAMETRI_BESS["durata_ore"])
+    assert b.capacita_mwh == pytest.approx(100.0 * config.PARAMETRI_BESS["durata_ore"])
 
 
 def test_la_flotta_aggrega_potenza_e_durata():
