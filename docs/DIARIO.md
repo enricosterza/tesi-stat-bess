@@ -1648,10 +1648,391 @@ più della metà della soglia — ma il margine è ora meno stretto di prima (er
 
 ---
 
+## 2026-08-13 — Validazione del trimestre PT15 reale (ott-dic 2025) e diagnosi degli scarti
+
+Colmata la lacuna dichiarata nel report dell'11/08: i numeri sulla ricostruibilità delle aste a
+quarto d'ora venivano da **sette giorni del gennaio 2026**, non dal trimestre che entrerebbe
+davvero nel campione. Ora il trimestre è validato per intero: **92 giorni, 8.836 aste**.
+
+### Accuratezza misurata
+
+| | Gen 2025 orario | 7 gg gen 2026 PT15 | **Ott-dic 2025 PT15** | ott | nov | dic |
+|---|---|---|---|---|---|---|
+| Periodi | 744 | 672 | **8.836** | 2.980 | 2.880 | 2.976 |
+| Errore mediano | **0,00** | 2,52 | **2,16** | 2,81 | 2,08 | 1,82 |
+| Deviazione standard | **1,06** | 5,40 | **5,42** | 6,52 | 5,06 | 4,41 |
+| Prezzo esatto (±0,01) | **52,3%** | 6,1% | **12,5%** | 11,1% | 13,8% | 12,6% |
+| Entro ±1 €/MWh | **83,7%** | 28,3% | **33,6%** | 29,6% | 35,1% | 36,2% |
+| Entro ±5 €/MWh | **99,5%** | 69,8% | **73,7%** | 66,6% | 75,5% | 79,2% |
+| Scarto minimo/massimo | −4,4 / +6,6 | −26,5 / +24,3 | **−30,0 / +35,5** | −29,2 / +35,5 | −30,0 / +31,5 | −25,4 / +26,9 |
+
+**I sette giorni di gennaio 2026 erano una proxy pessimistica ma onesta**: il trimestre reale si
+ricostruisce leggermente meglio su tutti gli indicatori di match, con deviazione standard
+praticamente identica. La frase del report va quindi completata, non corretta al ribasso.
+
+C'è un **miglioramento mensile monotono** — errore mediano da 2,81 a 1,82, deviazione standard
+da 6,52 a 4,41 — compatibile con un mercato che si assesta dopo il passaggio del 1° ottobre, ma
+si vedrà più avanti che la spiegazione probabile è un'altra.
+
+**Il divario con l'orario resta di un ordine di grandezza**: il prezzo esatto passa dal 52,3% al
+12,5% e lo scarto massimo da 6,6 a 35,5 €/MWh.
+
+### Una lezione metodologica sul campionamento
+
+Per anticipare il quadro mentre girava il calcolo completo (4,5 minuti per giorno, ~7 ore) è
+stato costruito un **campione stratificato di 12 giorni**, quattro per mese, distanziati di otto
+giorni per variare il giorno della settimana. Dava un errore mediano di 1,83 contro il 2,16
+vero, e soprattutto sui giorni di ottobre dava 2,00 contro il 3,75 dei primi sedici giorni reali.
+
+**Il campione aveva pescato giornate migliori della media** e non conteneva nessuna delle
+giornate peggiori (07/10, errore mediano 7,04). Con dodici giorni su novantadue, su una grandezza
+tanto dispersa, non c'era modo di accorgersene se non confrontando. Da ricordare: su questo dato
+i campioni piccoli non sono affidabili nemmeno per l'ordine di grandezza.
+
+### I casi peggiori non sono patologie isolate
+
+L'errore mediano giornaliero si distribuisce con continuità: minimo 0,60, decimo percentile
+1,01, mediana 2,23, novantesimo percentile 3,85, massimo 7,04. **Non esiste un gruppo di
+giornate anomale separabile dal resto**: la peggiore ricostruibilità del PT15 è diffusa. Non
+esiste quindi un filtro sui giorni che recuperi la qualità dell'orario, il che è rilevante per la
+decisione sul perimetro temporale.
+
+### Diagnosi: quattro ipotesi messe alla prova, due scartate
+
+**Congestione — effetto reale ma modesto.** I periodi congestionati hanno errore mediano 2,62
+contro 2,00, e la correlazione fra spread zonale ed errore è **0,177**. Il trimestre è molto più
+congestionato di gennaio 2025 (32,4% dei periodi contro 17,9%), e l'ordine mensile della
+congestione (52, 22, 19 periodi su 96) coincide con quello dell'errore. Contribuisce, ma non è
+il fattore dominante: fra i giorni meglio ricostruiti ce ne sono con 82 e 88 periodi congestionati
+su 96.
+
+**Offerte a blocchi — l'attribuzione in MW si conferma, ma non spiega la variabilità.** Qui
+vanno tenute distinte due domande che è facile confondere.
+
+*Quanti MW di incoerenza sono attribuibili ai blocchi?* L'attribuzione formale, rifatta su sei
+giornate rappresentative del trimestre, **riproduce quella di gennaio 2026**:
+
+| Causa | Trimestre ott-dic 2025 | 7 gg gen 2026 |
+|---|---|---|
+| Offerte a blocchi (D-03) | 863,8 MW/asta — **79,2%** | 80,7% |
+| Zone di frontiera senza vincoli (D-10) | 66,6 MW — 6,1% | 7,1% |
+| Offerte con quota minima di accettazione | 0,0 MW — 0,0% | 0,0% |
+| **Non spiegato** | **159,9 MW — 14,7%** | 12,2% |
+
+Il residuo non spiegato sale da 133 a 160 MW per asta, ma le proporzioni tengono: **la
+scomposizione è confermata sul trimestre reale.**
+
+*I blocchi spiegano però quali aste sbagliano di più?* No. La correlazione fra numero di blocchi
+ed errore è **0,057**, cioè nulla, benché i blocchi passino da 5,2 a 28,8 per asta. E il
+confronto con l'esito vero, che il dato contiene (`STATUS_CD` dice se ogni blocco è stato
+accettato), non mostra alcuna relazione:
+
+| Giorno | Errore mediano | Quota accettata vera | Quota accettata dall'euristica |
+|---|---|---|---|
+| 07/10 (peggiore) | 7,04 | 69,3% | 75,0% |
+| 31/12 | 5,53 | 45,8% | 45,5% |
+| 18/11 (migliore) | 0,60 | 55,1% | 68,0% |
+| 23/10 | 0,68 | 54,0% | 43,8% |
+
+Il giorno peggiore accetta **più** blocchi del vero, uno dei migliori ne accetta meno. I blocchi
+determinano quindi il **livello** dell'incoerenza, non la sua **variazione** fra aste: la
+distinzione conta, perché è quest'ultima che rende inutilizzabile un filtro sui giorni.
+
+Per completezza è stato ricontrollato anche il candidato "vincoli fra quarti d'ora consecutivi":
+il 79,2% delle unità ha quantità assegnata identica nei quattro quarti dell'ora, praticamente lo
+stesso 80,3% già misurato il 04/08 e già **riconosciuto come artefatto** — un'offerta lontana dal
+margine viene accettata in tutti e quattro i quarti comunque. L'esclusione di allora, basata sul
+test discriminante delle offerte a cavallo, resta valida e non va riaperta.
+
+**Mancata convergenza dell'euristica** — il 42,4% dei periodi non raggiunge un punto fisso
+(a gennaio 2025 convergevano 29 giornate su 31). L'errore è però solo lievemente peggiore dove
+non converge (2,39 contro 2,04): è un sintomo di un problema più difficile, non la sua causa.
+
+**Escursione del prezzo dentro l'ora — il fattore dominante sulla dispersione.** È la
+correlazione più alta trovata, **0,427**, e l'effetto è forte:
+
+| Quintile di escursione intra-oraria | Escursione media | Errore mediano |
+|---|---|---|
+| 1 | 1,85 €/MWh | 1,01 |
+| 3 | 10,31 | 2,16 |
+| 5 | 32,74 | **5,00** |
+
+Nelle 48 ore in cui il prezzo ufficiale è **costante** nei quattro quarti l'errore mediano scende
+a 1,00 e il prezzo esatto sale al 30,2%, contro 2,19 e 12,1% nelle altre.
+
+La conferma più netta viene dal **pattern per quarto d'ora**. Sull'insieme dei dati l'errore ha
+una forma a U — primo e ultimo quarto peggiori (2,56 e 3,16 contro 1,63 e 1,66) — che
+**scompare** nelle ore a prezzo piatto (1,34 · 1,04 · 0,94 · 0,81, monotona). La U è quindi un
+artefatto della rampa, non una proprietà della posizione nell'ora.
+
+### Il bias è una cosa diversa dalla dispersione, e ha un'altra causa
+
+L'errore **non è rumore simmetrico**: lo scarto medio è **+1,71 €/MWh** e il 59,2% dei periodi ha
+il prezzo ricostruito **sopra** l'ufficiale contro il 28,4% sotto. A gennaio 2025 il bias era
++0,22. Sistematicamente **manca offerta**.
+
+Il punto analitico importante: il bias **non** dipende dall'escursione intra-oraria (per quintile
+vale 1,63 · 1,85 · 1,65 · 1,79 · 1,61, cioè piatto). Dispersione e bias hanno quindi cause
+**distinte**, e vanno trattate separatamente.
+
+Il bias dipende invece fortemente dal **livello del prezzo**, con correlazione **−0,378** e
+andamento monotono:
+
+| Quintile di prezzo ufficiale | Prezzo medio | Bias |
+|---|---|---|
+| 1 | 88,37 €/MWh | **+4,61** |
+| 3 | 112,32 | +1,54 |
+| 5 | 148,50 | **−0,89** |
+
+Cioè: **ai prezzi bassi si sovrastima, ai prezzi alti si è quasi in bolla.** Per ora del giorno
+il bias culmina a mezzogiorno (+4,85 alle 13, +4,45 alle 14) e si annulla alle 8-9 e alle 17-19.
+
+**Ipotesi solare, formulata e scartata.** Sembrava naturale attribuire il picco di mezzogiorno a
+produzione fotovoltaica non rappresentata — per esempio le offerte integrative GSE. Ma lo stesso
+picco compare nei sette giorni del **gennaio 2026** (+2,26, +3,38, +3,79 alle 13-15), che sono
+invernali e con poco solare, mentre è assente nel **gennaio 2025 orario** (+0,59, +0,46, +0,44).
+Il discriminante è quindi la **risoluzione temporale, non la stagione**. Per completezza: nel
+nostro archivio i file `MGP_OfferteIntegrativeGrtn` **non sono presenti**, quindi l'ipotesi non è
+comunque verificabile senza scaricarli.
+
+**Un confondimento da non trascurare.** Il prezzo medio di gennaio 2025 è 143,32 €/MWh, quello
+del trimestre 112-118. Poiché il bias cresce al calare del prezzo, **parte del divario fra orario
+e quarto d'ora potrebbe essere un effetto del livello dei prezzi e non della risoluzione.** I due
+effetti non sono separabili con i dati attualmente validati.
+
+### Il test del confondimento: è la risoluzione, non il livello dei prezzi
+
+Il dubbio era serio: poiché il bias cresce al calare del prezzo e il trimestre ha prezzi molto
+più bassi di gennaio 2025 (115,3 contro 143,3 €/MWh), il divario fra le due risoluzioni poteva
+essere in tutto o in parte un effetto del **livello dei prezzi**.
+
+Test eseguito: validare una finestra **oraria a prezzi bassi** — 15-22 aprile 2025, 192 aste,
+che include il weekend di Pasqua con domanda bassa e fotovoltaico alto. Il prezzo medio risulta
+101,1 €/MWh, cioè **più basso del trimestre a quarto d'ora**. È quindi il controllo giusto.
+
+| | Prezzo medio | Errore mediano | Dev. std | Bias | Prezzo esatto |
+|---|---|---|---|---|---|
+| Gennaio 2025, orario | 143,3 €/MWh | 0,00 | 1,06 | +0,22 | 52,3% |
+| **Aprile 2025, orario** | **101,1** | **0,17** | **1,49** | **+0,63** | **42,2%** |
+| Ott-dic 2025, quarto d'ora | 115,3 | 2,16 | 5,42 | +1,71 | 12,5% |
+
+**Il confondimento è escluso.** A prezzi più bassi di quelli del trimestre, il mercato orario si
+ricostruisce con errore mediano 0,17 e deviazione standard 1,49, contro 2,16 e 5,42: un ordine
+di grandezza di differenza che il livello dei prezzi non spiega.
+
+Esiste un effetto del livello dei prezzi, ma è **piccolo**: fra gennaio e aprile il bias passa da
++0,22 a +0,63 e il prezzo esatto scende dal 52,3% al 42,2%. È circa un terzo del divario
+osservato col quarto d'ora, e va nella stessa direzione — quindi qualcosa contribuisce, ma la
+causa dominante resta la risoluzione temporale.
+
+Due conferme dentro il campione di aprile. Il bias **non** cresce ai prezzi bassi (per quintile:
++0,36 a 60 €/MWh, +1,09 a 115, +0,30 a 136 — nessun andamento monotono), e le giornate a prezzo
+più basso, 82-89 €/MWh, hanno il bias **minore** (+0,20 e +0,21). E il bias di mezzogiorno, che
+nel PT15 arriva a +4,85, in aprile resta fra +0,69 e +1,25 nonostante il fotovoltaico sia al
+massimo.
+
+**Conseguenza per la scelta del perimetro**: il quarto d'ora è davvero il fattore, e l'ipotesi
+che il divario fosse un artefatto stagionale o di livello dei prezzi va abbandonata. L'opzione
+dei dodici mesi omogenei in regime orario ne esce rafforzata.
+
+**Conseguenza per la diagnosi**: la relazione fra bias e livello del prezzo osservata dentro il
+trimestre **non è un effetto del prezzo in sé** — altrimenti si vedrebbe anche in aprile. È
+verosimilmente un indicatore indiretto di qualcos'altro che nel PT15 si concentra nelle ore a
+prezzo basso, cioè quelle di massima rampa solare. La causa ultima resta aperta.
+
+### Che cosa resta aperto
+
+Le due ipotesi rimaste per il bias, entrambe da verificare: il **blocco di scambio netto** — che
+entra al prezzo minimo e il cui bias cresce con l'import (da +0,84 a +2,73 fra il primo e
+l'ultimo quintile) — e una **quota di offerta a basso prezzo non rappresentata**, di cui le
+offerte integrative GSE sono il candidato più concreto, non presenti nell'archivio attuale.
+
+---
+
+## 2026-08-13 — Diagnosi del bias PT15: l'ipotesi GSE/CIP6 va abbandonata, è un ritardo
+
+Indagine sull'ipotesi che il bias positivo del trimestre PT15 nasca da offerta a buon mercato
+mancante nelle curve — rinnovabile incentivata collocata dal GSE (CIP6 o ritiro dedicato).
+
+### Il dato ufficiale non è scaricabile senza utenza GME
+
+Il `Legend.txt` dell'archivio elenca i nomi veri dei dataset, che non coincidono con quelli
+ipotizzati:
+
+* **`MGP_DomandaOfferta`** — curva aggregata di domanda e offerta;
+* **`MGP_CurvaOfferte15m`** — la stessa **a 15 minuti**, che è quella pertinente al trimestre;
+* **`MGP_OfferteIntegrativeGrtn`** — le offerte integrative GSE.
+
+Nessuno dei tre è presente in locale: l'archivio contiene solo `MGP_OffertePubbliche` (4.083
+giorni) e `MB_OffertePubbliche` (1.186).
+
+Le API GME esistono e rispondono (`https://api.mercatoelettrico.org/request`, interfacce
+`/api/v1/Auth`, `/api/v1/RequestData`, `/api/v1/GetMyQuotas`) ma **richiedono username e password
+assegnati da GME**, con token JWT nell'header. Senza utenza non sono utilizzabili, e il download
+dal sito è dietro accettazione delle condizioni con contenuto caricato via JavaScript.
+
+Dal manuale tecnico si ricavano però due informazioni che cambiano le aspettative su quel
+percorso. I dataset che servirebbero a confermare l'ipotesi — **`ME_Cip6`** (FlowDate, Hour 1-25,
+Zone, Volumes) e **`ME_AdditionalDemand`** (FlowDate, Hour, Zone, Type, Quantity) — sono
+**orari** e contengono **solo quantità, senza prezzo**. Anche disponendo delle credenziali non
+direbbero *a quale prezzo* quell'energia si colloca sulla curva, che è l'informazione decisiva.
+`ME_DemandAndSupply` ha invece un campo `Period` 1-100, quindi copre il quarto d'ora.
+
+### La domanda è stata comunque risolta, per inversione
+
+Non serve la curva ufficiale per misurare quanta offerta manca. Poiché l'eccesso $S(p)-D(p)$ è
+monotono, esiste una sola quantità price taker che porta il prezzo ricostruito su quello
+ufficiale:
+
+$$Q^* = \min\{Q : p^*(Q) \le p_{\text{ufficiale}}\}$$
+
+Si calcola con `curve.curva_impatto()` (D-32), che inverte l'eccesso ed è esatta. Sui periodi a
+forte bias:
+
+| Giorno · periodo | Ora | Ricostruito | Ufficiale | Bias | Deficit | % del volume |
+|---|---|---|---|---|---|---|
+| 06/10 · 52 | 13 | 87,70 | 56,89 | +30,81 | 2.550 MW | 13,4% |
+| 25/10 · 49 | 13 | 60,00 | 34,00 | +26,00 | 580 MW | 3,4% |
+| 21/11 · 44 | 11 | 160,00 | 143,03 | +16,97 | 1.230 MW | 4,8% |
+| 27/12 · 49 | 13 | 92,90 | 68,62 | +24,28 | 1.240 MW | 8,4% |
+| 18/11 · 50 *(controllo)* | 13 | 114,00 | 111,02 | +2,98 | 1.200 MW | 5,5% |
+
+Il controllo è istruttivo: una giornata **ben** ricostruita richiede 1.200 MW quanto le
+distorte, perché lì la curva è piatta. **Il deficit in MW non è proporzionale al bias**: dipende
+dalla pendenza locale. Figura in `output/figure/09_deficit_offerta_pt15.png`.
+
+### Il profilo giornaliero falsifica l'ipotesi GSE
+
+Il test discriminante è la forma del deficit nella giornata: se fosse fotovoltaico incentivato
+dovrebbe essere una campana, nulla di notte e massima a mezzogiorno. Calcolato su tutti i 96
+periodi di quattro giornate:
+
+| Fascia | Deficit medio |
+|---|---|
+| Notte (1-5, 24) | **367 MW** |
+| Mezzogiorno (11-15) | **898 MW** |
+| Rapporto | 2,45 |
+
+Una componente diurna esiste, ma **il deficit non si annulla di notte**, e il rapporto 2,45 è
+molto lontano da quello che produrrebbe il fotovoltaico.
+
+Il fatto decisivo è però un altro: **alle 8-9 e alle 19-20 il bias è negativo** — −7,0, −9,6,
+−4,6, −10,2 €/MWh — cioè in quelle ore la ricostruzione ha *troppa* offerta, non troppo poca.
+**Nessuna quantità di rinnovabile mancante può produrre un errore di segno opposto.** L'ipotesi
+di offerta mancante, in quanto spiegazione principale, è falsificata.
+
+Anche l'ipotesi alternativa dello scambio netto esce indebolita: la correlazione fra deficit e
+blocco price taker dell'import è solo **+0,170**.
+
+### Che cos'è davvero: un ritardo rispetto alla rampa
+
+Il segno dell'errore segue la **direzione in cui il prezzo si sta muovendo**. Sull'intero
+trimestre la correlazione fra bias e gradiente del prezzo ufficiale è **−0,470**, la più forte
+misurata finora, e l'andamento è monotono:
+
+| Direzione del prezzo | Periodi | Bias medio | Quota di bias positivi |
+|---|---|---|---|
+| Forte discesa | 1.708 | **+5,13** | 81,0% |
+| Discesa | 1.861 | +2,41 | 71,0% |
+| Piatto | 2.115 | +1,69 | 61,8% |
+| Salita | 1.451 | +1,17 | 48,7% |
+| Forte salita | 1.609 | **−1,99** | 31,3% |
+
+**Quando il prezzo scende la ricostruzione resta troppo alta; quando sale resta troppo bassa.**
+È la firma di un **ritardo**, non di una componente mancante: la curva ricostruita insegue il
+mercato con inerzia.
+
+Due controlli qualificano il risultato. Il fenomeno è **assente nel mercato orario**: su gennaio
+2025 la pendenza è −0,001 con correlazione −0,016, cioè nulla. E **non è mediato dal numero di
+blocchi**: dividendo il trimestre in terzili per blocchi in gara la pendenza resta identica
+(−0,321, −0,292, −0,320), quindi non è la quantità di blocchi a governarlo.
+
+### Perché questo riconcilia tutte le osservazioni precedenti
+
+Il ritardo spiega ciò che finora erano indizi slegati: l'escursione **dentro l'ora** come miglior
+predittore della dispersione; la forma a U per quarto d'ora che scompare nelle ore piatte; la
+correlazione con il livello del prezzo, che è indiretta perché i prezzi bassi cadono a
+mezzogiorno, quando il prezzo sta scendendo più rapidamente; e il fatto che i blocchi spieghino
+il 79% dei MW incoerenti pur non predicendo quali aste sbaglino.
+
+Il meccanismo candidato è che una parte dell'offerta sia **costante su una finestra di più
+periodi** mentre il mercato vero si muove dentro quella finestra: le offerte orarie, che entrano
+identiche in tutti e quattro i quarti (D-13, il 6-8% dei MW), e le offerte a blocchi, che sono
+indivisibili su tutta la loro estensione e vengono decise sul prezzo medio ponderato (D-18). In
+un mercato orario nessuna delle due crea disallineamento, perché il periodo coincide con l'ora.
+
+### L'esperimento sul meccanismo: un'esclusione netta e un test fallito
+
+Rieseguito il clearing su quattro giornate (380 periodi) in tre varianti. È un esperimento
+diagnostico, non una modifica della configurazione adottata.
+
+| Variante | Errore mediano | Bias medio | Pendenza | Correlazione |
+|---|---|---|---|---|
+| A · configurazione adottata | 4,24 | +4,66 | −0,345 | −0,446 |
+| B · senza offerte di granularità minoritaria | **38,28** | **+105,97** | +0,719 | +0,048 |
+| C · blocchi trattati come divisibili | 5,18 | +1,50 | −0,386 | −0,401 |
+
+*(riferimento: gennaio 2025 orario ha pendenza −0,001 e correlazione −0,016)*
+
+**I blocchi sono esclusi come veicolo.** Trattarli come divisibili lascia il ritardo dov'era —
+pendenza −0,386 contro −0,345 — nonostante cambi sensibilmente il bias medio. Qualunque cosa
+produca il ritardo, non è l'indivisibilità dei blocchi.
+
+**La variante B non è interpretabile**, ed è un difetto del disegno che va ammesso: togliere le
+offerte orarie non rimuove la loro *piattezza*, rimuove il 7-12% dell'offerta reale. Il risultato
+è una ricostruzione distrutta, con bias di +106 €/MWh. La correlazione che si annulla non
+significa nulla, perché non c'è più una ricostruzione sensata di cui misurare il ritardo.
+
+### Il test osservativo, che invece funziona
+
+L'ipotesi sulle offerte orarie va verificata senza rimuoverle: confrontando giornate con quote
+diverse. Se la piattezza infra-oraria delle offerte PT60 genera il ritardo, i giorni con più
+offerta oraria devono ritardare di più.
+
+Sui 92 giorni del trimestre, con quota di MW offerti in PT60 fra il 7,1% e il 12,5%:
+
+| Terzile | Quota PT60 | Pendenza | Errore mediano |
+|---|---|---|---|
+| Poca PT60 | 8,7% | −0,293 | 2,04 |
+| Media | 9,8% | −0,309 | 2,61 |
+| Molta PT60 | 10,8% | **−0,355** | 2,75 |
+
+Correlazione complessiva **−0,410**: più offerta oraria, più ritardo. E il risultato **non è
+confondimento stagionale**, perché la quota di PT60 non varia fra i mesi (9,52%, 10,07%, 9,80%) e
+la correlazione tiene dentro ciascun mese: **−0,385** a ottobre, **−0,396** a novembre,
+**−0,444** a dicembre.
+
+### Dove siamo con la diagnosi
+
+Il quadro è di **identificazione parziale**, e va riportato come tale.
+
+*Stabilito*: l'errore è un ritardo rispetto alla rampa di prezzo, assente nel mercato orario;
+non è offerta mancante (cambia segno); non è l'indivisibilità dei blocchi (esclusa
+sperimentalmente); non è lo scambio netto in modo prevalente (correlazione +0,170).
+
+*Indiziato*: le offerte orarie che entrano identiche nei quattro quarti (D-13). L'associazione è
+solida e replicata in tre mesi indipendenti, ma la quota in gioco è modesta — attorno al 10% dei
+MW — e l'effetto fra terzili è del 20% sulla pendenza. **Contribuiscono, ma difficilmente
+spiegano tutto il ritardo.**
+
+*Aperto*: la parte restante. Un candidato non ancora esaminato è il **blocco di scambio netto**,
+che è ricalcolato per periodo ma sulle quantità assegnate, cioè su un esito che a sua volta
+riflette vincoli infra-orari; la sua correlazione col deficit era però bassa.
+
+Poiché la configurazione adottata resta la migliore fra quelle provate, e poiché il fenomeno è
+**assente nel regime orario** su cui poggia l'analisi principale, questo residuo non blocca il
+lavoro sulla soglia: va dichiarato come limite noto della ricostruzione a quarto d'ora.
+
+**Conseguenza pratica**: scaricare CIP6 e offerte integrative GSE **non è più prioritario**. Non
+spiegherebbero un errore che cambia segno con la rampa, e i due dataset sono comunque orari e
+privi di prezzo.
+
+---
+
 ## Prossimi passi
 
 *Sezione viva, riscritta man mano: a differenza delle voci datate qui sopra, non è
-append-only. Ultimo allineamento 2026-08-11.*
+append-only. Ultimo allineamento 2026-08-13.*
 
 **Fatti** (erano i punti 1-4 e 6 dell'elenco iniziale): perimetro di frontiera verificato,
 `curve.py` con il clearing consapevole dei blocchi, validazione sul giorno pilota e su gennaio
