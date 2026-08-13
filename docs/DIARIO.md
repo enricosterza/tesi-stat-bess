@@ -2099,6 +2099,38 @@ anni e perimetri diversi — quindi come ordine di grandezza e non come classifi
 
 ---
 
+## 2026-08-13 — Diagnostica dei prezzi negativi: nessuno nei campioni validati
+
+Scritti `curve.prezzi_negativi()` e `scripts/09_prezzi_negativi.py`, riutilizzabili su qualunque
+serie di validazione già prodotta. Quattro test su casi giocattolo.
+
+Serve a stabilire se la convenzione di D-32 — perdita di ciclo ripartita **in parti uguali** fra
+carica e scarica — tocchi i risultati. A ciclo chiuso e con prezzi positivi conta solo il
+prodotto dei rendimenti, quindi la ripartizione è irrilevante; diventa rilevante con prezzi
+negativi nelle ore di carica, dove prelevare è remunerato e i due rendimenti entrano
+separatamente nell'obiettivo.
+
+| Campione | Periodi | Negativi | Prezzo minimo |
+|---|---|---|---|
+| Gennaio 2025, orario | 744 | **0** | 85,42 €/MWh |
+| 15-22 aprile 2025, orario | 192 | **0** | 13,10 |
+| Ott-dic 2025, quarto d'ora | 8.836 | **0** | 11,45 |
+| 12-18 gennaio 2026, quarto d'ora | 672 | **0** | 105,58 |
+
+**Nessun prezzo negativo in nessuno dei campioni validati**, per un totale di 10.444 aste. Su
+gennaio 2025 il minimo è addirittura 85,42 €/MWh, cioè lontanissimo dallo zero: la questione
+**non tocca in alcun modo il risultato attuale**.
+
+I due campioni che si avvicinano di più sono aprile (13,10) e ottobre (11,45), cioè quelli a
+maggiore produzione fotovoltaica fra i disponibili — coerente con l'attesa che il fenomeno, se
+comparirà, si concentri nelle ore solari dei mesi centrali. Il controllo va quindi **rifatto
+sull'anno intero**, dove maggio-luglio non sono ancora stati esaminati.
+
+Finché nessun prezzo negativo compare, la ripartizione 50/50 resta una convenzione senza
+conseguenze, ed è documentata come tale nella docstring di `config.rendimenti_da_ciclo`.
+
+---
+
 ## Prossimi passi
 
 *Sezione viva, riscritta man mano: a differenza delle voci datate qui sopra, non è

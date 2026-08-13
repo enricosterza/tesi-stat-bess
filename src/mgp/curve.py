@@ -1120,3 +1120,95 @@ def confronta_con_ufficiale(
             float(100 * (scarto.abs() <= t).sum() / len(validi)) if len(validi) else 0.0
         )
     return esito
+
+
+# --------------------------------------------------------------------------------------
+# Diagnostica: prezzi negativi
+# --------------------------------------------------------------------------------------
+#: Mesi assegnati a ciascuna stagione, per la stratificazione della diagnostica.
+STAGIONI: dict[int, str] = {
+    12: "inverno", 1: "inverno", 2: "inverno",
+    3: "primavera", 4: "primavera", 5: "primavera",
+    6: "estate", 7: "estate", 8: "estate",
+    9: "autunno", 10: "autunno", 11: "autunno",
+}
+
+
+def prezzi_negativi(
+    serie: pd.DataFrame,
+    colonna: str = "prezzo",
+    colonna_data: str = "data",
+) -> dict[str, object]:
+    """
+    Conta e colloca i periodi con prezzo di equilibrio negativo.
+
+    Parameters
+    ----------
+    serie : pd.DataFrame
+        Una riga per periodo, con almeno le colonne `PERIOD`, `granularita`, la colonna
+        dei prezzi e quella della data (formato 'YYYYMMDD'). E' il formato prodotto da
+        `scripts/03_valida_mese.py` in `data/processed/validazione_*_NORD.csv`.
+    colonna : str
+        Colonna dei prezzi da esaminare: `prezzo` (ricostruito) o `prezzo_ufficiale`.
+    colonna_data : str
+        Colonna con la data del giorno di mercato.
+
+    Returns
+    -------
+    dict
+        `n_periodi`, `n_negativi`, `quota_negativi` (%), `n_giorni`,
+        `n_giorni_con_negativi`, `prezzo_minimo`, piu' le tabelle `per_ora`, `per_mese`
+        e `per_stagione` (DataFrame indicizzati, con conteggio e quota).
+
+    Perche' serve
+    -------------
+    Con prezzi positivi e ciclo chiuso il modello della batteria dipende **solo dal
+    prodotto** dei rendimenti di carica e scarica, quindi il modo in cui la perdita di
+    ciclo viene ripartita fra le due direzioni e' irrilevante. La ripartizione diventa
+    invece rilevante quando il prezzo e' **negativo** nelle ore di carica, perche' li'
+    prelevare energia e' remunerato e i due rendimenti entrano separatamente
+    nell'obiettivo.
+
+    Sapere quanto sono frequenti i prezzi negativi, e in quali ore cadono, dice quindi se
+    la convenzione adottata (perdita ripartita in parti uguali, `config.rendimenti_da_ciclo`)
+    tocchi o no i risultati. L'attesa e' che si concentrino nelle ore di massima produzione
+    fotovoltaica, e che siano quindi rari in inverno e piu' frequenti nei mesi centrali.
+
+    La funzione **non modifica nulla**: e' diagnostica, e serve a decidere con i numeri se
+    la questione vada affrontata.
+    """
+    d = serie.dropna(subset=[colonna]).copy()
+    if d.empty:
+        vuoto = pd.DataFrame()
+        return {"n_periodi": 0, "n_negativi": 0, "quota_negativi": float("nan"),
+                "n_giorni": 0, "n_giorni_con_negativi": 0,
+                "prezzo_minimo": float("nan"),
+                "per_ora": vuoto, "per_mese": vuoto, "per_stagione": vuoto}
+
+    d[colonna_data] = d[colonna_data].astype(str)
+    d["mese"] = d[colonna_data].str[4:6].astype(int)
+    d["stagione"] = d["mese"].map(STAGIONI)
+    if "ora" not in d.columns:
+        durata = d["granularita"].map(config.DURATA_ORE)
+        d["ora"] = ((d["PERIOD"] - 1) * durata).astype(int) + 1
+    d["negativo"] = d[colonna] < 0
+
+    def _tabella(chiave: str) -> pd.DataFrame:
+        g = d.groupby(chiave).agg(periodi=(colonna, "size"),
+                                  negativi=("negativo", "sum"),
+                                  prezzo_minimo=(colonna, "min"))
+        g["quota_%"] = (g["negativi"] / g["periodi"] * 100).round(2)
+        return g
+
+    per_giorno = d.groupby(colonna_data)["negativo"].any()
+    return {
+        "n_periodi": int(len(d)),
+        "n_negativi": int(d["negativo"].sum()),
+        "quota_negativi": float(d["negativo"].mean() * 100),
+        "n_giorni": int(per_giorno.size),
+        "n_giorni_con_negativi": int(per_giorno.sum()),
+        "prezzo_minimo": float(d[colonna].min()),
+        "per_ora": _tabella("ora"),
+        "per_mese": _tabella("mese"),
+        "per_stagione": _tabella("stagione"),
+    }

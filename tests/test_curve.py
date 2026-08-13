@@ -546,3 +546,64 @@ def test_curva_impatto_converte_in_energia_secondo_la_granularita():
     q60 = curve.curva_impatto(df, [100], granularita="PT60")
     assert q15[q15["delta_mw"] == 100.0]["delta_mwh"].iloc[0] == pytest.approx(25.0)
     assert q60[q60["delta_mw"] == 100.0]["delta_mwh"].iloc[0] == pytest.approx(100.0)
+
+
+# --------------------------------------------------------------------------------------
+# Diagnostica dei prezzi negativi
+# --------------------------------------------------------------------------------------
+def _serie(prezzi_per_giorno: dict[str, list[float]], granularita: str = "PT60") -> pd.DataFrame:
+    """Costruisce una serie per periodo nel formato prodotto dalla validazione."""
+    righe = []
+    for data, prezzi in prezzi_per_giorno.items():
+        for periodo, p in enumerate(prezzi, start=1):
+            righe.append({"data": data, "PERIOD": periodo, "prezzo": p,
+                          "granularita": granularita})
+    return pd.DataFrame(righe)
+
+
+def test_nessun_prezzo_negativo_viene_riportato_come_tale():
+    """Con prezzi tutti positivi il conteggio e' zero e le tabelle restano coerenti."""
+    esito = curve.prezzi_negativi(_serie({"20250115": [50.0, 60.0, 70.0, 80.0]}))
+    assert esito["n_negativi"] == 0
+    assert esito["quota_negativi"] == pytest.approx(0.0)
+    assert esito["n_giorni"] == 1
+    assert esito["n_giorni_con_negativi"] == 0
+    assert esito["prezzo_minimo"] == pytest.approx(50.0)
+
+
+def test_i_prezzi_negativi_sono_contati_e_collocati_nell_ora_giusta():
+    """
+    Due periodi negativi su otto, nelle ore 3 e 4 di due giornate diverse: il conteggio
+    complessivo, la quota e la collocazione oraria devono corrispondere.
+    """
+    esito = curve.prezzi_negativi(_serie({
+        "20250601": [50.0, 40.0, -5.0, 30.0],
+        "20250602": [45.0, 35.0, 20.0, -1.5],
+    }))
+    assert esito["n_negativi"] == 2
+    assert esito["quota_negativi"] == pytest.approx(25.0)
+    assert esito["n_giorni_con_negativi"] == 2
+    assert esito["prezzo_minimo"] == pytest.approx(-5.0)
+    per_ora = esito["per_ora"]
+    assert int(per_ora.loc[3, "negativi"]) == 1
+    assert int(per_ora.loc[4, "negativi"]) == 1
+    assert int(per_ora.loc[1, "negativi"]) == 0
+
+
+def test_la_stagione_segue_il_mese_della_data():
+    """Giugno e' estate, gennaio inverno: la stratificazione stagionale deve rispettarlo."""
+    esito = curve.prezzi_negativi(_serie({
+        "20250115": [10.0, -2.0], "20250615": [10.0, -3.0],
+    }))
+    per_stagione = esito["per_stagione"]
+    assert int(per_stagione.loc["inverno", "negativi"]) == 1
+    assert int(per_stagione.loc["estate", "negativi"]) == 1
+
+
+def test_l_ora_si_deduce_dalla_granularita():
+    """Su PT15 i primi quattro periodi appartengono all'ora 1, il quinto all'ora 2."""
+    esito = curve.prezzi_negativi(
+        _serie({"20250601": [-1.0, -1.0, -1.0, -1.0, -1.0]}, granularita="PT15"))
+    per_ora = esito["per_ora"]
+    assert int(per_ora.loc[1, "negativi"]) == 4
+    assert int(per_ora.loc[2, "negativi"]) == 1
