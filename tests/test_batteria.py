@@ -486,3 +486,62 @@ def test_la_batteria_grande_erode_il_proprio_margine():
     assert grande.ricavo > piccola.ricavo
     assert grande.ricavo < 2 * piccola.ricavo
     assert grande.ricavo / 200.0 < piccola.ricavo / 100.0
+
+
+# --------------------------------------------------------------------------------------
+# Vincolo orario-nei-quarti (D-33)
+# --------------------------------------------------------------------------------------
+def test_su_pt60_il_vincolo_orario_e_vacuo():
+    """
+    Con un periodo per ora il vincolo non puo' cambiare nulla: il piano deve coincidere
+    esattamente con quello non vincolato. E' la garanzia che i risultati orari gia'
+    prodotti non si muovano.
+    """
+    prezzi = [50.0, 20.0, 30.0, 90.0, 25.0, 100.0]
+    b = bt.flotta(10.0, durata_ore=2.0)
+    libero = bt.profilo_ottimo(prezzi, b, 1.0)
+    vincolato = bt.profilo_ottimo(prezzi, b, 1.0, periodi_per_ora=1)
+    assert np.allclose(libero[0], vincolato[0])
+    assert np.allclose(libero[1], vincolato[1])
+
+
+def test_il_piano_vincolato_e_costante_dentro_ogni_ora():
+    """
+    Su otto quarti d'ora (due ore) con prezzi che variano dentro l'ora, il piano
+    vincolato deve avere lo stesso valore nei quattro quarti di ciascuna ora.
+    """
+    prezzi = [10.0, 90.0, 10.0, 90.0, 200.0, 5.0, 200.0, 5.0]
+    b = bt.flotta(10.0, durata_ore=2.0)
+    carica, scarica = bt.profilo_ottimo(prezzi, b, 0.25, periodi_per_ora=4)
+    for ora in range(2):
+        fetta = slice(ora * 4, ora * 4 + 4)
+        assert np.ptp(carica[fetta]) == pytest.approx(0.0)
+        assert np.ptp(scarica[fetta]) == pytest.approx(0.0)
+
+
+def test_il_vincolo_orario_non_puo_aumentare_il_profitto():
+    """
+    Il piano vincolato ottimizza su un insieme piu' piccolo, quindi il suo profitto non
+    puo' superare quello libero. E' la ragione per cui lasciare la batteria libera
+    infra-ora gonfia il profitto price taker (D-33).
+    """
+    prezzi = [10.0, 90.0, 10.0, 90.0, 200.0, 5.0, 200.0, 5.0]
+    b = bt.flotta(10.0, durata_ore=2.0)
+    delta = 0.25
+
+    def profitto(piano):
+        c, s = piano
+        return float(np.sum((s - c) * np.array(prezzi) * delta)
+                     - b.costo_variabile_eur_mwh * np.sum(s) * delta)
+
+    libero = profitto(bt.profilo_ottimo(prezzi, b, delta))
+    vincolato = profitto(bt.profilo_ottimo(prezzi, b, delta, periodi_per_ora=4))
+    assert vincolato <= libero + 1e-9
+    assert vincolato < libero          # su questi prezzi il vincolo morde davvero
+
+
+def test_periodi_non_divisibili_in_ore_sono_segnalati():
+    """Sei quarti d'ora non formano ore intere: meglio un errore che un piano sbagliato."""
+    b = bt.flotta(10.0, durata_ore=2.0)
+    with pytest.raises(ValueError, match="divisibili"):
+        bt.profilo_ottimo([10.0] * 6, b, 0.25, periodi_per_ora=4)

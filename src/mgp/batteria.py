@@ -183,6 +183,7 @@ def profilo_ottimo(
     prezzi: np.ndarray | list[float],
     batteria: Batteria,
     durata_periodo_ore: float,
+    periodi_per_ora: int = 1,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Calcola il profilo di carica e scarica che massimizza il ricavo a prezzi dati.
@@ -195,6 +196,9 @@ def profilo_ottimo(
         Caratteristiche dell'accumulo.
     durata_periodo_ore : float
         Durata di un periodo in ore (0,25 per il quarto d'ora, 1 per l'ora).
+    periodi_per_ora : int
+        Numero di periodi che compongono un'ora: 4 con PT15, 1 con PT60. Se maggiore di 1
+        il piano e' vincolato a essere **costante dentro ciascuna ora** (D-33).
 
     Returns
     -------
@@ -226,6 +230,30 @@ def profilo_ottimo(
     mercato: la funzione segnala il caso restituendo profili in cui entrambe le variabili
     sono positive, ed e' un controllo da fare a valle.
 
+    Il vincolo orario-nei-quarti (D-33)
+    -----------------------------------
+    Nel mercato del giorno prima il prodotto e' **orario**: un'offerta oraria vale la stessa
+    potenza in tutti e quattro i quarti dell'ora (D-13), e nessun operatore puo' articolare la
+    propria posizione dentro l'ora. Lasciare invece che la batteria cambi potenza ogni quindici
+    minuti le darebbe una liberta' preclusa al resto del mercato: il profitto price taker ne
+    risulterebbe gonfiato del 2-4% (fino al 20% nelle giornate a margine sottile) e la soglia
+    $K^*$ apparirebbe piu' alta di quanto sia. E' un artefatto, non un effetto di mercato. Il
+    vincolo e' formalizzato anche da Veenstra e Mulder (2025).
+
+    Con `periodi_per_ora > 1` il problema si risolve quindi **sulle medie orarie dei prezzi**,
+    con passo di un'ora, e il piano ottenuto viene replicato nei quattro quarti. Non servono
+    vincoli di uguaglianza espliciti, perche':
+
+    * a potenza costante nell'ora il ricavo dipende solo dalla **media** dei quattro prezzi,
+      dato che $\\sum_q p_q P \\Delta = P \\bar{p} \\cdot 1\\,\\mathrm{h}$;
+    * lo stato di carica e' lineare, quindi **monotono**, dentro l'ora: i suoi estremi cadono
+      ai bordi, e vincolarlo a fine ora basta a vincolarlo ovunque.
+
+    L'equivalenza con la formulazione esplicita — stesso LP a 96 periodi piu' 144 righe di
+    uguaglianza — e' stata verificata su tre giornate: piani identici periodo per periodo e
+    profitti coincidenti alla quarta cifra decimale. La via adottata usa 48 variabili invece
+    di 192.
+
     Assunzione forte
     ----------------
     Il profilo e' calcolato conoscendo i prezzi di tutti i periodi della giornata, cioe' in
@@ -234,6 +262,20 @@ def profilo_ottimo(
     trattamento dell'incertezza e' una questione aperta.
     """
     prezzi = np.asarray(prezzi, dtype=float)
+    if periodi_per_ora > 1:
+        if len(prezzi) % periodi_per_ora:
+            raise ValueError(
+                f"I {len(prezzi)} periodi non sono divisibili in ore da "
+                f"{periodi_per_ora} periodi: il vincolo orario non e' applicabile."
+            )
+        n_ore = len(prezzi) // periodi_per_ora
+        medie = prezzi.reshape(n_ore, periodi_per_ora).mean(axis=1)
+        carica, scarica = profilo_ottimo(
+            medie, batteria, durata_periodo_ore * periodi_per_ora, periodi_per_ora=1
+        )
+        return (np.repeat(carica, periodi_per_ora),
+                np.repeat(scarica, periodi_per_ora))
+
     n = len(prezzi)
     delta = durata_periodo_ore
 
@@ -534,7 +576,11 @@ def erosione(
 
     accumulo = flotta(potenza_aggregata_mw, durata_ore, **parametri_batteria)
     riferimento = np.nan_to_num(base, nan=float(np.nanmean(base)) if np.isfinite(base).any() else 0.0)
-    carica, scarica = profilo_ottimo(riferimento, accumulo, delta)
+    # Il vincolo orario-nei-quarti si deriva dalla granularita' dell'asta: 4 periodi per
+    # ora su PT15, 1 su PT60, dove il vincolo e' vacuo e non cambia nulla (D-33).
+    periodi_per_ora = int(round(1.0 / delta))
+    carica, scarica = profilo_ottimo(riferimento, accumulo, delta,
+                                     periodi_per_ora=periodi_per_ora)
 
     pi_pt = profitto_price_taker(carica, scarica, base, delta)
     pi_pm, prezzi_nuovi = profitto_price_maker(carica, scarica, offerte_giorno, periodi, delta)

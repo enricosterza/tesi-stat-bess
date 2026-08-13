@@ -2131,6 +2131,106 @@ conseguenze, ed è documentata come tale nella docstring di `config.rendimenti_d
 
 ---
 
+## 2026-08-13 — D-33 · Il vincolo orario-nei-quarti sul piano della batteria
+
+### L'artefatto trovato
+
+Nel mercato del giorno prima il prodotto è **orario**. Nel regime a quarto d'ora questo si
+traduce in un vincolo che il codice rispettava su un lato solo.
+
+**Lato offerte: rispettato.** `curve._riscala_quantita` porta un'offerta oraria nell'asta del
+quarto d'ora usandone la quantità **invariata** (D-13): un'offerta da X MW vale X MW in ciascuno
+dei quattro quarti. È il vincolo formalizzato anche da **Veenstra e Mulder (2025)**.
+
+**Lato batteria: assente.** Il programma lineare di `profilo_ottimo` aveva come vincoli solo il
+bilancio energetico, i limiti di capacità e potenza e il ciclo chiuso. Nulla legava i quattro
+quarti della stessa ora. Verificato sul 06/10/2025 con una flotta da 100 MW: **in 10 ore su 24
+il piano non era costante dentro l'ora**, quasi sempre con l'escursione massima — l'ora 1 dava
+`0 · −100 · −100 · −100` MW, l'ora 18 `0 · 0 · 0 · +100`.
+
+La batteria accendeva e spegneva a metà ora, cosa preclusa per costruzione a tutti gli altri
+operatori.
+
+**Quanto valeva.** Confronto fra piano libero e piano vincolato, entrambi valorizzati sui prezzi
+veri al quarto d'ora:
+
+| Giorno | Piano libero | Piano vincolato | Vantaggio |
+|---|---|---|---|
+| 06/10/2025 | 11.440 € | 10.997 € | +4,0% |
+| 25/10/2025 | 20.082 € | 19.326 € | +3,9% |
+| 18/11/2025 | 6.688 € | 6.587 € | +1,5% |
+| 27/12/2025 | 842 € | 702 € | **+19,9%** |
+
+Il vantaggio è strutturalmente positivo — il piano libero ottimizza su un insieme più ampio — e
+vale il 2-4% nelle giornate a differenziale ampio, ma arriva a **un quinto del profitto** dove il
+margine è sottile e l'arbitraggio infra-orario è quasi tutto ciò che resta.
+
+L'effetto sui risultati sarebbe stato di **gonfiare il profitto price taker**, quindi abbassare
+l'erosione e spostare **K\* verso l'alto**: un artefatto della simulazione, non un effetto di
+mercato, e per giunta nella direzione che rende l'accumulo più innocuo di quanto sia.
+
+### La correzione (D-33)
+
+Aggiunto il parametro `periodi_per_ora` a `profilo_ottimo`, con default 1 che lascia il
+comportamento invariato. `erosione()` lo deriva dalla granularità — `int(round(1/delta))`, cioè
+4 su PT15 e 1 su PT60 — quindi non serve alcun ramo condizionale negli script.
+
+L'implementazione **non** aggiunge vincoli di uguaglianza al programma lineare: risolve sulle
+**medie orarie** dei prezzi con passo di un'ora e replica il piano nei quattro quarti. Poggia su
+due proprietà:
+
+* a potenza costante nell'ora il ricavo dipende solo dalla media dei quattro prezzi, perché
+  $\sum_q p_q P \Delta = P \bar{p} \cdot 1\,\text{h}$;
+* lo stato di carica è lineare, quindi **monotono**, dentro l'ora: i suoi estremi cadono ai
+  bordi, e vincolarlo a fine ora basta a vincolarlo ovunque.
+
+### La verifica di equivalenza
+
+Le due proprietà non sono state assunte ma verificate, implementando anche la formulazione
+**esplicita** — LP a 96 periodi più 144 righe di uguaglianza che legano i quarti — e
+confrontandola con quella efficiente su tre giornate:
+
+| Giorno | Profitto esplicito | Profitto efficiente | Differenza | max \|Δcarica\| | max \|Δscarica\| |
+|---|---|---|---|---|---|
+| 06/10/2025 | 10.996,9995 € | 10.996,9995 € | 0,000000 | 0,000000 | 0,000000 |
+| 25/10/2025 | 19.325,8667 € | 19.325,8667 € | 0,000000 | 0,000000 | 0,000000 |
+| 27/12/2025 | 702,5000 € | 702,5000 € | 0,000000 | 0,000000 | 0,000000 |
+
+Non coincidono solo i profitti: coincide il **piano periodo per periodo**, con scarto
+esattamente nullo su tutti i 96 periodi. Un'asserzione verifica inoltre che entrambe rispettino
+davvero il vincolo in tutte le 24 ore. Se la monotonia dello stato di carica non avesse retto, le
+due versioni sarebbero divergute nelle giornate a piano pieno come il 25/10, dove la batteria
+satura la capacità: non è successo.
+
+Adottata quindi la versione efficiente, che usa **48 variabili invece di 192**.
+
+### Gennaio orario è invariato
+
+Su PT60 il vincolo è vacuo, quindi i risultati già prodotti non devono muoversi. Verificato
+contro i valori salvati dal rerun dell'11/08, replicando esattamente la configurazione dello
+script (perimetro NORD più frontiere, prezzi di riferimento ricalcolati):
+
+| Giorno | $\pi_{PT}$ atteso | $\pi_{PT}$ nuovo | Scarto |
+|---|---|---|---|
+| 02/01/2025 | 16.514,0764 | 16.514,0764 | 0 |
+| 15/01/2025 | 44.762,6711 | 44.762,6711 | 0 |
+| 20/01/2025 | 74.082,4278 | 74.082,4278 | 0 |
+| 30/01/2025 | 15.879,3816 | 15.879,3816 | 1,8·10⁻¹² |
+
+Scarto massimo **1,8·10⁻¹² €**, cioè zero macchina. **K\* = 136 MW resta valido.**
+
+*(Una nota metodologica: il primo tentativo di verifica sembrava mostrare scarti di centinaia di
+euro. Non era la modifica: era il banco di prova, che ricostruiva le curve sulla sola zona NORD
+invece che sul perimetro NORD più frontiere usato dallo script. Vale la pena ricordarlo, perché
+un controllo di non-regressione mal impostato produce esattamente il tipo di falso allarme che
+porta a "correggere" codice sano.)*
+
+Quattro test nuovi fissano il comportamento: vacuità su PT60, costanza dentro l'ora su PT15,
+impossibilità che il vincolo aumenti il profitto, ed errore esplicito se i periodi non sono
+divisibili in ore intere. Totale 84 test.
+
+---
+
 ## Prossimi passi
 
 *Sezione viva, riscritta man mano: a differenza delle voci datate qui sopra, non è
