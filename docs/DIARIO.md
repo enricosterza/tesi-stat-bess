@@ -2029,6 +2029,76 @@ privi di prezzo.
 
 ---
 
+## 2026-08-13 — Secondo riferimento in letteratura: Veenstra e Mulder nei capitoli
+
+Integrato nei capitoli LaTeX un secondo lavoro di riferimento, come materiale di scrittura e
+posizionamento. **Nessuna modifica al codice**: la pipeline è invariata.
+
+> Veenstra e Mulder (2025), *Profitability of batteries in day-ahead and intraday electricity
+> markets: Assessment of operation strategies with endogenous prices*, **Energy Economics**
+> 148, 108608.
+
+Valutano la redditività dell'accumulo in arbitraggio sui mercati olandesi del giorno prima e
+infragiornalieri, ricostruendo i **prezzi in modo endogeno dalle curve d'asta reali** e
+confrontando strategie price taker e price maker su dati 2006-2023. Il modello è deterministico
+(complementarità mista risolta sulle condizioni di ottimo, in GAMS).
+
+*(Come per il riferimento spagnolo, dati bibliografici e valori numerici sono trascritti come
+forniti e vanno verificati sulla pagina dell'editore. I nomi di battesimo degli autori sono
+rimasti da completare invece che inventati.)*
+
+### Perché conta più del primo riferimento
+
+È **metodologicamente il più vicino** a questa tesi: stesso impianto di prezzi endogeni
+ricostruiti dalle curve reali, stesso confronto price taker/price maker. E soprattutto
+**legittima la domanda di ricerca**: gli autori osservano che l'ipotesi di price taker è
+ragionevole finché l'accumulo ha un ruolo marginale, ma cessa di valere man mano che se ne
+installa di più — cioè esattamente la transizione che qui si vuole caratterizzare.
+
+Anche il loro modello è però **deterministico**. Entrambi i riferimenti principali condividono
+quindi lo stesso limite, e l'elemento di differenziazione — la soglia come distribuzione
+stimata per bootstrap, con quantile prudenziale e intervalli di confidenza — resta intatto.
+
+### I quattro inserimenti
+
+**Capitolo 1** (`sec:obiettivi`): il paper accanto al benchmark spagnolo, con il punto sulla
+legittimazione della domanda di ricerca e la constatazione che entrambi sono deterministici.
+
+**Capitolo 4** (`sec:setup`): giustificazione teorica della scelta di costruire le curve dalle
+**offerte** anziché dal merit order degli impianti. L'argomento è loro: sul breve periodo la
+relazione fra merit order tecnico e offerte presentate è debole, perché un'offerta non
+corrisponde a uno specifico impianto (portafogli, impianti virtuali, rivendite). Ne segue che il
+merit order descrive il sistema fisico ma non la curva su cui il prezzo si forma — e poiché qui
+si studia proprio come l'accumulo sposta il prezzo, la rappresentazione pertinente è quella
+delle offerte. Finora quella scelta era motivata solo per disponibilità del dato.
+
+**Capitolo 4** (`sec:esecuzione`): confronto di accuratezza con la letteratura.
+
+**Capitolo 6** (`sec:sintesi`): la loro conclusione che l'arbitraggio si satura, e che anche con
+volatilità alta e costi ridotti del 60% resterebbe poco spazio per nuova capacità profittevole.
+Riportata **come risultato della letteratura**, non come risultato di questo lavoro, con
+l'osservazione che l'erosione crescente fino al profitto negativo (D-30, sezione
+sull'autodanno) è a sua volta una forma di saturazione. Il confronto quantitativo è marcato
+`% DA COMPLETARE` in attesa del campione annuale.
+
+### Una correzione a come il confronto di accuratezza andava presentato
+
+L'intenzione iniziale era riportare i loro numeri "a fronte della mia accuratezza, migliore".
+Il confronto però non è a favore su entrambe le metriche:
+
+| | Veenstra e Mulder (giorno prima, 2023) | Gennaio 2025, orario |
+|---|---|---|
+| Prezzo esatto | 32% | **52,3%** |
+| Entro ±1 €/MWh | **88%** | 83,7% |
+
+**Si coglie il prezzo esatto più spesso, ma si è leggermente meno accurati entro un euro.** Nel
+capitolo è scritto così, dichiarando entrambe le metriche: presentarlo come superiorità
+generica sarebbe stata un'affermazione falsa su un lavoro pubblicato, cioè il tipo di cosa che
+un revisore verifica per primo. Il confronto è comunque inquadrato come non omogeneo — mercati,
+anni e perimetri diversi — quindi come ordine di grandezza e non come classifica.
+
+---
+
 ## Prossimi passi
 
 *Sezione viva, riscritta man mano: a differenza delle voci datate qui sopra, non è

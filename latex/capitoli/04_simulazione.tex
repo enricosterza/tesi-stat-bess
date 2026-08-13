@@ -19,6 +19,22 @@ sono cumulate. Si ottengono cos\`i le due funzioni a gradini $S(p)$ e $D(p)$ int
 Sezione~\ref{sec:mgp}, il cui punto di incontro definisce il prezzo di
 equilibrio~\eqref{eq:clearing}.
 
+Una precisazione sul perch\'e le curve siano costruite dalle \textbf{offerte} e non dal merit
+order degli impianti. L'alternativa naturale sarebbe ordinare il parco di generazione per costo
+marginale crescente, ricavandolo da combustibile, rendimento e costi della CO\textsubscript{2}.
+\textcite{veenstra2025profitability} argomentano per\`o che sul breve periodo la relazione fra il
+merit order costruito sugli impianti e le offerte effettivamente presentate al mercato \`e
+\textbf{debole}, perch\'e un'offerta non corrisponde necessariamente a uno specifico impianto:
+gli operatori presentano portafogli, aggregano capacit\`a in impianti virtuali e rivendono
+energia acquistata altrove.
+
+Ne segue che il merit order tecnico descrive il sistema fisico ma non la curva su cui il prezzo
+si forma davvero. Poich\'e l'oggetto di questa tesi \`e precisamente \textbf{come l'accumulo
+sposta il prezzo di equilibrio}, la rappresentazione pertinente \`e quella delle offerte, che
+\`e anche l'unica osservabile senza stimare parametri di costo non pubblici. La scelta ha un
+costo — le curve ricostruite non dicono nulla sulla tecnologia marginale — ma \`e quello giusto
+da pagare per la domanda posta.
+
 L'implementazione valuta le curve sull'insieme di tutti i prezzi presenti nell'asta.
 L'insieme \`e sufficiente perch\'e le curve sono costanti a tratti e cambiano valore solo in
 corrispondenza di un prezzo offerto: l'intersezione cade quindi sempre su uno di questi
@@ -389,6 +405,19 @@ Match entro $\pm 5$~\euromwh{}           & 99{,}5\,\% \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\`E utile collocare questi valori rispetto alla letteratura.
+\textcite{veenstra2025profitability}, ricostruendo il prezzo del mercato olandese del giorno
+prima con un impianto analogo, riportano per il 2023 una coincidenza \textbf{esatta nel 32\%
+delle ore} e uno scarto \textbf{entro 1~\euromwh{} nell'88\%}. Il confronto con i valori della
+Tabella~\ref{tab:validazione} — 52,3\% e 83,7\% — va letto con cautela, perch\'e riguarda
+mercati, anni e perimetri diversi: la ricostruzione presentata qui coglie il prezzo esatto
+\textbf{pi\`u spesso}, ma \`e \textbf{leggermente meno accurata} nella fascia entro un euro. I
+due ordini di grandezza sono comunque comparabili, il che colloca l'accuratezza ottenuta nella
+norma di quanto la letteratura consegue con questo tipo di ricostruzione.
+
+% DA COMPLETARE: rifare il confronto sul campione definitivo, e verificare se il quadro cambia
+% includendo il regime a quarto d'ora, dove l'accuratezza e' sensibilmente inferiore.
 
 La configurazione a cui si riferiscono questi valori comprende, oltre a quanto descritto
 finora, due elementi introdotti dopo una diagnosi degli scarti residui: l'uso della
