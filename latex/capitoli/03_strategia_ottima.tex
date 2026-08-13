@@ -176,6 +176,31 @@ prezzi sono positivi, perch\'e caricare e scaricare nello stesso periodo sarebbe
 non conveniente, ma va reintrodotto in presenza di prezzi negativi, che sui dati esaminati
 sono ammessi fino a $-500$~\euromwh{}.
 
+\paragraph{Il vincolo orario nel regime a quarto d'ora.} Sul Mercato del Giorno Prima il
+prodotto negoziato \`e \textbf{orario}, anche quando l'asta si risolve su periodi da quindici
+minuti: un'offerta presentata su base oraria vale la stessa potenza in ciascuno dei quattro
+quarti che compongono l'ora (Sezione~\ref{sec:setup}), e nessun operatore pu\`o articolare la
+propria posizione all'interno dell'ora. Coerentemente, e come formalizzato da
+\textcite{veenstra2025profitability}, il piano dell'accumulo \`e soggetto al vincolo
+\begin{equation}
+c_t = c_{t'}, \qquad s_t = s_{t'}
+\qquad \text{per ogni } t, t' \text{ appartenenti alla stessa ora.}
+\label{eq:vincolo-orario}
+\end{equation}
+
+Il vincolo non \`e una raffinatezza formale. In sua assenza la batteria potrebbe accendersi e
+spegnersi a met\`a ora, sfruttando un'articolazione infra-oraria \textbf{preclusa a tutti gli
+altri operatori}: il profitto price taker ne risulterebbe sovrastimato e, poich\'e quel profitto
+\`e il denominatore dell'erosione~\eqref{eq:erosione}, la soglia $K^*$ apparirebbe pi\`u alta di
+quanto sia. Sarebbe un artefatto della simulazione, per giunta nella direzione che fa apparire
+l'accumulo meno influente sul mercato di quanto realmente sia.
+
+Nel regime orario il vincolo \`e \textbf{vacuo}, perch\'e un periodo coincide con un'ora, e i
+risultati calcolati su quel regime non ne sono toccati.
+
+% DA COMPLETARE: entita' numerica dell'effetto del vincolo sul profitto price taker e sulla
+% soglia, da quantificare con il rerun sul trimestre a quarto d'ora.
+
 % DA COMPLETARE: scelta dei valori dei parametri fisici.
 % Da fissare, con riferimento a fonti tecniche: rendimento di ciclo completo (tipicamente
 % 0,85-0,92 per batterie agli ioni di litio), profondita' di scarica ammessa, eventuali
