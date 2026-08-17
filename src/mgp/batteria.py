@@ -377,6 +377,7 @@ def profitto_price_taker(
     scarica: np.ndarray,
     prezzi: np.ndarray | list[float],
     durata_periodo_ore: float,
+    rapporto_prezzo_acquisto: float | None = None,
 ) -> float:
     """
     Valorizza un piano ai prezzi dati, come se l'accumulo non li muovesse.
@@ -389,22 +390,71 @@ def profitto_price_taker(
         Prezzi di riferimento, in €/MWh.
     durata_periodo_ore : float
         Durata di un periodo in ore.
+    rapporto_prezzo_acquisto : float, opzionale
+        Il parametro **K**: rapporto fra il prezzo pagato sull'energia prelevata e il prezzo
+        incassato su quella immessa. Se omesso si usa
+        `config.PARAMETRI_BESS["rapporto_prezzo_acquisto"]`, che vale 1 (net-settled).
 
     Returns
     -------
     float
-        Profitto in euro: $\\sum_t p_t \\Delta (s_t - c_t)$.
+        Margine lordo di mercato in euro:
+        $\\sum_t p_t \\Delta s_t - K \\sum_t p_t \\Delta c_t$.
 
     Che cosa rappresenta
     --------------------
-    E' il profitto che un investitore si aspetta guardando una serie storica di prezzi e
+    E' il ricavo che un investitore si aspetta guardando una serie storica di prezzi e
     ottimizzandoci sopra: ignora completamente il fatto che l'accumulo, entrando in mercato,
     sposta quei prezzi. E' il termine di confronto rispetto a cui si misura l'erosione, e non
-    e' un profitto realizzabile quando la capacita' installata e' rilevante.
+    e' un risultato conseguibile quando la capacita' installata e' rilevante.
+
+    ATTENZIONE - e' un MARGINE LORDO DI MERCATO, non il profitto dell'investitore
+    ---------------------------------------------------------------------------
+    Il valore restituito e' il solo margine di compravendita sul mercato del giorno prima.
+    **Non** vi sono dedotti: il costo di degrado, gli oneri di rete e la fiscalita'
+    sull'energia prelevata, l'investimento iniziale, i costi operativi. Il conto economico
+    dell'investitore si fa a valle, nel modulo `economia` e nel Capitolo 5 della tesi, dove
+    tutti i costi si applicano in modo unificato (decisione D-34).
+
+    La scelta risponde a un'architettura a due livelli. Il **livello 1** — l'effetto
+    dell'accumulo sul prezzo di equilibrio, cioe' erosione e soglia — e' un fenomeno di
+    mercato, che non dipende da come l'investitore sia tassato: mescolarvi i costi
+    renderebbe la soglia funzione del regime fiscale, il che sarebbe economicamente
+    sbagliato. Il **livello 2** e' il conto dell'investitore, e li' i costi entrano tutti.
+
+    Il caso del degrado, che e' sottile
+    -----------------------------------
+    Il costo di degrado ha una **doppia natura**, ed e' l'unico parametro che sta a cavallo
+    dei due livelli:
+
+    * nel **piano** e' un segnale operativo: `profilo_ottimo` lo usa per decidere quando
+      valga la pena ciclare, ed e' cio' che genera le giornate a piano vuoto (D-31);
+    * nel **conto economico** e' un costo monetario, e va sottratto una volta sola, a valle.
+
+    Non e' quindi un'incoerenza che il piano lo consideri e questa funzione no: e' la
+    conseguenza voluta della separazione fra i due livelli. Sottrarlo anche qui lo
+    conterebbe due volte nel Capitolo 5.
+
+    Il prezzo di acquisto
+    ---------------------
+    Con `rapporto_prezzo_acquisto = 1` (default) l'energia prelevata e' valorizzata allo
+    stesso prezzo di quella immessa: e' il regime **net-settled**, che in Italia non esiste
+    oggi per l'arbitraggio puro. Si veda il parametro per il caso italiano (D-35).
+
+    Perche' acquisto e vendita si valorizzano separatamente
+    -------------------------------------------------------
+    Con $K = 1$ basterebbe il flusso netto $s_t - c_t$ moltiplicato per il prezzo, ed e' come
+    era scritto prima. Con $K \\ne 1$ i due lati non sono piu' compensabili, perche' il
+    prelievo e' pagato a un prezzo diverso: vanno quindi tenuti distinti. Il risultato con
+    $K = 1$ coincide al centesimo con la formulazione precedente.
     """
+    if rapporto_prezzo_acquisto is None:
+        rapporto_prezzo_acquisto = config.PARAMETRI_BESS["rapporto_prezzo_acquisto"]
     prezzi = np.asarray(prezzi, dtype=float)
-    netto = (np.asarray(scarica, dtype=float) - np.asarray(carica, dtype=float))
-    return float(np.nansum(prezzi * netto * durata_periodo_ore))
+    delta = durata_periodo_ore
+    ricavo_vendita = np.nansum(prezzi * np.asarray(scarica, dtype=float) * delta)
+    costo_acquisto = np.nansum(prezzi * np.asarray(carica, dtype=float) * delta)
+    return float(ricavo_vendita - rapporto_prezzo_acquisto * costo_acquisto)
 
 
 def profitto_price_maker(
@@ -413,6 +463,7 @@ def profitto_price_maker(
     offerte_giorno: dict[int, pd.DataFrame],
     periodi: list[int],
     durata_periodo_ore: float,
+    rapporto_prezzo_acquisto: float | None = None,
 ) -> tuple[float, np.ndarray]:
     """
     Inserisce il piano nelle curve d'asta, ricalcola l'equilibrio e valorizza ai prezzi nuovi.
@@ -452,7 +503,8 @@ def profitto_price_maker(
             offerte = curve.aggiungi_import(offerte, netto)
         eq = curve.prezzo_equilibrio(offerte)
         prezzi[i] = np.nan if eq.prezzo is None else eq.prezzo
-    profitto = profitto_price_taker(carica, scarica, prezzi, durata_periodo_ore)
+    profitto = profitto_price_taker(carica, scarica, prezzi, durata_periodo_ore,
+                                    rapporto_prezzo_acquisto)
     return profitto, prezzi
 
 

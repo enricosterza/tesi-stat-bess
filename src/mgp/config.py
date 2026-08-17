@@ -221,6 +221,54 @@ PARAMETRI_BESS: dict[str, float] = {
     #: decrescente dell'orizzonte e' quindi rapido, e la giornata singola adottata qui (con
     #: ciclo chiuso, D-22) e' un troncamento accettabile. Resta un limite dichiarato.
     "orizzonte_giorni": 1.0,
+
+    #: Il parametro K: rapporto fra il prezzo pagato sull'energia PRELEVATA dalla rete e
+    #: quello incassato su quella IMMESSA (D-35). Entra soltanto nella valorizzazione
+    #: economica, mai nel piano operativo: l'effetto dell'accumulo sul prezzo di equilibrio
+    #: e' un fenomeno di mercato e non dipende da come l'investitore sia tassato.
+    #:
+    #: Due regimi:
+    #:   K = 1    net-settled: prelievo e immissione allo stesso prezzo all'ingrosso. E' il
+    #:            regime economicamente efficiente, ma in Italia NON esiste oggi per
+    #:            l'arbitraggio puro: e' riservato ai servizi resi al gestore di rete e ai
+    #:            servizi ausiliari. E' il default, cosi' che i risultati gia' calcolati
+    #:            restino invariati.
+    #:   K ~ 2,3  regime italiano attuale: sull'energia prelevata gravano oneri di rete,
+    #:            oneri generali di sistema e fiscalita', che ne moltiplicano il costo
+    #:            rispetto al prezzo all'ingrosso.
+    "rapporto_prezzo_acquisto": 1.0,
+}
+
+
+#: Parametri economici per il conto dell'investitore (D-36), contesto italiano.
+#:
+#: FONTE: Lilla et al. (2026), Sustainability. Sono valori centrali di intervalli piu' ampi,
+#: riportati qui insieme al loro range perche' l'analisi di sensitivita' del Capitolo 5 deve
+#: poterli far variare.
+#:
+#: ATTENZIONE: questi parametri appartengono al LIVELLO 2 dell'analisi, il conto economico
+#: dell'investitore. Non entrano mai nel calcolo dell'erosione o della soglia, che sono
+#: grandezze di mercato (D-34).
+PARAMETRI_ECONOMICI: dict[str, float] = {
+    #: Investimento iniziale per MWh di capacita' energetica installata, in euro.
+    "capex_eur_mwh": 110_000.0,
+    "capex_min_eur_mwh": 80_000.0,
+    "capex_max_eur_mwh": 150_000.0,
+
+    #: Costi operativi annui per MWh installato, in euro.
+    "opex_eur_mwh_anno": 2_000.0,
+    "opex_min_eur_mwh_anno": 1_000.0,
+    "opex_max_eur_mwh_anno": 10_000.0,
+
+    #: Vita utile dell'impianto, in anni: e' l'orizzonte su cui si sconta.
+    "vita_utile_anni": 15.0,
+
+    #: Decadimento annuo dei ricavi, in frazione: tiene conto del degrado della capacita'
+    #: e quindi della progressiva riduzione dell'energia ciclabile.
+    "degrado_ricavi_annuo": 0.015,
+
+    #: Tasso di sconto reale.
+    "tasso_sconto": 0.03,
 }
 
 

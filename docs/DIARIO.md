@@ -2231,10 +2231,108 @@ divisibili in ore intere. Totale 84 test.
 
 ---
 
+## 2026-08-17 — L'architettura a due livelli, il parametro K e il conto economico italiano
+
+Preparata la valutazione economica del capitolo 5. Il lavoro ha richiesto prima di sanare
+un'incoerenza già presente, poi di aggiungere i nuovi elementi.
+
+### D-34 · π è un margine lordo, e ora è dichiarato
+
+L'ispezione del 17/08 aveva trovato un'asimmetria non documentata: il costo di degrado entra
+nel **piano** (il LP ottimizza con i 12 €/MWh sulla scarica) ma **non nella valorizzazione**,
+quindi $\pi_{PT}$ e $\pi_{PM}$ erano ricavi lordi senza che questo fosse scritto da nessuna
+parte. Sul 15/01/2025 con 100 MW il degrado vale 6.000 € su 44.763 di profitto riportato, cioè
+il **13,4%**.
+
+Adottata l'**opzione A**: π resta un margine lordo di mercato, e tutti i costi
+dell'investitore si contano a valle. La ragione è che il progetto ha due livelli con nature
+diverse:
+
+* **livello 1** (`curve`, `batteria`) — l'effetto dell'accumulo sul prezzo di equilibrio è un
+  fenomeno di **mercato**, che dipende dai volumi e dalla forma delle curve, non da come
+  l'investitore sia tassato o da quanto costi l'impianto. Dedurvi i costi renderebbe la soglia
+  una funzione del regime fiscale, il che sarebbe economicamente sbagliato;
+* **livello 2** (`economia`, capitolo 5) — il conto dell'investitore, dove i costi entrano
+  tutti, in un punto solo e una volta sola.
+
+**La doppia natura del degrado** è il punto sottile, ed è ora scritto esplicitamente nelle
+docstring e nel capitolo 5. Il costo di degrado è l'unico parametro che sta a cavallo dei due
+livelli: nel piano è un **segnale operativo** — determina il differenziale minimo sotto il
+quale non conviene ciclare, ed è ciò che genera le giornate a piano vuoto (D-31) — mentre nel
+conto economico è un **esborso**, sottratto una volta sola. Non è un doppio conteggio: è lo
+stesso parametro usato prima per decidere e poi per contare.
+
+### D-35 · Il parametro K, solo nella valorizzazione
+
+Aggiunto `rapporto_prezzo_acquisto` (il **K**) a `profitto_price_taker` e
+`profitto_price_maker`, **non** a `profilo_ottimo`. Nello scenario principale il piano resta
+guidato dai soli prezzi di mercato e il K colpisce solo il conto economico.
+
+Ha richiesto una modifica di sostanza alla valorizzazione. Prima le due direzioni erano fuse
+in un flusso netto, `netto = scarica − carica`, moltiplicato per lo stesso vettore di prezzi:
+una scrittura valida **solo** perché K valeva implicitamente 1. Con K ≠ 1 i due lati non sono
+più compensabili, perché il prelievo è pagato a un prezzo diverso, e vanno tenuti distinti:
+
+$$\pi = \sum_t p_t \Delta s_t - K \sum_t p_t \Delta c_t$$
+
+**Default K = 1** (net-settled), così i risultati già calcolati restano quelli. Verificato su
+tre giornate e tre capacità contro i valori salvati dal rerun dell'11/08: scarto massimo
+**2,3·10⁻¹⁰ €**, cioè zero macchina.
+
+I due regimi sono documentati in `config`: K = 1 è il net-settled, economicamente efficiente
+ma in Italia **non disponibile per l'arbitraggio puro** (è riservato ai servizi resi al gestore
+di rete e agli ausiliari); K ≈ 2,3 è il regime vigente, dove sull'energia prelevata gravano
+oneri di rete, oneri generali di sistema e fiscalità.
+
+### D-36 · Il conto economico gira sul price maker
+
+Scritto `src/mgp/economia.py`, che è il livello 2 in forma di codice: prende il margine lordo
+e vi applica degrado, oneri via K, CapEx e OpEx, scontando sulla vita utile. Otto test.
+
+La scelta metodologica centrale è che il ricavo si calcola sul **profitto price maker** alla
+capacità aggregata di scenario, non sul price taker: quest'ultimo prometterebbe
+all'investitore un margine che la sua stessa presenza sul mercato distrugge. La differenza
+fra i due è per definizione l'erosione, che alla soglia vale il 10% e cresce rapidamente.
+
+Parametri economici italiani centralizzati in `config.PARAMETRI_ECONOMICI`, con la fonte —
+**Lilla et al. (2026), Sustainability** — e gli intervalli, perché la sensitività del capitolo 5
+dovrà farli variare: CapEx 110.000 €/MWh (80.000-150.000), OpEx 2.000 €/MWh l'anno
+(1.000-10.000), vita utile 15 anni, decadimento dei ricavi 1,5% l'anno, tasso di sconto 3%.
+
+*(Dati bibliografici da verificare sull'editore: nel `.bib` la voce è marcata `DA COMPLETARE`.)*
+
+### Il capitolo 5 e il contesto italiano nel LaTeX
+
+Capitolo 1, nuova sottosezione sul **contesto regolatorio italiano**: la distinzione fra
+net-settled e regime vigente, la definizione di K come equazione, e il meccanismo **MACSE** di
+Terna — le aste con cui il gestore di rete si approvvigiona di servizi di *time-shifting* — come
+contesto istituzionale in cui l'accumulo sta effettivamente entrando nel mercato italiano.
+
+Ne discende una precisazione importante sulla portata del lavoro, ora scritta: la redditività
+calcolata riguarda il **solo arbitraggio sul MGP**, ed è quindi un **limite inferiore** di
+quella di un impianto reale, che cumula più fonti di ricavo. La domanda di ricerca resta però
+ben posta, perché l'effetto sul prezzo si produce indipendentemente da come l'accumulo sia
+remunerato.
+
+Nel posizionamento in letteratura, Lilla et al. sono il terzo riferimento e il più vicino sul
+piano del **contesto**, ma con impianto complementare: trattano i **prezzi come esogeni** e
+ottimizzano l'investimento, mentre qui i prezzi sono endogeni e l'oggetto è l'effetto su di
+essi. Sono gli autori stessi a indicare fra gli sviluppi futuri che *un arbitraggio diffuso
+potrebbe appiattire i differenziali di prezzo*: è, formulata come questione aperta, la domanda
+di ricerca di questa tesi. È il terzo lavoro su tre che converge sullo stesso punto.
+
+Capitolo 5: struttura del conto economico con l'architettura a due livelli resa esplicita, la
+doppia natura del degrado, la scelta del price maker, la tabella dei parametri, e la
+dichiarazione che i risultati sono presentati a **K = 1**, cioè in un regime che per
+l'arbitraggio puro **non esiste oggi in Italia** — quindi come limite superiore, con K ≈ 2,3
+in sensitività.
+
+---
+
 ## Prossimi passi
 
 *Sezione viva, riscritta man mano: a differenza delle voci datate qui sopra, non è
-append-only. Ultimo allineamento 2026-08-13.*
+append-only. Ultimo allineamento 2026-08-17.*
 
 **Fatti** (erano i punti 1-4 e 6 dell'elenco iniziale): perimetro di frontiera verificato,
 `curve.py` con il clearing consapevole dei blocchi, validazione sul giorno pilota e su gennaio

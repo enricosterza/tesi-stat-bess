@@ -30,14 +30,65 @@ sistemi di accumulo, ed \`e la grandezza su cui si concentra il presente lavoro.
 \section{I sistemi di accumulo a batteria (BESS)}
 \label{sec:bess}
 
-% DA COMPLETARE: descrizione tecnologica ed economica dei BESS.
+% DA COMPLETARE: descrizione tecnologica dei BESS.
 % Elementi da trattare:
 %   - principio di funzionamento e grandezze caratteristiche: potenza nominale (MW),
 %     capacita' energetica (MWh), rapporto energia/potenza (durata), efficienza di
 %     ciclo completo (round-trip), profondita' di scarica;
 %   - servizi che un BESS puo' fornire: arbitraggio sui mercati dell'energia, riserva,
 %     regolazione di frequenza, capacity market;
-%   - stato dell'arte in Italia: capacita' installata, aste MACSE, prospettive.
+%   - capacita' installata in Italia e prospettive.
+
+\subsection{Il contesto regolatorio italiano e il parametro \texorpdfstring{$K$}{K}}
+\label{sec:contesto-italiano}
+
+La redditivit\`a dell'arbitraggio non dipende solo dal differenziale di prezzo, ma anche dal
+regime a cui l'energia \`e assoggettata quando entra e quando esce dall'accumulo. La
+distinzione \`e sostanziale e va introdotta subito, perch\'e separa due mondi economicamente
+molto diversi.
+
+Nel regime \textbf{net-settled} l'energia prelevata dalla rete per caricare e quella immessa
+scaricando sono valorizzate allo \textbf{stesso} prezzo all'ingrosso. \`E il regime
+economicamente efficiente, perch\'e riconosce che l'accumulo non consuma energia ma la
+sposta nel tempo. In Italia, per\`o, questo trattamento \textbf{non \`e disponibile per
+l'arbitraggio puro}: \`e riservato ai servizi resi al gestore della rete e ai servizi
+ausiliari.
+
+Per l'arbitraggio sul mercato l'energia prelevata \`e invece gravata di \textbf{oneri di
+rete, oneri generali di sistema e fiscalit\`a}, che ne moltiplicano il costo rispetto al
+prezzo all'ingrosso. Si introduce percio' il parametro
+\begin{equation}
+K \;=\; \frac{\text{prezzo pagato sull'energia prelevata}}
+             {\text{prezzo incassato sull'energia immessa}},
+\label{eq:kappa}
+\end{equation}
+che vale $K = 1$ nel regime net-settled e circa $K = 2{,}3$ nel regime italiano vigente
+\parencite{lilla2026storage}. Poich\'e l'arbitraggio consiste nel comprare e rivendere la
+stessa energia, un valore di $K$ superiore a uno non riduce il margine in proporzione: lo
+comprime in modo molto pi\`u che lineare, e sposta verso l'alto il differenziale di prezzo
+minimo perch\'e un ciclo sia conveniente.
+
+Il ruolo di $K$ nell'impianto di questa tesi \`e circoscritto con precisione, e la
+Sezione~\ref{sec:metriche} vi ritorna: interviene \textbf{solo} nel conto economico
+dell'investitore, non nella misura dell'effetto dell'accumulo sul prezzo di equilibrio.
+Quest'ultimo \`e un fenomeno di mercato, che dipende dai volumi scambiati e dalla forma
+delle curve d'asta, non dal regime fiscale di chi li scambia.
+
+\paragraph{Il meccanismo MACSE.} Il contesto istituzionale in cui l'accumulo sta entrando nel
+mercato italiano non \`e comunque quello dell'arbitraggio puro. Terna ha avviato il
+meccanismo \textbf{MACSE}, un sistema di aste con cui il gestore di rete si approvvigiona di
+servizi di \emph{time-shifting} dell'energia, remunerando la capacit\`a di accumulo con
+contratti di lungo periodo anzich\'e lasciarla esposta al solo differenziale di mercato.
+
+Ne segue una precisazione sulla portata di questo lavoro: la redditivit\`a qui calcolata
+riguarda il \textbf{solo arbitraggio sul Mercato del Giorno Prima}, ed \`e quindi un
+\textbf{limite inferiore} della redditivit\`a complessiva di un impianto reale, che cumula
+pi\`u fonti di ricavo. La domanda di ricerca resta per\`o ben posta anche in questo contesto,
+perch\'e l'effetto dell'accumulo sul prezzo di equilibrio si produce indipendentemente da
+come l'accumulo sia remunerato.
+
+% DA COMPLETARE: dati quantitativi sul meccanismo MACSE (volumi banditi, esiti delle aste,
+% durata dei contratti) e sul peso degli oneri che compongono K.
 
 \section{Il quesito degli investitori}
 \label{sec:quesito}
@@ -98,6 +149,19 @@ Anche il loro modello \`e per\`o \textbf{deterministico} — un problema di comp
 mista risolto sulle condizioni di ottimo — e restituisce quindi valutazioni puntuali. Entrambi i
 riferimenti principali condividono dunque lo stesso limite, e l'elemento di differenziazione di
 questa tesi resta intatto.
+
+Un terzo lavoro, \textcite{lilla2026storage}, \`e il pi\`u vicino sul piano del
+\textbf{contesto}: studia la redditivit\`a dell'accumulo nel quadro regolatorio italiano,
+con i parametri di costo e il trattamento degli oneri sull'energia prelevata da cui questa
+tesi riprende la calibrazione economica del Capitolo~\ref{cap:valutazione}. Il loro impianto
+\`e per\`o complementare, non sovrapposto: trattano i \textbf{prezzi come esogeni} e
+ottimizzano la decisione di investimento a prezzi dati, mentre qui i prezzi sono
+\textbf{ricostruiti in modo endogeno} dalle curve d'asta e l'oggetto dello studio \`e proprio
+l'effetto che l'accumulo esercita su di essi.
+
+La distanza fra i due approcci \`e riconosciuta dagli autori stessi, che indicano fra gli
+sviluppi futuri la possibilit\`a che \emph{un arbitraggio diffuso appiattisca i differenziali
+di prezzo}. \`E, formulata come questione aperta, la domanda di ricerca di questa tesi.
 
 La differenza non \`e formale. Come mostra la Sezione~\ref{sec:redditivita}, a parit\`a di
 capacit\`a installata l'erosione di profitto varia di oltre \emph{dieci volte} fra le giornate

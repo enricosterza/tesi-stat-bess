@@ -37,17 +37,74 @@ Sezione~\ref{sec:sensitivita}, ed \`e parte integrante del risultato.
 
 \subsection{Metriche di redditivit\`a del singolo progetto}
 
-% DA COMPLETARE: le metriche finanziarie classiche, da sviluppare una volta fissati i costi.
-% Elementi da trattare:
-%   - ricavo annuo da arbitraggio, ottenuto sommando sui giorni il profitto price maker
-%     alla capacita' aggregata di scenario;
-%   - costi: investimento iniziale (CAPEX per MWh installato), costi operativi annui,
-%     costo di degrado;
-%   - indicatori: valore attuale netto, tasso interno di rendimento, tempo di ritorno,
-%     e costo livellato dell'accumulo (LCOS);
-%   - orizzonte temporale e tasso di sconto, con giustificazione.
-% Nota: il ricavo va calcolato con il profitto price maker alla capacita' aggregata
-% prevista, non con quello price taker, altrimenti si sovrastima sistematicamente.
+\paragraph{L'architettura a due livelli.} La valutazione economica \`e tenuta
+deliberatamente \textbf{separata} dalla misura dell'effetto sul prezzo, e la distinzione
+merita di essere resa esplicita perch\'e governa tutto il capitolo.
+
+Il \textbf{primo livello} — l'erosione di profitto e la soglia $K^*$ dei
+Capitoli~\ref{cap:strategia} e~\ref{cap:simulazione} — misura un fenomeno di
+\textbf{mercato}: di quanto l'accumulo sposta il prezzo di equilibrio. I profitti
+$\pi_{PT}$ e $\pi_{PM}$ che vi compaiono sono percio' \textbf{margini lordi di mercato}, dai
+quali non \`e dedotto alcun costo dell'investitore. La ragione \`e sostanziale: l'effetto
+dell'accumulo sul prezzo dipende dai volumi scambiati e dalla forma delle curve d'asta, non
+da quanto costi costruire l'impianto o da come sia tassato chi lo gestisce. Dedurre i costi a
+quel livello renderebbe la soglia una funzione del regime fiscale, il che sarebbe
+economicamente sbagliato.
+
+Il \textbf{secondo livello} \`e questo capitolo, dove tutti i costi si applicano in un unico
+punto e una volta sola: costo di degrado, oneri sull'energia prelevata tramite il
+parametro~$K$ della~\eqref{eq:kappa}, investimento iniziale e costi operativi.
+
+\paragraph{La doppia natura del costo di degrado.} Un solo parametro compare in entrambi i
+livelli, con due ruoli distinti che conviene non confondere. Nel \textbf{piano operativo} il
+costo di degrado \`e un \emph{segnale}: determina il differenziale minimo sotto il quale non
+conviene ciclare, ed \`e ci\`o che genera le giornate in cui l'accumulo resta fermo
+(Sezione~\ref{sec:basso-spread}). Nel \textbf{conto economico} \`e un \emph{esborso}, ed \`e
+sottratto qui una volta sola. Non si tratta quindi di un doppio conteggio, ma dello stesso
+parametro usato prima per decidere e poi per contare.
+
+\paragraph{Il ricavo si calcola sul profitto price maker.} \`E la scelta metodologica
+centrale del capitolo. Il ricavo annuo si ottiene sommando sui giorni il profitto
+$\pi_{PM}$ alla capacit\`a aggregata di scenario, \textbf{non} $\pi_{PT}$: quest'ultimo
+ignora l'effetto dell'accumulo sul prezzo e prometterebbe all'investitore un margine che la
+sua stessa presenza sul mercato distrugge. La differenza fra i due non \`e trascurabile —
+\`e per definizione l'erosione, che alla soglia vale il 10\% e cresce rapidamente con la
+capacit\`a installata.
+
+\paragraph{Il regime di riferimento.} I risultati sono presentati nello scenario
+$\boldsymbol{K = 1}$, cio\`e \textbf{net-settled}. Va dichiarato con chiarezza che questo
+regime, per l'arbitraggio puro, \textbf{non esiste oggi in Italia}
+(Sezione~\ref{sec:contesto-italiano}): \`e riservato ai servizi resi al gestore di rete. Lo
+scenario $K = 1$ va quindi letto come il \emph{limite superiore} della redditivit\`a — quella
+che si otterrebbe in un contesto regolatorio che non penalizzasse lo stoccaggio — mentre il
+caso $K \approx 2{,}3$ descrive il regime vigente ed \`e riportato in sensitivit\`a.
+
+\begin{table}[H]
+\centering
+\caption{Parametri economici adottati, contesto italiano.}
+\label{tab:parametri-economici}
+\begin{tabular}{@{}lrl@{}}
+\toprule
+\textbf{Parametro} & \textbf{Valore centrale} & \textbf{Intervallo} \\
+\midrule
+Investimento iniziale       & 110.000~\eur/MWh & 80.000--150.000 \\
+Costi operativi annui       & 2.000~\eur/MWh   & 1.000--10.000 \\
+Vita utile                  & 15 anni          & — \\
+Decadimento annuo dei ricavi & 1,5\,\%         & — \\
+Tasso di sconto reale       & 3\,\%            & — \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% DA COMPLETARE: risultati numerici del conto economico (valore attuale netto, tasso interno
+% di rendimento, tempo di ritorno, costo livellato dell'accumulo) alle capacita' di scenario,
+% nei due regimi K = 1 e K = 2,3, e sensitivita' su CapEx, OpEx e tasso di sconto.
+% Richiede il campione annuale: su un solo mese invernale l'annualizzazione sarebbe grossolana.
+
+I valori sono ripresi da \textcite{lilla2026storage}, che li stimano per il contesto italiano.
+Gli intervalli sono riportati perch\'e l'analisi di sensitivit\`a deve poterli far variare: il
+valore attuale netto di un progetto di accumulo \`e notoriamente sensibile al costo di
+investimento, che negli ultimi anni si \`e mosso rapidamente.
 
 \section{Risultati di redditività}
 \label{sec:redditivita}
