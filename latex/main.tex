@@ -26,6 +26,18 @@
 \usepackage{amssymb}
 \usepackage{amsthm}
 
+% Unita' di misura: il Capitolo 1 usa \SI e \num per le grandezze energetiche.
+% La virgola come separatore decimale e' la convenzione italiana; siunitx accetta
+% comunque sia il punto sia la virgola in ingresso.
+\usepackage{siunitx}
+\sisetup{
+  output-decimal-marker = {,},
+  group-separator       = {.},
+  group-minimum-digits  = 4,
+  detect-weight         = true,
+  detect-family         = true,
+}
+
 % --- Figure, tabelle, impaginazione ----------------------------------
 \usepackage{graphicx}
 \graphicspath{{figure/}{../output/figure/}}
@@ -91,20 +103,21 @@
 \begin{document}
 
 % =====================================================================
-%  FRONTESPIZIO (segnaposto: sostituire i campi fra parentesi quadre)
+%  FRONTESPIZIO
+%  Restano da completare: il nome del correlatore e l'eventuale sottotitolo.
 % =====================================================================
 \begin{titlepage}
 \centering
 
 {\large UNIVERSIT\`A DEGLI STUDI DI MILANO-BICOCCA\par}
 \vspace{0.5cm}
-{\large [Dipartimento]\par}
+{\large Scuola di Economia e Statistica\par}
 \vspace{0.3cm}
-{\large Corso di Laurea Magistrale in [Corso di laurea]\par}
+{\large Corso di Laurea Magistrale in \\ SCIENZE STATISTICHE ED ECONOMICHE\par}
 
 \vfill
 
-{\Huge\bfseries [Titolo della tesi]\par}
+{\Huge\bfseries Effetto dei sistemi di accumulo a batteria sul Mercato del Giorno Prima del mercato elettrico italiano\par}
 \vspace{1cm}
 {\Large\itshape [Eventuale sottotitolo]\par}
 
@@ -112,8 +125,8 @@
 
 \begin{flushleft}
 \begin{tabular}{@{}ll@{}}
-\textbf{Relatore:}    & Prof. [Nome Cognome] \\[0.3cm]
-\textbf{Correlatore:} & [Nome Cognome] \\
+\textbf{Relatore:}    & Prof. Matteo Pelagatti \\[0.3cm]
+\textbf{Correlatore:} & Prof. \\
 \end{tabular}
 \end{flushleft}
 
@@ -121,14 +134,14 @@
 
 \begin{flushright}
 \begin{tabular}{@{}ll@{}}
-\textbf{Candidato:} & [Nome Cognome] \\
-\textbf{Matricola:} & [numero] \\
+\textbf{Tesi di laurea di:} & Enrico Sterza \\
+\textbf{Matr. N.} & 874099 \\
 \end{tabular}
 \end{flushright}
 
 \vfill
 
-{\large Anno Accademico [20XX/20XX]\par}
+{\large Anno Accademico 2025/2026\par}
 
 \end{titlepage}
 
