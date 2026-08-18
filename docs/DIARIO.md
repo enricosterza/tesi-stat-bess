@@ -2329,34 +2329,80 @@ in sensitività.
 
 ---
 
+## 2026-08-18 — Capitolo 1 sul contesto italiano, e una toolchain LaTeX locale
+
+Voce breve, perché il lavoro è di stesura e di ambiente, non metodologico.
+
+### Il capitolo 1 non era più un segnaposto
+
+Redatte le sezioni **1.1 (transizione energetica)** e **1.2 (BESS)**, finora vuote, sulla base
+del **Documento di Descrizione degli Scenari 2024** di Terna e Snam, del **PNIEC 2024** e del
+**d.lgs. 210/2021**, le cui voci sono confluite nella bibliografia principale.
+
+I numeri che il capitolo porta in dote e che vale la pena ricordare, perché inquadrano il
+lavoro: la quota rinnovabile sul fabbisogno passa dal 37% del 2023 al **63% al 2030**, il
+fotovoltaico da 31 a **105 TWh**, e il fabbisogno di accumulo al 2030 è di **122 GWh
+complessivi**, di cui **71,5 di nuova capacità**. Il DDS stima inoltre un profilo operativo di
+**3.300 ore equivalenti l'anno** per un accumulo da 8 ore — un termine di raffronto diretto per
+i cicli che il nostro modello produce.
+
+Due punti di attrito con il resto della tesi, risolti conservando entrambi i contenuti. Il file
+fornito conteneva un `\chapter` completo con le sole due sezioni: sostituirlo avrebbe cancellato
+le sezioni 1.3-1.5, il posizionamento rispetto ai tre riferimenti in letteratura e la
+sottosezione sul parametro K, che il capitolo 5 cita. Si è quindi **fuso** invece di sostituire.
+Dalla sottosezione su K è stato tolto il paragrafo sul MACSE, che il testo nuovo tratta più
+estesamente e con la fonte.
+
+### Il documento ora si compila in locale
+
+Installata **MiKTeX 25.12** (in `AppData\Local\Programs`, non in `Program Files`) e aggiunto
+`siunitx` con separatore decimale a virgola: il capitolo 1 usa `\SI` e `\num` in ogni paragrafo
+e senza il pacchetto il documento **non compilava affatto**.
+
+Prima compilazione completa della tesi, con la sequenza `pdflatex` → `biber` → `pdflatex` ×2:
+**49 pagine, nessun errore, nessuna citazione o riferimento non definito**, sei voci
+bibliografiche tutte risolte. Restano sette over/underfull box, sei nel capitolo 4 (righe lunghe
+delle tabelle di validazione) e uno nel capitolo 6: sono tipografici e nessuno tocca il
+capitolo 1.
+
+È un cambiamento di metodo di lavoro: finora il LaTeX si verificava solo con un controllo
+statico fatto in casa e si compilava su Overleaf. Ora il ciclo si chiude in locale, e i
+segnaposto `DA COMPLETARE` sono 23.
+
+Compilato anche il frontespizio con i dati veri. Restano da completare il correlatore e
+l'eventuale sottotitolo, segnalati in commento nel sorgente.
+
+---
+
 ## Prossimi passi
 
 *Sezione viva, riscritta man mano: a differenza delle voci datate qui sopra, non è
-append-only. Ultimo allineamento 2026-08-17.*
+append-only. Ultimo allineamento 2026-08-18.*
 
-**Fatti** (erano i punti 1-4 e 6 dell'elenco iniziale): perimetro di frontiera verificato,
-`curve.py` con il clearing consapevole dei blocchi, validazione sul giorno pilota e su gennaio
-2025, `batteria.py` con la simulazione dell'effetto di retroazione.
+**Il blocco è uno solo**: la decisione del relatore sul **perimetro temporale**. Da essa
+dipendono la stratificazione, la sensitività e tutti i numeri del capitolo 5, che oggi sono
+segnaposto.
 
-1. **Estendere il campione ad almeno un anno.** È il passo che sblocca tutto il resto: senza
-   dodici mesi la stratificazione per stagione e regime (D-28) non è calcolabile, e i
-   risultati economici restano dichiarati come preliminari. Da decidere prima di partire il
-   perimetro temporale, che è una delle domande aperte per il relatore: l'anno solare 2025 non
-   è omogeneo, perché il mercato passa a 15 minuti il 01/10/2025 e le aste a quarto d'ora si
-   ricostruiscono peggio (dev. standard 5,40 contro 1,06). Da valutare anche il costo di
-   calcolo: la stima della soglia su 31 giorni richiede già una griglia di capacità per ogni
-   giorno, e cresce linearmente.
-2. **Aggiornare il report per il relatore.** L'ultimo (`2026-08-10`) precede l'intero impianto
-   della soglia: non contiene D-24…D-30 né alcun risultato economico. Domande da portare:
-   accuratezza accettabile, perimetro temporale, offerte integrative GSE, e la scelta del
-   livello di erosione ora che il 5% è risultato inutilizzabile (D-30).
-3. **Stratificare** i risultati per stagione e regime di prezzo una volta disponibile l'anno,
-   e misurare quanto la soglia si sposta: la non stazionarietà è essa stessa un risultato.
-4. **Sensitività alle ipotesi tecniche**: durata della flotta (1, 2, 4, 8 ore), rendimento di
-   ciclo, perimetro zonale. A parità di potenza una durata maggiore distribuisce l'effetto su
-   più periodi e dovrebbe alzare la soglia — è una previsione da verificare, non un risultato.
-5. **Metriche finanziarie** (capitolo 5 della tesi): ricavo annuo, CAPEX, degrado, VAN, TIR,
-   LCOS. Richiede ipotesi di costo non ancora fissate, e il ricavo va calcolato sul profitto
-   price maker alla capacità aggregata prevista, non su quello price taker.
-6. **Dimensionamento ottimale** (potenza, capacità, durata) tenendo conto dell'effetto di
-   retroazione: è l'obiettivo dichiarato della tesi, e presuppone i punti 4 e 5.
+1. **Estendere il campione ad almeno un anno**, una volta deciso il perimetro. Senza dodici
+   mesi la stratificazione per stagione (D-28) non è calcolabile e i risultati restano
+   preliminari. L'evidenza raccolta sostiene i **dodici mesi omogenei in regime orario**: il
+   trimestre a quarto d'ora si ricostruisce con deviazione standard 5,42 contro 1,06
+   dell'orario, il divario è **diffuso** e non aggirabile con un filtro sui giorni, e non è un
+   effetto del livello dei prezzi (verificato su aprile 2025). Costo: ~4,5 minuti per giorno
+   sul PT15, molto meno sull'orario; il trimestre è comunque già in cache.
+2. **Rerun su PT15 con il vincolo orario** (D-33), quando serva: è attivo ma non ha ancora
+   prodotto numeri, e darà una K\* più bassa di prima — il valore corretto.
+3. **Stratificare** per stagione e regime, e misurare quanto la soglia si sposta: la non
+   stazionarietà è essa stessa un risultato.
+4. **Sensitività**: durata della flotta (1, 2, 4, 8 ore), rendimento di ciclo (85/90/92%),
+   costo di degrado, perimetro zonale, e i due regimi di **K** (1 contro 2,3). A parità di
+   potenza una durata maggiore dovrebbe alzare la soglia: previsione da verificare.
+5. **Numeri del capitolo 5**: VAN, TIR, tempo di ritorno e LCOS ai due regimi di K. L'impianto
+   c'è (`economia.py`, D-36); manca solo il campione annuale, perché su un mese invernale
+   l'annualizzazione sarebbe grossolana.
+6. **Dimensionamento ottimale** (potenza, capacità, durata) tenendo conto della retroazione:
+   è l'obiettivo dichiarato della tesi e presuppone i punti 4 e 5.
+
+**Questioni aperte minori**: il residuo non identificato del ritardo PT15 (dichiarato come
+limite noto); la riverifica dei prezzi negativi sui mesi centrali dell'anno; il DOI di Lilla et
+al. e il correlatore nel frontespizio.
