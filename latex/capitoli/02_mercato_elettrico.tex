@@ -1,100 +1,172 @@
 \chapter{Il Mercato Elettrico Italiano}
 \label{cap:mercato}
 
-Questo capitolo descrive l'architettura del mercato elettrico italiano limitatamente a
-quanto serve per il lavoro: la struttura delle sedi di negoziazione, il funzionamento
-dell'asta del Mercato del Giorno Prima e la natura della variabilit\`a dei prezzi. La
-descrizione del MGP \`e basata sui dati effettivamente utilizzati, le cui caratteristiche
-sono documentate nel Capitolo~\ref{cap:simulazione}.
+Il presente capitolo delinea l'architettura del mercato elettrico italiano con un focus circoscritto agli elementi funzionali alla ricerca: la struttura delle sedi di negoziazione, il meccanismo d'asta del \acf{MGP} e la dinamica di variabilità dei prezzi. La trattazione del \ac{MGP} si fonda sull'insieme dei dati effettivi impiegati nello studio, le cui caratteristiche ed evidenze tecniche sono approfondite nel Capitolo~\ref{cap:simulazione}.
 
-\section{Struttura del GME (Gestore dei Mercati Energetici)}
-\label{sec:gme}
+\section{Il \acf{MACSE}}
 
-Il Gestore dei Mercati Energetici (GME) organizza le sedi di negoziazione dell'energia
-elettrica all'ingrosso in Italia. Ai fini di questo lavoro rilevano tre caratteristiche
-della sua architettura.
+L'obiettivo fondamentale del \ac{MACSE}, la cui gestione operativa è affidata al Gestore della \acf{RTN} -- Terna S.p.A. --, consiste nel promuovere la contrattualizzazione a lungo termine di nuova capacità di stoccaggio elettrico per garantire l'adeguatezza, la sicurezza del sistema elettrico e l'efficace integrazione delle fonti energetiche rinnovabili non programmabili~\cite{arera247, terna_disciplina}. Il meccanismo è aperto a diverse categorie di intervento, aventi ad oggetto \ac{SdS} nuovi, interventi di riconversione di impianti idroelettrici esistenti in impianti di pompaggio, nonché interventi di potenziamento di impianti di pompaggio già operativi~\cite{terna_disciplina}.
 
-La prima \`e la \textbf{sequenzialit\`a} delle sedi: il Mercato del Giorno Prima si chiude
-prima dei Mercati Infragiornalieri, che a loro volta precedono il Mercato per il Servizio di
-Dispacciamento. Un operatore che modifica la propria posizione lo fa quindi in momenti
-successivi e con informazioni via via pi\`u precise.
+Con riferimento ai sistemi d'accumulo elettrochimico (\ac{BESS}) realizzati in configurazione \textit{co-located} o integrati con altri impianti di generazione o consumo (es. impianti fotovoltaici o eolici), la regolamentazione stabilisce il rispetto del principio di \textbf{indipendenza funzionale}~\cite{dlgs210, terna_disciplina}. Nello specifico, l'indipendenza funzionale richiede che~\cite{dlgs210}:
+\begin{itemize}
+    \item Nessun elemento di rete condiviso (es. trasformatori o sbarre) costituisca un vincolo o una limitazione all'immissione o all'assorbimento di potenza dalla \acf{RTN};
+    \item Il \ac{SdS} sia dotato di un proprio interruttore di sezionamento e di apparecchiature di misura indipendenti in grado di isolare anche i consumi dei servizi ausiliari dell'impianto;
+    \item Il \ac{SdS} disponga di un controllore di impianto autonomo in grado di gestire i profili di potenza attiva e reattiva, l'erogazione dei servizi ancillari e l'attuazione dei comandi di telecontrollo di Terna in maniera indipendente dagli altri asset condivisi.
+\end{itemize}
 
-La seconda \`e la \textbf{zonalit\`a}: il territorio nazionale \`e suddiviso in zone di
-mercato, ciascuna con un proprio prezzo quando i limiti di transito fra zone sono
-vincolanti. Nel giorno pilota analizzato compaiono sette zone fisiche italiane — NORD, CNOR,
-CSUD, SUD, CALA, SICI, SARD — accanto a zone \emph{virtuali} che rappresentano le frontiere
-con l'estero.
+\subsection{Determinazione della \textit{capacità qualificata}}
+La grandezza fisica oggetto di contrattualizzazione e negoziazione nelle procedure concorsuali è la \textit{capacità qualificata}, espressa in valori interi di MWh~\cite{terna_disciplina}. Essa non coincide necessariamente con la capacità nominale o con l'energia massima dell'impianto, ma deriva da un processo di normalizzazione prestazionale rispetto ai parametri target definiti da Terna nella \textit{Relazione Tecnica} pubblicata prima dell'avvio delle aste~\cite{arera247, terna_relazione}.
 
-La terza \`e la \textbf{trasparenza dei dati}: il GME pubblica, per ciascun giorno e per
-ciascuna sede, l'insieme completo delle offerte presentate, comprese quelle rifiutate. \`E
-questa disponibilit\`a che rende possibile la ricostruzione delle curve aggregate su cui si
-fonda l'intero lavoro: senza il dettaglio delle offerte non accettate la curva sarebbe
-troncata proprio nel punto che interessa, cio\`e attorno all'equilibrio.
+Per un \ac{SdS} nuovo o in riconversione, la capacità qualificata viene calcolata mediante la seguente formulazione matematica~\cite{terna_disciplina}:
 
-\section{MGP e MI (Mercato del Giorno Prima e Mercati Infragiornalieri)}
-\label{sec:mgp}
-
-\subsection*{Il meccanismo d'asta}
-
-Il Mercato del Giorno Prima \`e un'\textbf{asta a prezzo uniforme}: gli operatori presentano
-coppie prezzo--quantit\`a, distinte fra acquisto e vendita, riferite a un singolo periodo e a
-una singola zona. L'algoritmo di mercato ordina le offerte di vendita per prezzo crescente e
-quelle di acquisto per prezzo decrescente, ottenendo due funzioni a gradini, e ne individua
-l'intersezione. Tutte le offerte accettate sono remunerate al medesimo prezzo, quello di
-equilibrio, indipendentemente dal prezzo a cui erano state presentate.
-
-Formalmente, indicando con $S(p)$ la quantit\`a complessivamente offerta in vendita a un
-prezzo non superiore a $p$ e con $D(p)$ quella domandata a un prezzo non inferiore a $p$, il
-prezzo di equilibrio \`e
 \begin{equation}
-p^{*} \;=\; \min \{\, p \;:\; S(p) \ge D(p) \,\}.
+\text{Capacità qualificata} = \left\lfloor \frac{\text{Energia qualificata}}{k_{\text{carica}} \cdot k_{\text{scarica}} \cdot k_{\text{rendimento}}} \right\rfloor
+\end{equation}
+
+dove:
+\begin{itemize}
+    \item $\lfloor \cdot \rfloor$ rappresenta la funzione intero inferiore (\textit{floor});
+    \item $\text{Energia qualificata}$ è la quota parte dell'energia massima dichiarata dall'operatore in fase di qualifica~\cite{terna_disciplina};
+    \item $k_{\text{carica}}$ e $k_{\text{scarica}}$ sono i coefficienti di prestazione correlati alla durata in carica e alla durata in scarica del \ac{SdS} rispetto alla durata target di sistema~\cite{arera247, terna_relazione};
+    \item $k_{\text{rendimento}}$ è il coefficiente di prestazione correlato al rendimento di carica-scarica -- \ac{RTE} -- dichiarato in qualifica rispetto al valore target tecnologico~\cite{arera247, terna_relazione}.
+\end{itemize}
+
+Nel caso delle batterie agli ioni di litio (Li-ion) con periodo di consegna stabilito per il 2028/2029, i parametri tecnici di riferimento fissati nella Relazione Tecnica includono~\cite{terna_relazione}:
+\begin{itemize}
+    \item \textbf{Periodo di consegna:} $15$ anni;
+    \item \textbf{Periodo di pianificazione:} $2$ anni;
+    \item \textbf{Livello target di durata in carica e scarica:} $4$ ore;
+    \item \textbf{Rendimento di carica-scarica (\ac{RTE}):} valore di riferimento pari all'$85\%$, con una soglia minima ammissibile per la qualifica pari al $70\%$;
+    \item \textbf{Degrado annuo prestazionale:} fissato convenzionalmente all'$1\%$ su base annua sia per l'energia impegnata sia per il rendimento;
+    \item \textbf{Numero massimo di cicli equivalenti:} $365$ cicli/anno per l'adempimento dei programmi di \textit{time shifting};
+    \item \textbf{Livello efficiente di indisponibilità:} $1800$ ore equivalenti per quinquennio;
+    \item \textbf{Quota OPEX:} $20\%$
+\end{itemize}
+
+\subsection{Struttura e funzionamento delle aste concorsuali}
+Le procedure concorsuali per l'assegnazione della capacità si configurano come aste discriminatorie a singola sessione (\textit{pay-as-bid}). Ogni partecipante qualificato presenta un'unica offerta formata dalla coppia $[\text{Capacità offerta}; \text{Premio}]$, dove la capacità offerta non può eccedere la capacità qualificata ed il premio (espresso in €/MWh$\cdot$anno) non può superare il \textit{premio di riserva} definito dalle autorità~\cite{terna_disciplina}.
+
+La struttura di mercato si articola secondo le seguenti dinamiche~\cite{terna_disciplina}:
+\begin{itemize}
+    \item \textbf{Curva di domanda:} è perfettamente anelastica e corrisponde al contingente nazionale (quantitativo massimo di
+    nuova capacità di stoccaggio che può essere contrattualizzato su base nazionale) definito da Terna sulla base del Documento Fabbisogni;
+    \item \textbf{Contingenti zonali:} al fine di prevenire congestioni di rete e garantire la corretta allocazione spaziale delle risorse, Terna impone per ciascuna area geografica un contingente minimo e un contingente massimo;
+    \item \textbf{Algoritmo di selezione:} ordinando le offerte in senso non decrescente di premio (curva di offerta), l'algoritmo seleziona le risorse a partire da quelle economicamente più vantaggiose, massimizzando il valore netto delle transazioni di sistema e garantendo contemporaneamente il rispetto dei vincoli contingenti minimi e massimi di ciascuna area. Agli assegnatari selezionati viene riconosciuto il premio esplicitamente offerto in fase di asta.
+\end{itemize}
+
+\subsection{Obblighi contrattuali e regolazione delle partite economiche}
+A seguito dell'assegnazione, la stipula del \textit{contratto standard} e del relativo accordo attuativo incardina l'assegnatario all'interno di un preciso quadro di obbligazioni contrattuali:
+
+\begin{enumerate}
+    \item \textbf{Obbligo di realizzazione:} impone all'assegnatario di completare la costruzione o il potenziamento del SdS entro i tempi stabiliti ed effettuare la relativa abilitazione dell'unità al \ac{MBR}~\cite{terna_disciplina}.
+    \item \textbf{Obbligo di disponibilità:} vincola l'operatore a rendere continuamente disponibile per l'intero periodo di consegna ($15$ anni) l'energia e la potenza impegnate, garantendo parametri di rendimento conformi a quanto dichiarato e tenendo conto del degrado naturale ammesso~\cite{dlgs210, terna_relazione, terna_disciplina}.
+    \item \textbf{Partecipazione ai Mercati dell'Energia:} la capacità contrattualizzata partecipa alla negoziazione di contratti di \textit{time shifting} sulla piattaforma centralizzata gestita dal \ac{GME}. L'assegnatario percepisce il corrispettivo fisso annuo calcolato sulla base del premio di aggiudicazione, ma è contestualmente soggetto all'obbligo di restituzione a Terna del corrispettivo variabile nonché dell'$80\%$ del margine di contribuzione maturato sui mercati dell'energia e del bilanciamento~\cite{terna_disciplina}.
+\end{enumerate}
+
+Qualsiasi indisponibilità che superi il \textit{livello efficiente di indisponibilità} o il mancato adempimento dei requisiti prestazionali minimi comporta l'applicazione di specifiche penali finanziarie, l'escussione delle garanzie prestative (pre-asta e post-asta) o, nei casi più gravi, la risoluzione del contratto e la sospensione dal \ac{MACSE}~\cite{terna_disciplina}.
+
+
+% DA COMPLETARE
+
+\section{Architettura istituzionale e struttura dei mercati (GME)}
+\label{sec:architettura_gme}
+
+Il \acf{GME} organizza e gestisce le sedi di negoziazione dell'energia elettrica all'ingrosso in Italia nell'ambito del \acf{MPE}~\cite{gme_disciplina}. Tale architettura si articola in una sequenza temporale di mercati caratterizzati da specifiche finalità operative:
+
+\begin{itemize}
+    \item \textbf{\acf{MGP}:} sede d'asta principale in cui si definiscono i programmi preliminari di immissione e prelievo per ciascuna ora del giorno successivo e si determinano i prezzi di riferimento dell'energia~\cite{gme_disciplina}.
+    \item \textbf{\acf{MI}:} articolato in sessioni d'asta (IDA) e negoziazione continua (SIDC/XBID), consente agli operatori di riequilibrare le proprie posizioni a seguito dell'aggiornamento delle previsioni di carico e della generazione da fonti rinnovabili~\cite{arera_2023_relazione}.
+    \item \textbf{\acf{MPEG}:} piattaforma telematica continua per la negoziazione di contratti con obbligo di consegna giornaliera.
+\end{itemize}
+
+A valle delle fasi commerciali gestite dal \ac{GME}, Terna gestisce il \acf{MSD}, finalizzato all'approvvigionamento delle risorse di riserva e alla gestione delle congestioni di rete in tempo reale~\cite{dlgs_79_1999}. Ai fini della presente trattazione e dell'analisi empirica condotta nel lavoro, l'architettura del \ac{GME} si caratterizza per tre elementi strutturali fondamentali:
+
+\begin{enumerate}
+    \item \textbf{Sequenzialità temporale:} il rigido ordine cronologico ($\text{MGP} \to \text{MI} \to \text{MSD}$) implica che la revisione delle posizioni da parte degli operatori avvenga in momenti successivi, sfruttando un set informativo via via più accurato e aggiornato.
+    \item \textbf{Zonalità della rete:} il territorio nazionale è suddiviso in zone di mercato distinte. Quando i limiti fisici di transito tra le aree risultano vincolanti, si determina una separazione del mercato (market splitting) con la formazione di prezzi zonali differenziati. La configurazione comprende sette zone fisiche nazionali (\textit{NORD}, \textit{CNOR}, \textit{CSUD}, \textit{SUD}, \textit{CALA}, \textit{SICI}, \textit{SARD}) affiancate dalle zone virtuali estere di raccordo transfrontaliero.
+    \item \textbf{Trasparenza informativa:} il \ac{GME} rende pubblico l'elenco completo di tutti gli ordini d'acquisto e di vendita presentati, includendo le offerte non accettate. Tale granularità informativa consente la ricostruzione puntuale delle curve aggregate di domanda e offerta attorno al punto di equilibrio, costituendo il prerequisito metodologico fondamentale per le simulazioni condotte in questo studio.
+\end{enumerate}
+
+
+\section{Il Mercato del Giorno Prima (MGP)}
+
+Il mercato elettrico italiano è pienamente integrato nel contesto comunitario secondo il modello del \acf{SDAC}. Un qualsiasi operatore — produttore, consumatore o trader — ha la facoltà di scambiare liberamente energia su scala continentale, nei soli limiti imposti dalla capacità fisica di trasporto delle reti di interconnessione. Di conseguenza, i prezzi di equilibrio di ogni singolo mercato vengono determinati contestualmente in tutta Europa e dipendono in modo intrinseco dalla totalità delle offerte presentate nei vari Stati. Tale coordinamento si realizza nell'ambito dell'iniziativa \acf{PCR}, il cui pilastro fondamentale è l'algoritmo \textsf{E{\small UPHEMIA}}(Pan-European Hybrid Electricity Market Integration Algorithm). Quest'ultimo risolve simultaneamente il problema dell'asta calcolando i prezzi zonali per il giorno successivo e definendo i flussi fisici d'energia da scambiare tra le diverse zone di mercato.
+
+\subsection{Il meccanismo d'asta e la formazione del prezzo zonale}
+
+Il Mercato del Giorno Prima è un'\textbf{asta a prezzo uniforme}: gli operatori presentano coppie prezzo--quantità, distinte fra acquisto e vendita, riferite a un singolo periodo e a una singola zona. L'algoritmo di mercato ordina le offerte di vendita per prezzo crescente e quelle di acquisto per prezzo decrescente, ottenendo due funzioni a gradini, e ne individua
+l'intersezione. Tutte le offerte accettate sono remunerate al medesimo prezzo, quello di equilibrio, indipendentemente dal prezzo a cui erano state presentate.
+
+In termini formali, denotando con $S(p)$ la quantità complessivamente offerta in vendita a un prezzo non superiore a $p$ e con $D(p)$ quella domandata a un prezzo non inferiore a $p$, il prezzo di equilibrio $p^*$ è definito come:
+\begin{equation}
+p^* = \min \{\, p \ge 0 \;:\; S(p) \ge D(p) \,\} = \min \{\, p \ge 0 \;:\; E(p) \ge 0 \,\}.
 \label{eq:clearing}
 \end{equation}
 
-La funzione $S$ \`e non decrescente e la funzione $D$ non crescente, quindi l'eccesso di
-offerta $S(p) - D(p)$ \`e monotono non decrescente e l'insieme dei prezzi che pareggiano il
-mercato \`e sempre una semiretta: il prezzo di equilibrio ne \`e l'estremo inferiore. Quando
-l'eccesso si annulla su un intervallo di prezzi l'equilibrio non \`e unico e la scelta del
-punto diventa una convenzione; sui dati esaminati questo accade nello 0{,}8\% delle aste
-orarie e in nessuna di quelle a quarto d'ora, quindi non costituisce una fonte rilevante di
-ambiguit\`a.
+Poiché la funzione d'offerta $S(p)$ è non decrescente e la funzione di domanda $D(p)$ è non crescente, la funzione di eccesso d'offerta $E(p) = S(p) - D(p)$ risulta monotona non decrescente. Ne consegue che l'insieme dei prezzi in grado di bilanciare il mercato costituisce una semiretta del tipo $[p^*, +\infty)$, il cui estremo inferiore identifica il prezzo di cancellazione $p^*$. Qualora la funzione di eccesso si annulli lungo un intervallo contiguo di prezzi, l'equilibrio perde il carattere di univocità, rendendo necessaria l'adozione di una regola convenzionale di selezione. Nel campione empirico esaminato, tale circostanza si manifesta unicamente nello $0{,}8\%$ delle aste orarie e in nessuna delle sessioni quart'orarie, risultando di fatto irrilevante ai fini dell'analisi.
+%DA COMPLETARE 
 
-\subsection*{Il periodo di mercato}
 
-Il periodo elementare d'asta (\emph{Market Time Unit}) \`e cambiato durante il periodo
-coperto dai dati. Fino al 30 settembre 2025 il mercato era organizzato su base
-\textbf{oraria}, con ventiquattro aste indipendenti al giorno; dal 1\textsuperscript{o}
-ottobre 2025 \`e passato al \textbf{quarto d'ora}, con novantasei aste al giorno. Il
-passaggio \`e netto e verificabile nei dati: il 30 settembre 2025 la totalit\`a delle offerte
-\`e oraria, il giorno successivo l'82{,}8\% \`e a quarto d'ora.
 
-Questa discontinuit\`a ha conseguenze dirette sul disegno dello studio, discusse nella
-Sezione~\ref{sec:dataset}: l'anno solare 2025 non \`e omogeneo, e la risoluzione temporale
-non \`e neutrale per la valutazione di una strategia di arbitraggio, che dipende da quanto
-\`e fine la griglia su cui l'accumulo pu\`o caricare e scaricare.
+\subsection{L'algoritmo \textsf{E{\small UPHEMIA}}}
+\label{sec:euphemia}
 
-\subsection*{Tipologie di offerta}
+Nell'architettura del \ac{MGP}, la determinazione simultanea dei prezzi zonali di equilibrio e dei flussi fisici di scambio transfrontaliero è affidata all'algoritmo \textsf{E{\small UPHEMIA}}~\cite{alberizzi_rse_2025, nemo_euphemia}. Sviluppato nell'ambito dell'iniziativa \acf{PCR}, \textsf{E{\small UPHEMIA}} risolve il problema di coordinamento dell'accoppiamento dei mercati (Single Day-Ahead Coupling -- SDAC) in tutto il perimetro europeo~\cite{alberizzi_rse_2025}. Il funzionamento del meccanismo si basa sulla raccolta degli ordini formulati dai partecipanti, i quali inviano le proprie offerte di acquisto e vendita alla rispettiva Borsa Elettrica di riferimento. L'insieme delle offerte aggregate viene trasmesso ad \textsf{E{\small UPHEMIA}} per la fase di ottimizzazione.
 
-Accanto alle offerte \emph{semplici}, riferite a un singolo periodo e frazionabili, esistono
-le \textbf{offerte a blocchi}, accettabili solo per intero e su tutti i periodi che coprono.
-Sui dati esaminati un blocco copre da quattro a novantasei periodi, ha un prezzo unico e uno
-stato identico in tutti i suoi periodi: non si osserva alcun blocco accettato soltanto su una
-parte di essi.
+\subsection{Formulazione matematica e funzione obiettivo !?!}
+L'obiettivo primario di \textsf{E{\small UPHEMIA}} consiste nella massimizzazione del benessere sociale complessivo ($\mathcal{W}$), calcolato come somma algebrica del surplus netto dei consumatori, del surplus dei produttori e delle rendite di congestione maturate sulle interconnessioni di rete~\cite{alberizzi_rse_2025}. Dati gli insiemi delle offerte di domanda $\mathcal{D}$ e d'offerta $\mathcal{S}$, la funzione obiettivo si esprime matematicamente come:
 
-La presenza di offerte a blocchi rende il problema d'asta un programma con vincoli di
-interezza e genera il fenomeno del \emph{rifiuto paradossale}: un blocco pu\`o risultare in
-merito sul prezzo e venire comunque respinto, perch\'e accettarlo renderebbe inconsistente la
-soluzione. I dati riportano questi casi con un codice di stato dedicato.
+\begin{equation}
+\max_{x, y} \mathcal{W} = \sum_{i \in \mathcal{D}} \int_{0}^{x_i^D} P_i^D(q) \, dq - \sum_{j \in \mathcal{S}} \int_{0}^{x_j^S} P_j^S(q) \, dq
+\end{equation}
 
-\subsection*{I Mercati Infragiornalieri}
+soggetta ai vincoli di bilancio energetico tra immissioni e prelievi in ciascuna zona $z$, ai limiti fisici di transito sulle linee di trasmissione e alle regole d'esecuzione delle singole tipologie d'ordine~\cite{nemo_euphemia}:
+
+\begin{equation}
+\sum_{j \in \mathcal{S}_z} x_{j,t}^S - \sum_{i \in \mathcal{D}_z} x_{i,t}^D = \sum_{k \in \mathcal{N}_z} F_{z \to k, t} \quad \forall z \in \mathcal{Z}, \, \forall t \in \mathcal{T}
+\end{equation}
+
+dove $F_{z \to k, t}$ rappresenta il flusso netto di energia dalla zona $z$ alla zona adiacente $k$ all'ora $t$, vincolato dalla capacità allocabile derivante dai modelli \textit{Available Transfer Capacity} (ATC) o \textit{Flow-Based} (FB) predisposti dai \ac{TSO}~\cite{alberizzi_rse_2025}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.4\textwidth]{figure/surplus_market_clearing.jpg}
+\caption{Surplus dei consumatori e surplus dei produttori; la
+somma dei due rappresenta il social welfare~\cite{alberizzi_rse_2025}}
+\label{fig:}
+\end{figure}
+
+
+\subsection{Tipologie di ordine e complessità computazionale}
+A differenza di una semplice asta marginale a prezzo unico, \textsf{E{\small UPHEMIA}} accetta un'ampia varietà di ordini condizionali per rispondere alle esigenze tecniche degli impianti di generazione e degli accumulatori~\cite{alberizzi_rse_2025}:
+
+\begin{itemize}
+    \item \textbf{Ordini semplici:} curve orarie di domanda e offerta aggregate per ciascuna zona e periodo d'asta.
+    \item \textbf{Ordini a blocco (\textit{Block Orders}):} offerte vincolate all'accettazione indivisibile su un intervallo multi-orario. Si distinguono in blocchi regolari, di profilo, flessibili, esclusivi e collegati.
+    \item \textbf{Ordini complessi (\textit{Complex Orders}):} tipici di mercati come il \ac{GME}, integrano condizioni economiche avanzate quali il vincolo di copertura dei costi fissi d'avvio (\textit{Minimum Income Condition} -- MIC) e i vincoli dinamici di rampa di carico.
+\end{itemize}
+
+La presenza di variabili decisionali binarie $y \in \{0, 1\}$ legate all'accettazione degli ordini a blocco e complessi trasforma il problema in un modello di \ac{MILP}~\cite{alberizzi_rse_2025}. La risoluzione avviene in due fasi consequenziali~\cite{nemo_euphemia}:
+\begin{enumerate}
+    \item \textbf{Problema di welfare (\ac{MILP}):} viene individuata la combinazione ottima di ordini accettati che massimizza $\mathcal{W}$, identificando l'insieme dei blocchi attivati ed evitando la presenza di offerte paradossali (\textit{paradoxically accepted/rejected orders}) per quanto matematicamente praticabile~\cite{alberizzi_rse_2025}.
+    \item \textbf{Problema dei prezzi e saldi (LP):} fissata la configurazione delle variabili binarie, si risolve un sotto-problema continuo per la determinazione univoca dei Prezzi Zonali di Mercato ($P_{z,t}$) e dei volumi definitivi di scambio transfrontaliero~\cite{alberizzi_rse_2025}.
+\end{enumerate}
+
+
+
+%\section{I mercati di aggiustamento e bilanciamento: MI e MSD}
+%\label{sec:mgp}
+%\subsection{Il Mercato Intra-giornaliero (MI)}
 
 % DA COMPLETARE: descrizione dei MI, da sviluppare se l'analisi verra' estesa oltre il MGP.
 % Elementi da trattare: sessioni ad asta MI-A1/A2/A3, negoziazione continua XBID, funzione
 % di aggiustamento delle posizioni assunte sul MGP, e implicazioni per un accumulo che
 % volesse operare anche su queste sedi.
 
-\section{MSD (Mercato per il Servizio di Dispacciamento)}
-\label{sec:msd}
+
+
+%\subsection{Il Mercato per il Servizio di Dispacciamento (MSD)}
+%\label{sec:msd}
 
 % DA COMPLETARE: descrizione del MSD.
 % Elementi da trattare:
@@ -105,26 +177,32 @@ soluzione. I dati riportano questi casi con un codice di stato dedicato.
 %     sul MGP, quindi ignorarli sottostima la redditivita' complessiva dell'investimento.
 %     Questa esclusione va dichiarata fra i limiti del modello (Sezione 6.2).
 
-\section{L'aleatorietà del prezzo}
+\subsection{Il periodo di mercato}
+
+Il periodo di analisi registra una variazione strutturale della \acf{MTU}. Fino al 30 settembre 2025 il mercato ha operato su base \textbf{oraria} (24 aste giornaliere indipendenti), per poi passare al \textbf{quarto d'ora} (96 aste al giorno) a partire dall'1 ottobre 2025. L'impatto nei dati è immediato e netto: il 30 settembre le offerte erano interamente orarie, mentre il giorno successivo quelle su base quartoraria rappresentavano già l'$82{,}8\%$ del totale.
+
+Come approfondito nella Sezione~\ref{sec:dataset}, questa discontinuità incide direttamente sul disegno della ricerca. L'anno 2025 presenta infatti una marcata disomogeneità e la risoluzione temporale condiziona la valutazione dell'arbitraggio, il cui esito dipende dalla granularità con cui i sistemi di accumulo possono alternare le fasi di carica e scarica.
+
+
+\section{Dinamica, variabilità ed aleatorietà dei prezzi}
 \label{sec:aleatorieta}
 
-Il prezzo zonale \`e la variabile aleatoria centrale del problema. Due sue caratteristiche
-sono direttamente rilevanti per la strategia di accumulo.
+Il prezzo zonale è la variabile aleatoria centrale del problema. Due sue caratteristiche sono direttamente rilevanti per la strategia di accumulo.
 
-\paragraph{Ampiezza dell'escursione infragiornaliera.} \`E il differenziale fra ore a prezzo
+Ampiezza dell'escursione infragiornaliera. \`E il differenziale fra ore a prezzo
 basso e ore di picco, cio\`e esattamente il margine lordo di un ciclo di arbitraggio. Nel
 mese di gennaio 2025 il prezzo zonale della zona NORD si \`e mosso fra un minimo orario medio
 di circa 116~\euromwh{} nelle ore notturne e un massimo di circa 172~\euromwh{} nelle ore di
 picco serale.
 
-\paragraph{Limiti di prezzo e prezzi negativi.} I prezzi ammessi sul mercato non sono
+Limiti di prezzo e prezzi negativi. I prezzi ammessi sul mercato non sono
 confinati ai valori positivi: sui dati esaminati le offerte spaziano da $-500$ a
 $4\,000$~\euromwh{}. La possibilit\`a di prezzi negativi \`e caratteristica dei sistemi ad
 alta penetrazione rinnovabile, dove in alcune ore conviene pagare per immettere energia
 piuttosto che modulare la produzione, ed \`e proprio la condizione in cui l'accumulo trova le
 occasioni di acquisto pi\`u convenienti.
 
-\paragraph{Rigidit\`a della domanda.} Una quota rilevante della domanda \`e presentata al
+Rigidit\`a della domanda. Una quota rilevante della domanda \`e presentata al
 prezzo massimo, cio\`e \`e disposta ad acquistare a qualunque prezzo: nel giorno pilota si
 tratta del 52\% delle offerte di acquisto della zona NORD. La curva di domanda risulta quindi
 molto ripida e l'effetto di un accumulo sul prezzo passa quasi interamente attraverso la
@@ -134,3 +212,13 @@ Capitolo~\ref{cap:simulazione}.
 % DA COMPLETARE: analisi statistica della serie dei prezzi (stagionalita' settimanale e
 % annuale, persistenza, distribuzione dell'escursione giornaliera). Da sviluppare quando
 % sara' disponibile la ricostruzione su tutto l'anno 2025.
+
+\subsection{L'effetto Ordine di Merito e le determinanti della variabilità}
+La variabilità oraria e stagionale dei prezzi sul \ac{MGP} è guidata dalla combinazione tra un'offerta strutturata secondo l'effetto d'ordine di merito (*Merit Order Effect*) e l'anelasticità della domanda nel breve periodo~\cite{sensfuss_2008}.
+
+\begin{itemize}
+    \item \textbf{Effetto Ordine di Merito:} Le fonti energetiche rinnovabili non programmabili (solare ed eolico) presentano un costo marginale di generazione prossimo allo zero ($MC \approx 0$). L'aumento della penetrazione di tali fonti sposta verso destra la curva d'offerta, rimpiazzando gli impianti termoelettrici convenzionali e riducendo il prezzo marginale nelle ore di elevata producibilità~\cite{sensfuss_2008, creti_2018}.
+    \item \textbf{Profilo intra-giornaliero e "Duck Curve":} Nelle ore centrali della giornata, l'immissione massiva di energia fotovoltaica causa un crollo dei prezzi spot ($P_{z,t} \to 0$). Al calare del sole, la rapida flessione della generazione solare unita al picco della domanda serale richiede l'ingresso in rete di impianti marginali a gas (CCGT) caratterizzati da costi variabili elevati, innescando repentini picchi di prezzo~\cite{creti_2018}.
+    \item \textbf{Implicazioni per i sistemi di accumulo (\ac{BESS}):} La crescente ampiezza dello *spread* giornaliero tra i prezzi minimi delle ore centrali e i prezzi massimi delle ore di picco ($\Delta P_t = P_{\text{peak},t} - P_{\text{off-peak},t}$) rappresenta il driver economico fondamentale per le strategie di arbitraggio energetico mediante batterie~\cite{creti_2018}.
+\end{itemize}
+\subsection{Modellazione dell'aleatorietà del prezzo per gli accumuli}

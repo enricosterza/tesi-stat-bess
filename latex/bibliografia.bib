@@ -32,45 +32,6 @@
 %    urldate      = {2026-08-04},
 %  }
 % =====================================================================
-
-% ---------------------------------------------------------------------
-% Letteratura sull'effetto dell'accumulo sui prezzi di mercato
-% ---------------------------------------------------------------------
-% NOTA: dati bibliografici da verificare sulla pagina dell'editore prima
-% della consegna (volume, numero d'articolo, pagine, DOI).
-@article{alonsoperez2026storage,
-  author  = {Alonso-Perez, Sergio and Arcos-Vargas, Angel},
-  title   = {Storage deployment and its impact on wholesale electricity prices},
-  journal = {Energy Reports},
-  volume  = {15},
-  pages   = {108991},
-  year    = {2026},
-}
-
-@article{veenstra2025profitability,
-  % DA COMPLETARE: nomi di battesimo degli autori e DOI, da verificare
-  % sulla pagina dell'editore prima della consegna.
-  author  = {Veenstra and Mulder},
-  title   = {Profitability of batteries in day-ahead and intraday electricity
-             markets: Assessment of operation strategies with endogenous prices},
-  journal = {Energy Economics},
-  volume  = {148},
-  pages   = {108608},
-  year    = {2025},
-}
-
-@article{lilla2026storage,
-  % DA COMPLETARE: DOI, da verificare sulla pagina dell'editore.
-  author  = {Lilla, Stefano and Missiroli, Marco and Borghetti, Alberto
-             and Tossani, Fabio and Nucci, Carlo Alberto},
-  title   = {Enhancing Grid Sustainability Through Utility-Scale {BESS}:
-             Flexibility via Time-Shifting Contracts and Arbitrage},
-  journal = {Sustainability},
-  volume  = {18},
-  number  = {1404},
-  year    = {2026},
-}
-
 % ---------------------------------------------------------------------
 % Fonti istituzionali e normative (contesto italiano, Capitolo 1)
 % ---------------------------------------------------------------------
@@ -80,7 +41,9 @@
   institution = {Terna S.p.A. e Snam S.p.A.},
   year        = {2024},
   address     = {Roma},
-  note        = {Redatto ai sensi delle delibere ARERA 654/2017/R/eel e 689/2017/R/gas}
+  url          = {https://www.terna.it/it/sistema-elettrico/programmazione-territoriale-efficiente/piano-sviluppo-rete/scenari},
+  urldate      = {2026-08-10},
+ % note        = {Redatto ai sensi delle delibere ARERA 654/2017/R/eel e 689/2017/R/gas}
 }
 
 @misc{pniec2024,
@@ -89,12 +52,214 @@
   year         = {2024},
   month        = {6},
   howpublished = {\url{https://www.mase.gov.it/sites/default/files/PNIEC_2024_revfin_01072024.pdf}},
-  note         = {Aggiornamento inviato alla Commissione Europea il 30 giugno 2024}
+  urldate      = {2026-08-10},
 }
 
 @misc{dlgs210,
   author       = {{Repubblica Italiana}},
   title        = {Decreto Legislativo 8 novembre 2021, n. 210 --- Attuazione della direttiva (UE) 2019/944 relativa a norme comuni per il mercato interno dell'energia elettrica},
   year         = {2021},
-  howpublished = {Gazzetta Ufficiale della Repubblica Italiana}
+  month        = {12},
+  type        = {Decreto Legislativo},
+  howpublished = {Gazzetta Ufficiale della Repubblica Italiana n. 285}
+}
+
+@techreport{terna2025pds,
+  author       = {{Terna S.p.A.}},
+  title        = {Piano di Sviluppo 2025 --- Overview},
+  institution  = {Terna S.p.A.},
+  type         = {Piano di Sviluppo della Rete di Trasmissione Nazionale},
+  year         = {2025},
+  address      = {Roma},
+  url          = {https://www.terna.it/it/sistema-elettrico/rete/piano-sviluppo-rete},
+  urldate      = {2026-08-10},
+}
+
+@techreport{terna2023stoccaggio,
+  author      = {{Terna S.p.A.}},
+  title       = {Studio sulle tecnologie di riferimento per lo stoccaggio di energia elettrica},
+  institution = {Terna S.p.A.},
+  address     = {Roma},
+  year        = {2023},
+  url         = {https://www.terna.it/it/sistema-elettrico/mercato-termine-stoccaggi/studio-tecnologie-stoccaggio},
+  urldate     = {2026-08-10}
+}
+
+@techreport{arera247,
+  author      = {{ARERA -- Autorità di Regolazione per Energia Reti e Ambiente}},
+  title       = {Delibera 247/2023/R/eel -- Criteri e condizioni per il meccanismo di approvvigionamento a termine di nuova capacità di stoccaggio elettrico (MACSE)},
+  institution = {ARERA},
+  year        = {2023},
+  type        = {Delibera},
+  number      = {247/2023/R/eel},
+  address     = {Milano}
+}
+
+@techreport{mase_dm,
+  author      = {{MASE -- Ministero dell'Ambiente e della Sicurezza Energetica}},
+  title       = {Decreto Ministeriale n. 346 del 10 ottobre 2024 -- Approvazione della Disciplina del Meccanismo di approvvigionamento di nuova capacità di stoccaggio elettrico (MACSE)},
+  institution = {Ministero dell'Ambiente e della Sicurezza Energetica},
+  year        = {2024},
+  type        = {Decreto Ministeriale},
+  number      = {DM 346/2024},
+  address     = {Roma}
+}
+
+@techreport{terna_disciplina,
+  author      = {{Terna S.p.A.}},
+  title       = {Disciplina del Meccanismo di approvvigionamento di nuova capacità di stoccaggio elettrico (MACSE)},
+  institution = {Terna S.p.A.},
+  year        = {2024},
+  type        = {Regolamento Tecnico},
+  address     = {Roma}
+}
+
+@techreport{terna_relazione,
+  author      = {{Terna S.p.A.}},
+  title       = {Relazione Tecnica per l'approvvigionamento di Capacità di Stoccaggio Elettrico -- Batterie agli ioni di litio},
+  institution = {Terna S.p.A.},
+  year        = {2025},
+  type        = {Relazione Tecnica},
+  address     = {Roma}
+}
+
+@techreport{iea2024batteries,
+  author      = {{International Energy Agency}},
+  title       = {Batteries and Secure Energy Transitions},
+  institution = {IEA},
+  address     = {Paris},
+  year        = {2024},
+  month       = apr,
+  type        = {World Energy Outlook Special Report},
+  url         = {https://www.iea.org/reports/batteries-and-secure-energy-transitions},
+  urldate     = {2026-08-10}
+}
+
+@techreport{gme_disciplina,
+  author      = {{Gestore dei Mercati Energetici S.p.A.}},
+  title       = {Testo Integrato della Disciplina del Mercato Elettrico},
+  institution = {GME S.p.A.},
+  year        = {2024},
+  address     = {Roma},
+  type        = {Regolamento Tecnico}
+}
+
+@techreport{arera_2023_relazione,
+  author      = {{ARERA -- Autorità di Regolazione per Energia Reti e Ambiente}},
+  title       = {Relazione Annuale sullo Stato dei Servizi e sull'Attività Svolta},
+  institution = {ARERA},
+  year        = {2023},
+  number      = {DOC 247/2023},
+  address     = {Milano}
+}
+
+@techreport{dlgs_79_1999,
+  author      = {{Governo Italiano}},
+  title       = {Decreto Legislativo 16 marzo 1999, n. 79 -- Attuazione della direttiva 96/92/CE recante norme comuni per il mercato interno dell'energia elettrica},
+  institution = {Gazzetta Ufficiale della Repubblica Italiana n. 75},
+  year        = {1999},
+  type        = {Decreto Legislativo},
+  address     = {Roma}
+}
+
+@techreport{nemo_euphemia,
+  author      = {{NEMO Committee}},
+  title       = {EUPHEMIA Public Documentation: Single Day-Ahead Coupling (SDAC) Algorithm Description},
+  institution = {All NEMO Committee},
+  year        = {2022},
+  type        = {Technical Report}
+}
+@techreport{alberizzi_rse_2025,
+  author      = {Alberizzi, Andrea and Dav{\`o}, Federica},
+  title       = {EUPHEMIA -- Algoritmo di risoluzione del mercato del giorno prima europeo},
+  institution = {RSE -- Ricerca sul Sistema Energetico S.p.A.},
+  year        = {2025},
+  number      = {APE 4/2025},
+  series      = {APE -- Appunti di Energia},
+  month       = {10},
+  address     = {Milano},
+  type        = {Report Tecnico}
+}
+
+@article{sensfuss_2008,
+  author  = {Sensfu{\ss}, Frank and Ragwitz, Mario and Genoese, Massimo},
+  title   = {The merit-order effect: A detailed analysis of the price-effect of renewable electricity generation on spot market prices in Germany},
+  journal = {Energy Policy},
+  volume  = {36},
+  number  = {8},
+  pages   = {3086--3094},
+  year    = {2008},
+  doi     = {10.1016/j.enpol.2008.03.035}
+}
+
+@article{creti_2018,
+  author  = {Cret{\`i}, Anna and Fontini, Fulvio},
+  title   = {Economics of Electricity Markets},
+  journal = {Cambridge University Press},
+  year    = {2019},
+  isbn    = {9781107106093}
+}
+
+% ---------------------------------------------------------------------
+% Letteratura sull'effetto dell'accumulo sui prezzi di mercato
+% ---------------------------------------------------------------------
+% NOTA: dati bibliografici da verificare sulla pagina dell'editore prima
+% della consegna (volume, numero d'articolo, pagine, DOI).
+
+
+@Article{su16187940,
+AUTHOR = {Andreotti, Diego and Spiller, Matteo and Scrocca, Andrea and Bovera, Filippo and Rancilio, Giuliano},
+TITLE = {Modeling and Analysis of BESS Operations in Electricity Markets: Prediction and Strategies for Day-Ahead and Continuous Intra-Day Markets},
+JOURNAL = {Sustainability},
+VOLUME = {16},
+YEAR = {2024},
+NUMBER = {18},
+ARTICLE-NUMBER = {7940},
+URL = {https://www.mdpi.com/2071-1050/16/18/7940},
+ISSN = {2071-1050},
+DOI = {10.3390/su16187940}
+}
+
+@article{alonsoperez2026storage,
+  author  = {Alonso-P{\'e}rez, Javier and Arcos-Vargas, {\'A}ngel},
+  title   = {{Storage Deployment and its Impact on Wholesale Electricity Prices}},
+  journal = {SSRN Electronic Journal},
+  year    = {2025},
+  doi     = {10.2139/ssrn.5420632},
+}
+
+@article{veenstra2025profitability,
+title = {Profitability of batteries in day-ahead and intraday electricity markets: Assessment of operation strategies with endogenous prices},
+journal = {Energy Economics},
+volume = {148},
+pages = {108608},
+year = {2025},
+issn = {0140-9883},
+doi = {10.1016/j.eneco.2025.108608},
+author = {Arjen T. Veenstra and Machiel Mulder},
+keywords = {Batteries, Energy arbitrage, Day-ahead, Intraday auction, Endogenous prices},
+}
+
+@Article{su18031404,
+AUTHOR = {Lilla, Stefano and Missiroli, Marco and Borghetti, Alberto and Tossani, Fabio and Nucci, Carlo Alberto},
+TITLE = {Enhancing Grid Sustainability Through Utility-Scale BESS: Flexibility via Time-Shifting Contracts and Arbitrage},
+JOURNAL = {Sustainability},
+VOLUME = {18},
+YEAR = {2026},
+NUMBER = {3},
+ARTICLE-NUMBER = {1404},
+ISSN = {2071-1050},
+DOI = {10.3390/su18031404}
+}
+
+@Article{en16217272,
+AUTHOR = {Filho, Roberto Dias and Monteiro, Amanda C. M. and Costa, Tatiane and Vasconcelos, Andrea and Rode, Ana Clara and Marinho, Manoel},
+TITLE = {Strategic Guidelines for Battery Energy Storage System Deployment: Regulatory Framework, Incentives, and Market Planning},
+JOURNAL = {Energies},
+VOLUME = {16},
+YEAR = {2023},
+NUMBER = {21},
+ARTICLE-NUMBER = {7272},
+ISSN = {1996-1073},
+DOI = {10.3390/en16217272}
 }

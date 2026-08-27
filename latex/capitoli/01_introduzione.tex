@@ -1,74 +1,110 @@
-\chapter{Introduzione e Contesto}
+\chapter{Introduzione e contesto}
 \label{cap:introduzione}
 
 \section{La transizione energetica in Italia}
 \label{sec:transizione}
 
-Il sistema elettrico italiano sta attraversando una trasformazione strutturale il cui perno è la progressiva sostituzione della generazione termoelettrica programmabile con fonti energetiche rinnovabili (FER) non programmabili, in primo luogo solare fotovoltaico ed eolico. Il quadro programmatico di riferimento è definito dal Piano Nazionale Integrato Energia e Clima (PNIEC), aggiornato a giugno 2024 in recepimento dei pacchetti legislativi europei \emph{Fit-for-55} e \emph{RepowerEU}, che fissa gli obiettivi nazionali al 2030 in materia di efficienza energetica, fonti rinnovabili e riduzione delle emissioni di gas a effetto serra \cite{pniec2024}. Ai sensi delle delibere \mbox{654/2017/R/eel} e \mbox{689/2017/R/gas}, gli scenari propedeutici alla pianificazione delle reti di trasmissione sono elaborati congiuntamente da Terna e Snam nel \emph{Documento di Descrizione degli Scenari} (DDS), che costituisce la fonte quantitativa di riferimento del presente lavoro \cite{dds2024}.
+Il Sistema Elettrico Nazionale (SEN) sta attraversando una trasformazione strutturale, il cui perno è la progressiva decarbonizzazione della rete, con conseguente diminuzione delle emissioni di CO$_2$ in atmosfera, per raggiungere i target nazionali ed europei sui cambiamenti climatici. Con il \emph{Green Deal europeo} la Commissione Europea ha presentato un piano per raggiungere la neutralità climatica entro il 2050. Il quadro programmatico di riferimento è definito dal \ac{PNIEC}, aggiornato a giugno 2024 in recepimento dei pacchetti legislativi europei \emph{Fit-for-55} e \emph{RepowerEU}, che fissa gli obiettivi nazionali al 2030 in materia di efficienza energetica, fonti rinnovabili e riduzione delle emissioni di gas a effetto serra \cite{pniec2024}. Lo scopo di questo pacchetto di leggi è quello di ridurre entro il 2030 le emissioni di gas serra del $55\%$ rispetto ai livelli del 1990. Oltre a questi obiettivi a lungo termine, la guerra in Ucraina e le tensioni in Medio Oriente hanno provocato un aumento dei prezzi e delle perturbazioni sul mercato delle materie prime rendendo ancora più urgente, per l'Unione Europea e per l'Italia, la costruzione di un mercato energetico indipendente e sicuro. In questo contesto internazionale si inserisce la progressiva sostituzione della generazione termoelettrica programmabile con \ac{FRNP}, principalmente solare fotovoltaico ed eolico.  
 
-L'entità del cambiamento è meglio colta dal confronto tra lo stato del sistema nel 2023 e lo scenario di policy al 2030. Nello scenario PNIEC Policy 2030, la quota di fabbisogno elettrico nazionale coperta da fonti rinnovabili passa dal \SI{37}{\percent} registrato nel 2023 al \SI{63}{\percent} \cite{dds2024}. Tale risultato è trainato in via prevalente dalla tecnologia solare: la generazione fotovoltaica cresce da \SI{31}{\tera\watt\hour} a \SI{105}{\tera\watt\hour}, arrivando a rappresentare oltre il \SI{45}{\percent} della generazione rinnovabile complessiva e circa un terzo dell'intera produzione nazionale \cite{dds2024}. Sul fronte della capacità installata, lo scenario prevede oltre \SI{107}{\giga\watt} di impianti solari ed eolici, con un incremento di circa \SI{65}{\giga\watt} rispetto ai \SI{42,6}{\giga\watt} in esercizio al 2023 \cite{dds2024}. Specularmente, la generazione termoelettrica a gas si riduce da \SI{115}{\tera\watt\hour} a \SI{88}{\tera\watt\hour} e la produzione da carbone viene integralmente dismessa, in coerenza con il percorso di \emph{phase-out} previsto dal PNIEC \cite{dds2024}.
+L'entità del cambiamento si nota dal confronto tra lo stato del sistema nel 2023 e lo scenario di policy al 2030. Nello scenario \ac{PNIEC} Policy 2030, la quota di fabbisogno elettrico nazionale coperta da fonti rinnovabili passa dal $37 \%$ registrato nel 2023 al $63 \%$ del fabbisogno elettrico \cite{terna2025pds, dds2024}. Lo scenario prevede, inoltre, un raddoppio della produzione elettrica da fonti rinnovabili, da $113$ TWh nel 2023 a $227$ TWh al 2030 \cite{terna2025pds}. 
+Sul fronte della capacità installata, lo scenario prevede oltre $107$ GW di impianti solari ed eolici al 2030 — di cui $79,3$ GW solari e $28,1$ GW eolici — con un incremento di circa $65$ GW rispetto ai $43$ GW in esercizio al 2023 \cite{terna2025pds}. Viceversa, la generazione convenzionale si riduce da $142$ TWh a $95$ TWh, mentre la produzione da carbone viene integralmente dismessa entro la fine del 2025, in coerenza con il percorso di \emph{phase-out} previsto dal \ac{PNIEC} \cite{terna2025pds, dds2024}.
 
-La transizione presenta inoltre una marcata dimensione geografica, destinata a incidere sui flussi di potenza attraverso la rete di trasmissione. Il fotovoltaico distribuito si concentra prevalentemente nelle regioni settentrionali, mentre la capacità eolica e gli impianti solari di grande taglia (\emph{utility-scale}) sono localizzati soprattutto nel Mezzogiorno e nelle isole maggiori, dove il potenziale di producibilità è superiore \cite{dds2024}. Ne consegue un incremento significativo dei transiti interzonali dalle zone meridionali e insulari verso il Nord, ove si concentra la domanda \cite{dds2024}. Questa ridistribuzione spaziale della generazione è uno dei fattori che motivano, come si vedrà, la localizzazione preferenziale della nuova capacità di accumulo.
+% dati checkati
 
-Il portato operativo di una così elevata penetrazione di fonti non programmabili è un aumento strutturale della variabilità del \emph{carico residuo}, definito come la differenza tra il fabbisogno di elettricità e la produzione da solare ed eolico. Le simulazioni del DDS 2024 mostrano che il carico residuo diviene assai più variabile nell'arco della giornata negli orizzonti 2030 e 2040 rispetto al 2023; il fenomeno è particolarmente accentuato nei mesi primaverili ed estivi, quando l'elevato irraggiamento nelle ore centrali determina un eccesso strutturale di produzione solare rispetto al fabbisogno \cite{dds2024}. In assenza di risorse di flessibilità, tale eccesso dovrebbe essere gestito tagliando (\emph{curtailment}) la produzione rinnovabile nelle ore centrali per poi ricorrere a generazione a gas nelle ore serali, con evidente perdita di efficienza sistemica e ambientale \cite{dds2024}. È in questo iato temporale tra il momento della produzione rinnovabile e quello del fabbisogno che si colloca la funzione economica dei sistemi di accumulo, oggetto della sezione seguente.
+La transizione energetica presenta inoltre una forte dimensione geografica, destinata a incidere sui flussi di potenza attraverso la \ac{RTN}. La capacità eolica e gli impianti solari di grandi dimensioni (\emph{utility-scale}) sono localizzati soprattutto nel Sud Italia e nelle isole maggiori, dove il potenziale di producibilità è superiore, mentre la domanda rimane concentrata nelle regioni del nord \cite{terna2025pds}. Ne consegue un incremento significativo dei transiti interzonali dalle zone del sud Italia verso il nord \cite{terna2025pds}. 
 
-\section{I sistemi di accumulo a batteria (BESS)}
+
+L'impatto operativo di un'elevata penetrazione di fonti non programmabili comporta una maggiore variabilità del \emph{carico residuo}, definito come la differenza tra il carico di domanda meno la produzione di energia rinnovabile. 
+Dai dati elaborati da Terna emerge che, rispetto al 2023, il fabbisogno di flessibilità su scala giornaliera cresce del $41 \%$ al 2030 — da $39$ TWh a $94$ TWh — come conseguenza diretta dell'aumento atteso della produzione fotovoltaica \cite{terna2025pds}. 
+
+Il sistema richiederà risorse con capacità di regolazione dinamica in immissione e prelievo, indispensabili per gestire i surplus strutturali di energia fotovoltaica nelle ore centrali della giornata. Senza un'adeguata capacità di flessibilità, tale eccesso dovrebbe essere gestito tagliando (\emph{curtailment}) la produzione rinnovabile nelle ore centrali per poi ricorrere a generazione termica nelle ore serali, con evidente perdita di efficienza sistemica e ambientale \cite{terna2025pds}. Proprio in questo disallineamento temporale tra produzione rinnovabile e consumi si esprime il valore economico dei sistemi di accumulo, analizzati nella sezione successiva.
+
+% dati checkati
+
+\section{I sistemi di accumulo di energia}
 \label{sec:bess}
 
-Il Decreto Legislativo 8 novembre 2021, n.~210, definisce lo stoccaggio di energia come ``il differimento dell'utilizzo finale dell'energia elettrica a un momento successivo alla sua generazione ovvero la conversione di energia elettrica in una forma di energia che può essere stoccata'' \cite{dlgs210}. Nel contesto delineato nella sezione precedente, la funzione primaria di un sistema di accumulo è quella di \emph{energy shifting}: immagazzinare energia elettrica nei periodi di elevata disponibilità della risorsa rinnovabile per rilasciarla nei periodi in cui questa è scarsa \cite{dds2024}. Il rilievo sistemico di tale servizio è quantificabile: negli scenari al 2030, gli accumuli movimentano complessivamente una quantità di energia elettrica pari a oltre il \SI{10}{\percent} del fabbisogno elettrico totale \cite{dds2024}.
+Il Decreto Legislativo 8 novembre 2021, n.210, definisce nell'articolo $3$ lo \emph{stoccaggio di energia} come ``il differimento dell'utilizzo finale dell'energia elettrica a un momento successivo alla sua generazione ovvero la conversione di energia elettrica in una forma di energia che può essere stoccata'' \cite{dlgs210}. Nel contesto delineato nella sezione precedente, il servizio fondamentale di un sistema di accumulo è quello dell'\emph{energy shifting}:  immagazzinare l'energia elettrica nei periodi in cui la disponibilità della risorsa rinnovabile è elevata per poi rilasciarla nei periodi in cui la
+risorsa è scarsa \cite{dds2024}. Il rilievo sistemico di tale servizio è quantificabile: negli scenari al 2030, i sistemi di accumulo movimentano complessivamente una quantità di energia elettrica pari a oltre il $10 \%$ del fabbisogno elettrico totale \cite{dds2024}. Con riferimento agli accumuli su scala di rete \cite{terna2023stoccaggio}, si individuano principalmente le seguenti categorie:
+\begin{itemize}
+    \item Stoccaggio idroelettrico a pompaggio: si tratta di sistemi di accumulo meccanico che sfruttano l'accumulo di energia potenziale. Nei momenti a bassa domanda di energia l'acqua viene pompata dai bacini inferiori a quelli superiori. Quando la domanda è elevata l'acqua viene rilasciata e il flusso d'acqua, scorrendo nelle turbine idrauliche, genera energia. Rappresentano la tecnologia più matura e la spina dorsale dello stoccaggio nazionale; 
+    \item Stoccaggio elettrochimico: è la categoria a più rapida crescita, usata sia su scala domestica che utility-scale. Si tratta di batterie che utilizzano processi elettrochimici per immagazzinare e rilasciare energia elettrica. Tra queste figurano le batterie: agli ioni di litio (Li-Ion),
+    a flusso, allo zinco, ad alta temperatura e allo stato solido;
+    \item Stoccaggio elettrostatico, magnetico e simili: dispositivi basati sulla conservazione diretta dell'energia sotto forma di campo elettrico o magnetico, categoria che comprende varie tipologie di supercondensatori (o supercapacitori) e i sistemi di accumulo a magneti superconduttori (SMES);
+    \item Stoccaggio ad aria compressa e simili: sistemi di accumulo meccanico mediante la compressione e liquefazione di fluidi, tra cui lo stoccaggio di aria compressa in caverne sotterranee (CAES), i sistemi ad aria liquida (LAES) e i circuiti con gas alternativi;
+    \item Stoccaggio elettromeccanico: la categoria comprende sia i sistemi a volano (flywheel), che convertono l'energia elettrica in energia cinetica rotazionale accelerando e decelerando una massa, sia i sistemi gravitazionali, basati sulla variazione di energia potenziale tramite il sollevamento e la discesa di elevate masse.
+\end{itemize}
 
-Tra le tecnologie di stoccaggio, il presente lavoro si concentra sui sistemi di accumulo elettrochimico a batteria (\emph{Battery Energy Storage System}, BESS), che insieme ai pompaggi idroelettrici rappresentano, almeno nel breve-medio termine, le soluzioni a maggiore maturità tecnologica e commerciale \cite{dds2024}. Il DDS 2024 distingue due categorie di BESS in funzione del rapporto tra capacità energetica e potenza. I sistemi \emph{small-scale} sono batterie con rapporto energia/potenza di 2--4 ore, tipicamente installate in prossimità di impianti fotovoltaici di piccola taglia per massimizzarne l'autoconsumo. I sistemi \emph{utility-scale} presentano invece un rapporto energia/potenza più elevato, dell'ordine delle 8 ore, e partecipano attivamente ai mercati dell'energia e dei servizi \cite{dds2024}. È a quest'ultima categoria che appartiene la risorsa oggetto di studio, la cui redditività dipende in misura determinante dall'attività di arbitraggio sui mercati spot.
+Ogni tecnologia di accumulo presenta specifici vantaggi e vincoli operativi, rendendo la scelta della soluzione idonea strettamente dipendente dai requisiti applicativi e dal contesto in esame. In questo scenario, la diversificazione del parco tecnologico favorisce la resilienza e la stabilità della rete, presupposto fondamentale per soddisfare le crescenti esigenze di un sistema elettrico basato su fonti di energia rinnovabile variabile.
 
-Il fabbisogno di nuova capacità di accumulo stimato da Terna riflette l'entità della sfida di integrazione. Nello scenario PNIEC Policy 2030, la capacità energetica di accumulo complessivamente necessaria è pari a circa \SI{122}{\giga\watt\hour}, così articolata: \SI{50}{\giga\watt\hour} di pompaggi idroelettrici esistenti; circa \SI{14}{\giga\watt\hour} di accumuli di piccola taglia; circa \SI{8}{\giga\watt\hour} di accumuli già aggiudicatari di contratti pluriennali nelle aste del Capacity Market; e \SI{50}{\giga\watt\hour} di nuovi impianti di grande taglia, da approvvigionare attraverso il Meccanismo di Approvvigionamento di Capacità di Stoccaggio Elettrico (MACSE) o mediante iniziativa privata \cite{dds2024}. Al netto dei pompaggi esistenti, il fabbisogno di nuova capacità ammonta dunque a \SI{71,5}{\giga\watt\hour} \cite{dds2024}. Coerentemente con la geografia della generazione descritta nella Sezione~\ref{sec:transizione}, la componente \emph{utility-scale} si concentra nel Mezzogiorno e nelle isole: dei \SI{50}{\giga\watt\hour} previsti, \SI{16,8}{\giga\watt\hour} sono attribuiti al Sud, \SI{13,6}{\giga\watt\hour} alla Sicilia e \SI{10,4}{\giga\watt\hour} alla Sardegna \cite{dds2024}. Su orizzonti più lunghi, la capacità di accumulo al netto dei pompaggi raggiunge valori compresi tra \SI{117}{\giga\watt\hour} e \SI{166,5}{\giga\watt\hour} al 2040 a seconda dello scenario \cite{dds2024}.
+% ------------ dati check ------------------
 
-Dal punto di vista operativo, il DDS 2024 fornisce un profilo di funzionamento atteso che costituisce un utile termine di raffronto per la modellazione. Al 2030, un accumulo con rapporto energia/potenza pari a 8 ore è chiamato a operare per circa \num{3300} ore equivalenti l'anno, di cui circa \num{1800} in modalità di assorbimento (carica) e \num{1500} in modalità di produzione (scarica) \cite{dds2024}. È tuttavia opportuno precisare che la quantità di energia movimentata non esaurisce il valore sistemico della risorsa: oltre all'\emph{energy shifting}, un BESS fornisce servizi in potenza attiva per la regolazione di frequenza e in potenza reattiva per la regolazione di tensione, sicché la sola capacità energetica non rappresenta l'unico indicatore rilevante ai fini della valutazione della sua utilità \cite{dds2024}. Nel presente lavoro l'analisi è deliberatamente circoscritta alla valorizzazione dell'energia sul Mercato del Giorno Prima, ferma restando la consapevolezza che i ricavi da arbitraggio costituiscono una componente, non l'intero, del valore economico di un sistema di accumulo.
 
-Proprio la parzialità dei ricavi da mercato spot introduce l'ultimo elemento di contesto. Gli investimenti in FER e in accumuli condividono un profilo economico-finanziario di tipo infrastrutturale, caratterizzato da elevati esborsi iniziali, costi variabili contenuti e lunga vita utile \cite{dds2024}. Per garantirne la finanziabilità a costi competitivi del capitale, il DDS sottolinea la necessità di affiancare strutturalmente ai mercati spot strumenti contrattuali a medio-lungo termine \cite{dds2024}. È in questa cornice che si colloca il MACSE, il meccanismo di contrattualizzazione a termine degli accumuli approvato dalla Commissione Europea nel dicembre 2023 (aiuto di Stato \mbox{SA.104106 (2023/N)}), cui Terna affida l'approvvigionamento della nuova capacità di stoccaggio \cite{dds2024}. La relazione tra la remunerazione di capacità garantita dal MACSE e i ricavi da arbitraggio sui mercati dell'energia, brevemente richiamata qui a fini di inquadramento, costituisce lo sfondo economico entro cui si sviluppa l'analisi dei capitoli successivi.
+\subsection{I sistemi di accumulo a batteria}
 
-\subsection{Il contesto regolatorio italiano e il parametro \texorpdfstring{$K$}{K}}
+Tra le tecnologie di stoccaggio, il presente lavoro si concentra sui sistemi di accumulo elettrochimico a batteria -- \ac{BESS} --, il cui costo è diminuito negli ultimi anni, rendendo
+finanziariamente fattibili diversi progetti~\cite{iea2024batteries}. Il \ac{DDS 2024} distingue due categorie di \ac{BESS} in funzione del rapporto tra capacità energetica e potenza. I sistemi \emph{small-scale} sono batterie con rapporto energia/potenza di 2--4 ore, tipicamente integrate in prossimità di impianti fotovoltaici di piccola taglia per incrementarne l'autoconsumo locale. I sistemi \emph{utility-scale} hanno un rapporto energia/potenza più elevato, dell'ordine delle 8 ore, e partecipano attivamente ai mercati dell'energia e dei servizi~\cite{dds2024}. L'impianto considerato rientra in quest'ultima tipologia; la sua profittabilità è fortemente legata alle opportunità di arbitraggio offerte dai mercati energetici.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{figure/dd24 capacità accumuli per tipo.jpg}
+\caption{Capacità energetica degli accumuli per tipologia
+nello scenario PNIEC Policy 2030 \cite{dds2024}}
+\label{fig:capacctipo}
+\end{figure}
+
+Nello scenario \ac{PNIEC} Policy 2030, come mostrato in Figura~\ref{fig:capacctipo}, la capacità energetica di accumulo complessivamente necessaria è pari a $122$ GWh, così articolata: $50$ GWh di pompaggi idroelettrici esistenti; $14$ GWh di accumuli di piccola taglia; $8$ GWh di accumuli già aggiudicatari di contratti pluriennali nelle aste del Capacity Market; e $50$ GWh di nuovi impianti di grande taglia, da approvvigionare attraverso il \ac{MACSE} o mediante iniziativa privata \cite{dds2024}. Escludendo i pompaggi esistenti, il fabbisogno di nuova capacità ammonta dunque a $71,5$ GWh \cite{dds2024}. Come mostrato in Figura~\ref{fig:capacc}, la componente \emph{utility-scale} si concentra nel sud Italia e nelle isole: dei $50$ GWh previsti, $16,8$ GWh sono attribuiti al Sud, $13,6$ GWh alla Sicilia e $10,4$ GWh alla Sardegna \cite{dds2024}. Su orizzonti più lunghi, la capacità di accumulo al netto dei pompaggi raggiunge valori compresi tra $117$ GWh e $166,5$ GWh al 2040 a seconda dello scenario \cite{dds2024}.
+
+
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{figure/dd24 capacità energetica accumuli.jpg}
+\caption{Capacità energetica degli accumuli, escl. pompaggi esistenti [GWh]~\cite{dds2024}}
+\label{fig:capacc}
+\end{figure}
+
+Dal punto di vista operativo, il DDS 2024 definisce un profilo di funzionamento atteso che costituisce un benchmark per la modellazione. Nello scenario al 2030, un sistema di accumulo con rapporto energia/potenza pari a 8 ore sarebbe chiamato a funzionare per circa $3300$ ore equivalenti annue, ripartite tra circa $1800$ ore in assorbimento (carica) e $1500$ in produzione (scarica)~\cite{dds2024}. È tuttavia opportuno precisare che la quantità di energia movimentata non esaurisce il valore sistemico dell'impianto: oltre all'\emph{energy shifting} (Figura~\ref{fig:caricores}), un sistema di accumulo fornisce servizi in potenza attiva per la regolazione di frequenza e in potenza reattiva per la regolazione di tensione~\cite{su16187940}. La sola capacità energetica non rappresenta l'unico indicatore rilevante ai fini della valutazione della sua utilità. Questo lavoro limita il proprio campo d'indagine alla sola valorizzazione dell'energia sul \ac{MGP}, pur nella piena consapevolezza che i ricavi da arbitraggio rappresentino soltanto una quota del valore economico totale dell'asset.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\textwidth]{figure/carico residuo medio.jpg}
+\caption{Carico residuo medio (MWh) e movimentazioni accumuli medie ($\%$) per il 2030 ed il 2040 \cite{dds2024}}
+\label{fig:caricores}
+\end{figure}
+
+La parzialità dei ricavi derivanti dal mercato spot introduce un ulteriore elemento di contesto. Gli investimenti in \ac{FER} e nei sistemi di stoccaggio condividono una natura economico-finanziaria di tipo infrastrutturale, caratterizzata da elevati costi iniziali (CaPex), ridotti costi variabili e una vita utile prolungata. Per garantirne la bancabilità a costi competitivi del capitale, il \ac{DDS 2024} evidenzia la necessità di affiancare ai mercati spot idonei strumenti contrattuali a medio-lungo termine~\cite{dds2024}. Diversi Paesi (tra cui Italia, Germania, Francia, Regno Unito e Paesi Bassi) vedono \acf{TSO} e \acf{DSO} in prima linea nella promozione di progetti dedicati alla flessibilità~\cite{su18031404}.
+In questa cornice si inserisce il \ac{MACSE}, il meccanismo di contrattualizzazione a termine dell'accumulo approvato dalla Commissione Europea nel dicembre 2023, mediante il quale Terna intende approvvigionare la nuova capacità di stoccaggio~\cite{dds2024}. 
+
+
+\section{Il contesto regolatorio italiano ?!?}
 \label{sec:contesto-italiano}
 
-La redditivit\`a dell'arbitraggio non dipende solo dal differenziale di prezzo, ma anche dal
-regime a cui l'energia \`e assoggettata quando entra e quando esce dall'accumulo. La
-distinzione \`e sostanziale e va introdotta subito, perch\'e separa due mondi economicamente
-molto diversi.
+La redditività dell'arbitraggio è fortemente determinata dal quadro regolatorio e fiscale applicato ai flussi di carica e scarica dell'accumulo, e non dal solo differenziale di prezzo. Questa distinzione è centrale nell'analisi, in quanto definisce due scenari economico-operativi profondamente differenti.
 
-Nel regime \textbf{net-settled} l'energia prelevata dalla rete per caricare e quella immessa
-scaricando sono valorizzate allo \textbf{stesso} prezzo all'ingrosso. \`E il regime
-economicamente efficiente, perch\'e riconosce che l'accumulo non consuma energia ma la
-sposta nel tempo. In Italia, per\`o, questo trattamento \textbf{non \`e disponibile per
-l'arbitraggio puro}: \`e riservato ai servizi resi al gestore della rete e ai servizi
-ausiliari.
+Per incrementare la sostenibilità finanziaria dei sistemi di accumulo a batteria, sono state introdotte diverse iniziative a livello internazionale \cite{en16217272}. Un elemento critico risiede nel trattamento tariffario dell'energia prelevata in fase di ricarica: gran parte dei quadri regolatori la assimila al consumo finale, gravandola dei medesimi costi applicati alle utenze tradizionali. Sotto il profilo dell'efficienza economica, risulta invece opportuno valorizzare ai prezzi all'ingrosso sia l'assorbimento che l'immissione (in regime di tariffazione a saldo netto), esentando o riducendo le componenti fiscali e di rete. In contesti come quello italiano, in cui imposte e oneri di sistema costituiscono oltre la metà del costo totale dell'elettricità, la definizione di un quadro normativo dedicato risulta essenziale per non pregiudicare la sostenibilità degli investimenti.
 
-Per l'arbitraggio sul mercato l'energia prelevata \`e invece gravata di \textbf{oneri di
-rete, oneri generali di sistema e fiscalit\`a}, che ne moltiplicano il costo rispetto al
-prezzo all'ingrosso. Si introduce percio' il parametro
+Nel caso dell'arbitraggio di mercato, l'energia prelevata in fase di ricarica viene invece gravata dalle componenti non energetiche della bolletta -- oneri di rete, oneri generali di sistema e fiscalità -- che ne moltiplicano il costo rispetto al
+prezzo all'ingrosso. Si introduce perciò il parametro
 \begin{equation}
-K \;=\; \frac{\text{prezzo pagato sull'energia prelevata}}
-             {\text{prezzo incassato sull'energia immessa}},
+K \;=\; \frac{\text{costo dell'energia prelevata (carica)}}
+             {\text{prezzo incassato sull'energia immessa (scarica)}}
 \label{eq:kappa}
 \end{equation}
-che vale $K = 1$ nel regime net-settled e circa $K = 2{,}3$ nel regime italiano vigente
-\parencite{lilla2026storage}. Poich\'e l'arbitraggio consiste nel comprare e rivendere la
-stessa energia, un valore di $K$ superiore a uno non riduce il margine in proporzione: lo
-comprime in modo molto pi\`u che lineare, e sposta verso l'alto il differenziale di prezzo
-minimo perch\'e un ciclo sia conveniente.
+che vale $K = 1$ nel meccanismo a regolamento netto (net-settled) e circa $K = 2,3$ nel regime italiano vigente \parencite{su18031404}. Poiché l'arbitraggio consiste nel comprare e rivendere lo stesso volume di energia, un valore di $K>1$ non comporta una riduzione puramente proporzionale del margine. Al contrario, determina una contrazione fortemente non lineare dell'utile, elevando il differenziale di prezzo minimo richiesto per rendere redditizia ogni singola operazione di carica e scarica. Vanno inoltre valutati elementi critici quali il degrado tecnologico e le tempistiche legate alle autorizzazioni e alla connessione alla rete. In Italia, negli ultimi dieci anni, c'è stato un progressivo allungamento degli iter autorizzativi, un ingorgo nelle richieste di allaccio e un incremento dei costi di adeguamento infrastrutturale. Un singolo flusso di ricavo come l'arbitraggio energetico risulta raramente sufficiente a giustificare l'investimento iniziale; la sua efficacia rimane infatti strettamente legata alla volatilità del mercato e all'ampiezza dello spread tra i prezzi di picco e fuori picco.
 
-Il ruolo di $K$ nell'impianto di questa tesi \`e circoscritto con precisione, e la
-Sezione~\ref{sec:metriche} vi ritorna: interviene \textbf{solo} nel conto economico
-dell'investitore, non nella misura dell'effetto dell'accumulo sul prezzo di equilibrio.
-Quest'ultimo \`e un fenomeno di mercato, che dipende dai volumi scambiati e dalla forma
-delle curve d'asta, non dal regime fiscale di chi li scambia.
+% BOOKMARK: ARRIVATO FINO A QUI -----------------------
 
-Va infine ribadito, alla luce del meccanismo MACSE richiamato sopra, che la domanda di ricerca
-resta ben posta anche in un contesto in cui l'accumulo non \`e remunerato dal solo
-differenziale di mercato: l'effetto che esso esercita sul prezzo di equilibrio si produce
-indipendentemente da come venga remunerato.
+% DA COMPLETARE:
 
-% DA COMPLETARE: peso relativo delle componenti che compongono K (oneri di rete, oneri
-% generali di sistema, fiscalita') e riferimento normativo puntuale per ciascuna.
+Il ruolo del parametro $K$ all'interno di questo lavoro presenta confini ben definiti, come approfondito nella Sezione~\ref{sec:metriche}: nello scenario di riferimento, $K$ incide in via esclusiva sul conto economico dell'investitore, senza alterare la stima dell'impatto dell'accumulo sul prezzo di equilibrio. La formazione del prezzo all'ingrosso risponde infatti a una dinamica di mercato governata dai volumi fisici movimentati e dalla geometria delle curve d'asta. È tuttavia opportuno esplicitare l'ipotesi alla base di tale separazione: nello scenario principale, la pianificazione di carica e scarica è guidata unicamente dai prezzi di mercato, mentre il regime tariffario interviene solo nella valutazione finanziaria \emph{ex post}. Un approccio alternativo, in cui l'operatore ottimizzasse il profilo operativo incorporando ex ante il costo lordo di prelievo (ovvero includendo $K$ nel modello decisionale), condurrebbe a una differente profilazione dei flussi e, di conseguenza, a un diverso effetto sul prezzo di equilibrio. 
 
-\section{Il quesito degli investitori}
+Infine, anche alla luce del meccanismo \ac{MACSE}, approfondito nel Capitolo seguente, occorre sottolineare che la validità del quesito di ricerca prescinde dal fatto che l'accumulo sia remunerato dal solo differenziale nel \ac{MGP}: l'impatto sul prezzo di equilibrio è determinato unicamente dalle operazioni fisiche di carica e scarica effettivamente eseguite, a prescindere dalle motivazioni economiche o dal modello d'incentivazione che le ha generate.
+
+% DA COMPLETARE
+
+
+\section{Il quesito degli investitori !?!}
 \label{sec:quesito}
 
 % DA COMPLETARE: impostazione della domanda di ricerca dal punto di vista dell'investitore.
@@ -78,7 +114,7 @@ indipendentemente da come venga remunerato.
 % comprando nelle ore basse e vendendo nelle ore alte, riduce esso stesso il differenziale
 % da cui trae profitto. Questo effetto di retroazione e' il cuore metodologico della tesi.
 
-\section{Obiettivi della tesi}
+\section{Obiettivi della tesi !?!}
 \label{sec:obiettivi}
 
 % DA COMPLETARE: da rifinire quando i risultati saranno consolidati.
@@ -128,7 +164,7 @@ mista risolto sulle condizioni di ottimo — e restituisce quindi valutazioni pu
 riferimenti principali condividono dunque lo stesso limite, e l'elemento di differenziazione di
 questa tesi resta intatto.
 
-Un terzo lavoro, \textcite{lilla2026storage}, \`e il pi\`u vicino sul piano del
+Un terzo lavoro, \textcite{su18031404}, \`e il pi\`u vicino sul piano del
 \textbf{contesto}: studia la redditivit\`a dell'accumulo nel quadro regolatorio italiano,
 con i parametri di costo e il trattamento degli oneri sull'energia prelevata da cui questa
 tesi riprende la calibrazione economica del Capitolo~\ref{cap:valutazione}. Il loro impianto
@@ -149,51 +185,11 @@ fornisce a un investitore l'informazione di cui ha bisogno, che riguarda il caso
 ragionevole e non quello medio. La caratterizzazione dell'incertezza \`e per l'appunto ci\`o
 che il primo di questi lavori indica come proprio limite e come sviluppo futuro.
 
-\section{Organizzazione del documento}
+\section{Organizzazione del documento !?!}
 \label{sec:organizzazione}
 
-Il Capitolo~\ref{cap:mercato} descrive l'architettura del mercato elettrico italiano e i
-meccanismi d'asta rilevanti per il lavoro. Il Capitolo~\ref{cap:strategia} formula il
-problema di ottimizzazione della strategia di accumulo. Il Capitolo~\ref{cap:simulazione}
-presenta i dati, la ricostruzione delle curve di domanda e offerta e la sua validazione. Il
-Capitolo~\ref{cap:valutazione} traduce i risultati in termini economici e finanziari. Il
-Capitolo~\ref{cap:conclusioni} riassume i risultati e ne discute i limiti.
+Il Capitolo~\ref{cap:mercato} descrive l'architettura del mercato elettrico italiano e i meccanismi d'asta rilevanti per il lavoro. Il Capitolo~\ref{cap:strategia} formula il problema di ottimizzazione della strategia di accumulo. Il capitolo~\ref{cap:simulazione} presenta i dati, la ricostruzione delle curve di domanda e offerta e la sua validazione. Il
+Capitolo~\ref{cap:valutazione} traduce i risultati in termini economici e finanziari. Il Capitolo~\ref{cap:conclusioni} riassume i risultati e ne discute i limiti.
 
-\subsection{Citations}
-\label{sec:citations}
 
-% DA COMPLETARE: sostituire con le convenzioni effettivamente adottate.
 
-I riferimenti bibliografici sono gestiti con \texttt{biblatex} in stile numerico e sono
-raccolti nel file \texttt{bibliografia.bib}. Nel testo una citazione appare come
-\texttt{\textbackslash cite\{chiave\}}; le fonti dei dati di mercato sono citate per esteso
-alla prima occorrenza.
-
-\subsection{Use of acronyms}
-\label{sec:acronimi}
-
-% DA COMPLETARE: valutare se introdurre il pacchetto acronym o glossaries per generare
-% automaticamente l'elenco degli acronimi. Per ora l'elenco e' compilato a mano.
-
-Gli acronimi sono definiti per esteso alla prima occorrenza e usati in forma abbreviata nel
-seguito. I principali sono riportati nella Tabella~\ref{tab:acronimi}.
-
-\begin{table}[H]
-\centering
-\caption{Acronimi ricorrenti nel documento.}
-\label{tab:acronimi}
-\begin{tabular}{@{}ll@{}}
-\toprule
-\textbf{Sigla} & \textbf{Significato} \\
-\midrule
-BESS   & \emph{Battery Energy Storage System}, sistema di accumulo a batteria \\
-GME    & Gestore dei Mercati Energetici \\
-MGP    & Mercato del Giorno Prima \\
-MI     & Mercati Infragiornalieri \\
-MSD    & Mercato per il Servizio di Dispacciamento \\
-MTU    & \emph{Market Time Unit}, periodo elementare di mercato \\
-PUN    & Prezzo Unico Nazionale \\
-XML    & \emph{eXtensible Markup Language}, formato dei dati pubblicati dal GME \\
-\bottomrule
-\end{tabular}
-\end{table}

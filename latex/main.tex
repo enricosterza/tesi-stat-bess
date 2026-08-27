@@ -1,42 +1,29 @@
 % =====================================================================
 %  Tesi magistrale in Scienze Statistiche
-%  Effetto dei sistemi di accumulo a batteria sul Mercato del Giorno
-%  Prima del mercato elettrico italiano
-%
-%  Compilazione (pdfLaTeX + biber):
-%      pdflatex main
-%      biber    main
-%      pdflatex main
-%      pdflatex main
-%  oppure, piu' semplicemente:  latexmk -pdf main
-%
-%  Su Overleaf: impostare il compilatore su pdfLaTeX (Menu > Compiler).
+%  Effetto dei sistemi di accumulo a batteria sul Mercato del Giorno Prima del mercato elettrico italiano
 % =====================================================================
 \documentclass[12pt,a4paper,oneside]{report}
 
-% --- Lingua e codifica -----------------------------------------------
+% --- Codifica e font ------------------------------------------------
+% Ordine importante: fontenc/inputenc -> amsmath -> newtx.
+% newtxtext+newtxmath forniscono un font "Times New Roman"-like,
+
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
-\usepackage[italian]{babel}
-\usepackage{csquotes}          % richiesto da biblatex insieme a babel
-\usepackage{textcomp}          % fornisce \texteuro (il comando \euro non esiste di base)
 
-% --- Matematica ------------------------------------------------------
+% --- Matematica  --------------------
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{amsthm}
 
-% Unita' di misura: il Capitolo 1 usa \SI e \num per le grandezze energetiche.
-% La virgola come separatore decimale e' la convenzione italiana; siunitx accetta
-% comunque sia il punto sia la virgola in ingresso.
-\usepackage{siunitx}
-\sisetup{
-  output-decimal-marker = {,},
-  group-separator       = {.},
-  group-minimum-digits  = 4,
-  detect-weight         = true,
-  detect-family         = true,
-}
+% --- Font Times-like -------------------------------------------------
+\usepackage{newtxtext,newtxmath}
+
+% --- Lingua ----------------------------------------------------------
+\usepackage[italian]{babel}
+\usepackage{csquotes}          % richiesto da biblatex insieme a babel
+\usepackage{textcomp}          % fornisce \texteuro (il comando \euro non esiste di base)
+\usepackage{siunitx}           % per il comando \SI e le unità
 
 % --- Figure, tabelle, impaginazione ----------------------------------
 \usepackage{graphicx}
@@ -44,9 +31,27 @@
 \usepackage{booktabs}
 \usepackage{float}
 \usepackage{caption}
-\usepackage[a4paper,margin=3cm]{geometry}
+\usepackage[printonlyused]{acronym} % printonlyused: mostra solo gli acronimi citati
+
+% --- Margini: 2,5 cm sopra/sotto; 3 cm ai lati (range 2,5/3) ---------
+\usepackage[a4paper,top=2.5cm,bottom=2.5cm,left=3cm,right=3cm]{geometry}
+
+% --- Interlinea 1,5 --------------------------------------------------
 \usepackage{setspace}
 \onehalfspacing
+
+% --- Rientro prima riga di OGNI paragrafo, 1,5 cm --------------------
+% indentfirst forza il rientro anche sul primo paragrafo dopo un titolo.
+
+\usepackage{indentfirst}
+\setlength{\parindent}{1.5cm}
+
+% --- Dimensioni titoli: section 16pt, subsection 14pt ---------------
+\usepackage{titlesec}
+\titleformat{\section}
+  {\normalfont\fontsize{16pt}{19pt}\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}
+  {\normalfont\fontsize{14pt}{17pt}\bfseries}{\thesubsection}{1em}{}
 
 % --- Codice sorgente -------------------------------------------------
 \usepackage{xcolor}
@@ -88,10 +93,10 @@
 % --- Bibliografia ----------------------------------------------------
 % Se biber non fosse disponibile, sostituire con:
 %   \usepackage[backend=bibtex,style=numeric,sorting=nyt]{biblatex}
-\usepackage[backend=biber,style=numeric,sorting=nyt]{biblatex}
+\usepackage[backend=biber,style=numeric,sorting=none]{biblatex}
 \addbibresource{bibliografia.bib}
 
-% --- Collegamenti ipertestuali (va caricato per ultimo) --------------
+% --- Collegamenti ipertestuali --------------
 \usepackage[hidelinks]{hyperref}
 
 % --- Comandi di comodo -----------------------------------------------
@@ -103,17 +108,21 @@
 \begin{document}
 
 % =====================================================================
-%  FRONTESPIZIO
-%  Restano da completare: il nome del correlatore e l'eventuale sottotitolo.
+%  FRONTESPIZIO 
 % =====================================================================
 \begin{titlepage}
 \centering
 
 {\large UNIVERSIT\`A DEGLI STUDI DI MILANO-BICOCCA\par}
-\vspace{0.5cm}
+\vspace{0.1cm}
 {\large Scuola di Economia e Statistica\par}
 \vspace{0.3cm}
-{\large Corso di Laurea Magistrale in \\ SCIENZE STATISTICHE ED ECONOMICHE\par}
+{\large Corso di Laurea Magistrale in  \\ SCIENZE STATISTICHE ED ECONOMICHE\par}
+
+\vskip 1cm
+\begin{center}
+    \includegraphics[height=3.2cm]{figure/logo-unimib.png}
+\end{center}
 
 \vfill
 
@@ -126,7 +135,7 @@
 \begin{flushleft}
 \begin{tabular}{@{}ll@{}}
 \textbf{Relatore:}    & Prof. Matteo Pelagatti \\[0.3cm]
-\textbf{Correlatore:} & Prof. \\
+\textbf{Correlatore:} & Prof.  \\
 \end{tabular}
 \end{flushleft}
 
@@ -135,7 +144,7 @@
 \begin{flushright}
 \begin{tabular}{@{}ll@{}}
 \textbf{Tesi di laurea di:} & Enrico Sterza \\
-\textbf{Matr. N.} & 874099 \\
+\textbf{Matr. N.} & 874099\\
 \end{tabular}
 \end{flushright}
 
@@ -145,6 +154,20 @@
 
 \end{titlepage}
 
+% --- Pagina vuota dopo il frontespizio --------------------------------
+\clearpage
+\thispagestyle{empty}
+\null
+\clearpage
+
+% --- Ringraziamenti ---
+\input{capitoli/00_ringraziamenti}
+\clearpage
+
+% --- Abstract ---
+\input{capitoli/00_abstract}
+\clearpage
+
 % =====================================================================
 %  INDICI
 % =====================================================================
@@ -153,10 +176,18 @@
 \tableofcontents
 \clearpage
 
+% --- Elenco delle Figure ---
+\phantomsection
+\addcontentsline{toc}{chapter}{\listfigurename} % Aggiunge "Elenco delle figure" all'indice
 \listoffigures
 \clearpage
 
+\input{capitoli/acronimi}
+\clearpage
+
 \pagenumbering{arabic}
+
+
 
 % =====================================================================
 %  CAPITOLI
