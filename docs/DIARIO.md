@@ -2374,6 +2374,240 @@ l'eventuale sottotitolo, segnalati in commento nel sorgente.
 
 ---
 
+## 2026-08-19 — Lo spread infragiornaliero al Sud contro il Nord: misura esplorativa
+
+Misura preparatoria alla scelta della zona da studiare, da discutere col relatore. I documenti
+Terna concentrano il fabbisogno di accumulo su SUD e CSUD e suggeriscono che l'arbitraggio vi
+sia più redditizio; qui la cosa è verificata sui prezzi ricostruiti invece che sulle previsioni.
+
+**È esplorativa, non una validazione**: misura lo spread del prezzo di equilibrio ricostruito,
+non l'accuratezza della ricostruzione sulle zone meridionali, dove l'assunzione di zona isolata
+regge peggio che al Nord perché le zone sono più accoppiate fra loro.
+
+### Disegno
+
+Giorni **10-16 di ogni mese da gennaio a settembre 2025**: 63 giornate, tutte in **regime
+orario**, perché il passaggio al quarto d'ora è del 01/10/2025 e restare in un solo regime rende
+le stagioni confrontabili. Conseguenza dichiarata: **l'autunno è rappresentato dal solo
+settembre** (7 giornate), ed è quindi la stagione meno solida.
+
+Sul perimetro è stata fatta una verifica prima di scegliere. La configurazione validata per NORD
+include le frontiere estere (D-10), che per le zone meridionali non hanno un analogo diretto.
+Misurato il 15/01/2025: **NORD con e senza frontiere dà lo stesso identico spread**, 151,30
+€/MWh. Il blocco di scambio netto (D-16), essendo calibrato sulle quantità assegnate osservate,
+assorbe già l'effetto delle zone di frontiera. Si è quindi usato il trattamento uniforme
+"zona sola più scambio netto" per tutte e tre, che è confrontabile fra zone e non rompe la
+coerenza con la configurazione adottata.
+
+**Controllo di qualità**: su 63 giornate × 3 zone, **nessuna asta senza equilibrio**. Non
+emergono problemi evidenti nella ricostruzione zonale meridionale, il che è un'informazione
+utile per un'eventuale estensione futura.
+
+### Il risultato: il vantaggio del Sud esiste, ma è più modesto dell'atteso
+
+| Zona | Spread medio | Mediano | Dev. std | 90° perc. |
+|---|---|---|---|---|
+| **SUD** | **79,79** | **72,03** | 33,75 | 131,10 |
+| CSUD | 66,75 | 55,00 | 31,67 | 113,21 |
+| NORD | 63,83 | 53,49 | 29,69 | 113,17 |
+
+Rapporto rispetto a NORD, calcolato **appaiato** sugli stessi giorni — molto più robusto di un
+confronto fra medie, perché elimina la variabilità di sistema comune alle zone:
+
+| Stagione | SUD / NORD | CSUD / NORD |
+|---|---|---|
+| **Autunno** (settembre) | **1,80** | 1,27 |
+| **Estate** | **1,36** | 1,13 |
+| Primavera | 1,03 | 0,91 |
+| Inverno | 1,06 | 0,92 |
+| **Complessivo** | **1,23** | **1,00** |
+
+Tre fatti che ridimensionano l'aspettativa di partenza.
+
+**Il vantaggio del SUD è 1,23×, non 2×.** È però sistematico: lo spread supera quello del NORD
+in **47 giornate su 63**, quindi non è l'effetto di poche giornate estreme.
+
+**CSUD non è una zona ad arbitraggio più ricco del NORD**: rapporto mediano **1,00**, e in 32
+giornate su 63 lo spread è inferiore. È la sorpresa maggiore, perché Terna concentra il
+fabbisogno su SUD *e* CSUD, ma sui prezzi effettivamente formatisi solo SUD si distingue.
+
+**Il vantaggio è stagionale e sparisce per metà anno**: forte in autunno ed estate, nullo in
+inverno e primavera.
+
+### Da dove viene il vantaggio: non dal ventre solare
+
+La scomposizione dello spread in minimo e massimo è il risultato più utile della misura, perché
+smentisce il meccanismo che si dava per scontato (differenze medie in €/MWh, SUD meno NORD):
+
+| Stagione | Δ minimo | Δ massimo | Origine del vantaggio |
+|---|---|---|---|
+| Inverno | +0,1 | +2,9 | nessuna |
+| **Primavera** | **−15,8** | +1,4 | ventre solare |
+| **Estate** | −3,5 | **+17,0** | **picco serale** |
+| **Autunno** | −7,8 | **+17,2** | **picco serale** |
+
+Nelle due stagioni in cui il SUD ha davvero un vantaggio, questo **non nasce dall'eccesso di
+produzione fotovoltaica di mezzogiorno** ma dal fatto che il prezzo serale vi sale molto più che
+al Nord: +17 €/MWh sul massimo contro −4/−8 sul minimo. Il picco serale vale 1,24-1,27 volte la
+media giornaliera al SUD contro 1,17-1,19 al NORD. È un fenomeno di **scarsità serale**, non di
+overgeneration diurna.
+
+Il ventre di mezzogiorno esiste ed è più profondo al Sud (prezzo medio delle ore 11-16 sulla
+media giornaliera: 0,609 contro 0,728 in primavera), ma la primavera — dove il fenomeno è più
+netto — è proprio la stagione in cui il vantaggio relativo è **nullo**, perché anche il Nord ha
+un ventre profondo.
+
+**In inverno il ventre non esiste in nessuna zona**: il minimo giornaliero cade alle ore 4-5.
+L'arbitraggio invernale è notte→sera, strutturalmente diverso da quello estivo mezzogiorno→sera.
+
+Figura in `output/figure/10_profilo_orario_zone.png`: profilo orario medio delle tre zone nelle
+quattro stagioni.
+
+### Implicazione per la scelta della zona
+
+L'evidenza **sostiene la terza via**: tenere NORD come zona di analisi principale, dove il
+motore è validato e la ricostruzione è accurata (errore mediano 0,00 €/MWh), e usare SUD come
+**confronto** documentato.
+
+Le ragioni sono tre. Il vantaggio del SUD è reale ma modesto, 1,23×, e non giustifica di
+rifare da capo validazione e messa a punto su una zona dove l'assunzione di zona isolata regge
+peggio. CSUD, che secondo il quadro Terna dovrebbe essere fra le zone privilegiate, non si
+distingue dal NORD. E soprattutto il vantaggio del SUD viene in larga parte da un meccanismo —
+il picco serale — che non è quello che la narrazione sull'accumulo assume.
+
+Quest'ultimo punto è di per sé un contributo: il campione suggerisce che collocare accumulo al
+Sud renda di più **non** perché vi si sprechi energia solare a mezzogiorno, ma perché vi si paga
+di più l'energia la sera. Se il relatore volesse una seconda zona, SUD è la scelta giusta e
+questa è la misura da cui partire; ma andrebbe messa in conto una validazione dedicata.
+
+
+---
+
+## 2026-08-24 — Le due giornate a spread massimo: le figure che illustrano l'arbitraggio
+
+**Cosa serviva.** Una figura che mostri l'opportunità di arbitraggio nella sua forma più
+diretta, prima di qualunque modello: il profilo orario del prezzo di equilibrio in una
+giornata in cui minimo e massimo sono molto distanti. È materiale illustrativo per la tesi,
+non un risultato nuovo, ma la selezione delle giornate va comunque fatta con un criterio
+riproducibile e non a occhio.
+
+### Il bacino, e perché la classifica va letta insieme alla sua composizione
+
+Sono state misurate **93 giornate del 2025 in regime orario**, quelle già in cache Parquet:
+gennaio per intero (31 giorni) e la settimana 10-16 di febbraio-settembre, più la finestra
+10-22 di aprile. La ricostruzione usa la **configurazione adottata**, la stessa dello script
+03: perimetro NORD più le frontiere presenti (D-10), offerte in gara (D-06), tutte le
+granularità (D-13), quantità rettificata (D-20), scambio netto simmetrico (D-16), clearing
+iterativo consapevole dei blocchi (D-18, D-19). Non è una scorciatoia sul prezzo ufficiale:
+è il motore validato. Tutte e 93 le giornate chiudono su 24 periodi, nessuna asta senza
+equilibrio.
+
+Il regime a quarto d'ora è escluso di proposito e per due ragioni: 96 periodi rendono
+illeggibili marcatori ed etichette, e quel regime si ricostruisce con deviazione standard
+5,42 contro 1,06 dell'orario.
+
+**Il bacino non è un campione casuale, e questo pesa sul risultato.** Gennaio ha avuto 31
+occasioni di produrre un estremo, gli altri mesi sette. Lo si vede confrontando la mediana
+mensile con il massimo mensile:
+
+| Mese | Giorni | Spread mediano | Massimo |
+|---|---|---|---|
+| gennaio | 31 | 56,50 | **161,31** |
+| febbraio | 7 | 64,87 | 74,68 |
+| marzo | 7 | 67,10 | 130,35 |
+| aprile | 13 | 94,14 | 124,76 |
+| **maggio** | 7 | **120,35** | 136,41 |
+| giugno | 7 | 47,52 | 114,66 |
+| luglio | 7 | 51,10 | 81,32 |
+| agosto | 7 | 55,31 | 88,78 |
+| settembre | 7 | 44,22 | 118,42 |
+
+**Maggio è il mese a spread tipico più alto** — mediana 120,35 contro i 56,50 di gennaio — e
+con sette sole giornate ha già prodotto il terzo, quarto e quinto posto in classifica
+(136,41, 135,51, 131,35). Con maggio campionato per intero è verosimile che il massimo
+assoluto dell'anno non cada più il 20 gennaio. Le giornate scelte sono quindi le più ampie
+**del bacino esaminato**, e vanno presentate così: non come il massimo dell'anno.
+
+Spread mediano complessivo sulle 93 giornate: **60,23 €/MWh**; medio 69,37.
+
+### Le due giornate scelte, e perché non le prime due
+
+Le prime due della classifica sono **20 gennaio (161,31)** e **15 gennaio (151,30)**, ma
+raccontano la stessa identica storia: minimo notturno attorno a 125 €/MWh, picco alle 9.
+Come coppia di figure sarebbero ridondanti. Si è preferita una coppia mista:
+
+| Giornata | Spread | Minimo | Massimo | Scarto dall'ufficiale (mediano / massimo) |
+|---|---|---|---|---|
+| **20 gennaio 2025** | **161,31** | 127,69 (ore 2) | 289,00 (ore 9-10, 19-20) | 0,23 / 6,61 |
+| **16 maggio 2025** | **136,41** | 15,41 (ore 14) | 151,82 (ore 21) | 0,31 / 4,22 |
+
+Lo spread ufficiale è 161,37 e 132,38: la ricostruzione lo coglie a 0,06 €/MWh nella prima
+giornata e a 4,03 nella seconda.
+
+La ragione della scelta non è estetica ma di contenuto: la voce del 19/08 aveva già
+osservato che **i due regimi di arbitraggio sono strutturalmente diversi**. Il 20 gennaio è
+notte → mattina, con il minimo alle 2 e il picco alle 9, e il ventre di mezzogiorno non
+esiste. Il 16 maggio è mezzogiorno → sera, con il minimo alle 14 a 15,41 €/MWh e il picco
+alle 21 a 151,82: un rapporto di quasi dieci volte, ed è il meccanismo su cui poggia la
+domanda di ricerca. Due giornate invernali gemelle mostrerebbero soltanto che a gennaio 2025
+il gas costava molto.
+
+Il 20 gennaio è inoltre **la stessa giornata già usata nel capitolo 4** per le curve d'asta
+(`07_curve_20250120`) e per la curva di impatto marginale: il lettore vede il profilo dei
+prezzi e, poche pagine dopo, le curve che lo generano nell'ora di minimo e in quella di
+picco.
+
+### Che cosa misura lo spread, e che cosa non misura
+
+Va scritto nella didascalia, perché è il punto su cui la figura può ingannare. Lo spread è
+il **ricavo lordo per MWh ciclato di un accumulo perfettamente informato e di potenza
+trascurabile**: un limite superiore dell'arbitraggio price taker. Non è il profitto. Il
+profitto sconta il rendimento di ciclo, il costo variabile e soprattutto il **vincolo di
+potenza**, perché l'energia non si sposta tutta in una sola ora — e per capacità non
+trascurabili sconta anche la retroazione sul prezzo, che è l'oggetto della tesi. La
+docstring di `profilo_prezzi` lo dice, così il chiarimento non si perde.
+
+### Due scelte di disegno che valgono come metodo
+
+**Il prezzo si disegna a gradini, non con una spezzata.** Il prezzo di un'asta oraria è
+costante dentro l'ora; interpolare i vertici suggerirebbe una transizione graduale che non
+esiste. I marcatori di minimo e massimo cadono al centro dell'ora, dove il gradino è in
+vigore.
+
+**Nel confronto appaiato i due pannelli condividono l'asse verticale.** Con assi
+indipendenti due spread di ampiezza diversa occuperebbero la stessa altezza sulla pagina e
+il confronto visivo sarebbe ingannevole. Condividendo l'asse si leggono insieme l'ampiezza
+dell'oscillazione e il livello attorno a cui avviene: il 16 maggio ha uno spread poco più
+piccolo, ma tutto il suo profilo sta sotto al minimo del 20 gennaio.
+
+Due dettagli emersi solo guardando i PNG salvati, non prevedibili scrivendo il codice.
+Il primo: il 20 gennaio il massimo di 289,00 €/MWh è toccato da **quattro ore** (9-10 e
+19-20), non da una; il marcatore ne segna una sola e senza l'annotazione degli intervalli
+sembra un errore. Il secondo: con il minimo del 16 maggio a 15,41 €/MWh, tagliare l'asse
+verticale a zero non lascia spazio all'etichetta, che finisce ribaltata dentro la spezzata.
+Si è preferito lasciare che l'asse scenda di qualche euro sotto lo zero — dove non c'è alcun
+dato e la linea dello zero resta visibile — piuttosto che spostare l'etichetta in un punto
+in cui collide con la curva.
+
+### Prodotti
+
+Logica in `src/mgp/grafici.py` (`profilo_prezzi`, `figura_profilo_prezzi`,
+`figura_profili_confronto`, con `_annota_estremi` che sceglie il lato dell'etichetta in base
+allo spazio libero); esecuzione in `scripts/10_profilo_spread.py`, che in modalità `--cerca`
+riproduce la classifica del bacino e senza argomenti disegna le due giornate. Undici test
+nuovi in `tests/test_grafici.py` sulle due regole che, se sbagliate, darebbero una figura
+plausibile ma falsa — la compressione delle ore in intervalli e la misura degli estremi:
+**103 test verdi**.
+
+Figure in `output/figure/` (PNG a 160 dpi e PDF vettoriale), copiate in `latex/figure/` per
+la compilazione: `10_profilo_20250120`, `10_profilo_20250516` e il confronto appaiato
+`10_profilo_confronto_20250120_20250516`. Tabella riproducibile in
+`output/tabelle/10_spread_giornaliero_NORD.csv`.
+
+Nessuna modifica al motore né alle scelte esistenti: è materiale illustrativo.
+
+---
+
 ## Prossimi passi
 
 *Sezione viva, riscritta man mano: a differenza delle voci datate qui sopra, non è
@@ -2406,3 +2640,9 @@ segnaposto.
 **Questioni aperte minori**: il residuo non identificato del ritardo PT15 (dichiarato come
 limite noto); la riverifica dei prezzi negativi sui mesi centrali dell'anno; il DOI di Lilla et
 al. e il correlatore nel frontespizio.
+
+**Da portare al relatore insieme al perimetro temporale**: la **scelta della zona**. La misura
+del 19/08 sostiene NORD come zona principale con SUD come confronto documentato — il vantaggio
+di spread al Sud è 1,23× e stagionale, CSUD non si distingue dal Nord, e il vantaggio viene dal
+picco serale più che dal ventre solare. Le due decisioni interagiscono: se si scegliesse di
+aggiungere SUD, servirebbe una validazione dedicata su quella zona, che ha un costo.

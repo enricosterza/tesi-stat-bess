@@ -289,6 +289,316 @@ def curva_impatto(
     return figura
 
 
+# ---------------------------------------------------------------------------
+#  Profilo orario del prezzo di equilibrio: l'opportunita' di arbitraggio
+# ---------------------------------------------------------------------------
+
+MESI_IT: tuple[str, ...] = (
+    "gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
+    "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre",
+)
+
+#: Due prezzi si considerano lo stesso estremo se distano meno di mezzo centesimo:
+#: e' la risoluzione con cui il GME pubblica i prezzi zonali.
+TOLLERANZA_ESTREMO: float = 0.005
+
+
+def _it(valore: float, decimali: int = 1) -> str:
+    """Formatta un numero con la virgola decimale, come vuole il testo italiano."""
+    return f"{valore:,.{decimali}f}".replace(",", " ").replace(".", ",")
+
+
+def data_estesa(data: str) -> str:
+    """`'20250120'` -> `'20 gennaio 2025'`."""
+    return f"{int(data[6:8])} {MESI_IT[int(data[4:6]) - 1]} {data[0:4]}"
+
+
+def _intervalli(ore: list[int]) -> str:
+    """
+    Comprime una lista di ore in intervalli leggibili: `[9, 10, 18, 19, 20]` -> `'9-10, 18-20'`.
+
+    Serve perche' il minimo o il massimo di giornata sono spesso raggiunti da piu' ore
+    consecutive, quando la stessa unita' resta marginale. Segnalarlo evita che il lettore
+    interpreti come un errore il fatto che il marcatore stia su una sola delle ore in cui
+    la spezzata tocca il livello estremo.
+    """
+    blocchi, inizio, precedente = [], ore[0], ore[0]
+    for ora in ore[1:]:
+        if ora != precedente + 1:
+            blocchi.append((inizio, precedente))
+            inizio = ora
+        precedente = ora
+    blocchi.append((inizio, precedente))
+    return ", ".join(f"{a}" if a == b else f"{a}-{b}" for a, b in blocchi)
+
+
+def profilo_prezzi(
+    profilo: pd.DataFrame,
+    ax: plt.Axes,
+    colonna: str = "prezzo",
+    freccia: bool = True,
+) -> dict:
+    """
+    Disegna il profilo orario del prezzo di equilibrio evidenziando minimo, massimo e spread.
+
+    Parameters
+    ----------
+    profilo : pd.DataFrame
+        Una riga per periodo, con le colonne `ora` (1-24) e quella indicata da `colonna`.
+        Si assume il regime ORARIO: con 96 quarti d'ora marcatori ed etichette si
+        sovrappongono e la figura va ripensata.
+    ax : plt.Axes
+        Assi su cui disegnare.
+    colonna : str
+        Colonna del prezzo da tracciare. Il default e' il prezzo ricostruito dal motore.
+    freccia : bool
+        Se True quota lo spread con una doppia freccia nel margine destro.
+
+    Returns
+    -------
+    dict
+        `minimo`, `massimo`, `spread`, `ora_minimo`, `ora_massimo` piu' quanto serve a
+        `_annota_estremi` per scrivere le etichette.
+
+    Le etichette NON vengono scritte qui: vanno aggiunte con `_annota_estremi` dopo che i
+    limiti verticali sono fissati, perche' la scelta di metterle sopra o sotto il marcatore
+    dipende dallo spazio effettivamente disponibile, che prima di `set_ylim` non si conosce.
+
+    Perche' e' fatto cosi'
+    ----------------------
+    Il prezzo di un'asta oraria e' **costante dentro l'ora**: si disegna quindi a gradini
+    (`steps-post`) e non con una spezzata che interpola i vertici, che suggerirebbe una
+    transizione graduale inesistente. I marcatori cadono al centro dell'ora, cioe' dove il
+    gradino e' effettivamente in vigore.
+
+    Lo **spread** e' il messaggio della figura, non il livello dei prezzi: per questo la
+    banda fra minimo e massimo e' campita e la distanza fra i due e' quotata da una freccia
+    nel margine. La leggibilita' in bianco e nero e' ottenuta distinguendo i due estremi per
+    **forma** (cerchio il minimo, triangolo il massimo) e non per colore soltanto.
+
+    Attenzione a che cosa misura lo spread: e' il ricavo lordo per MWh ciclato di un
+    accumulo perfettamente informato e di potenza trascurabile, cioe' un limite superiore
+    dell'arbitraggio price taker. Non e' il profitto, che sconta rendimento di ciclo, costo
+    variabile e vincolo di potenza (l'energia non si sposta tutta in una sola ora).
+    """
+    d = profilo.sort_values("ora")
+    ore = d["ora"].to_numpy(dtype=float)
+    p = d[colonna].to_numpy(dtype=float)
+
+    i_min, i_max = int(np.nanargmin(p)), int(np.nanargmax(p))
+    p_min, p_max = float(p[i_min]), float(p[i_max])
+
+    # Piu' ore possono toccare lo stesso estremo: si annotano tutte, si marca la prima.
+    ore_min = [int(o) for o, v in zip(ore, p) if abs(v - p_min) <= TOLLERANZA_ESTREMO]
+    ore_max = [int(o) for o, v in zip(ore, p) if abs(v - p_max) <= TOLLERANZA_ESTREMO]
+
+    # La banda quotata: e' lei il soggetto della figura.
+    ax.axhspan(p_min, p_max, color=COLORE_OFFERTA, alpha=0.06, lw=0, zorder=0)
+    for livello in (p_min, p_max):
+        ax.axhline(livello, color=INCHIOSTRO_TENUE, linestyle=(0, (4, 3)),
+                   linewidth=0.9, zorder=1)
+
+    # Il gradino: l'ora k copre l'intervallo [k-1, k) sull'asse.
+    x = np.concatenate([ore - 1.0, [ore[-1]]])
+    y = np.concatenate([p, [p[-1]]])
+    ax.step(x, y, where="post", color=COLORE_OFFERTA, linewidth=2.0, zorder=3)
+
+    centri = ore - 0.5
+    ax.plot(centri[i_max], p_max, marker="^", markersize=10, color=INCHIOSTRO,
+            markeredgecolor=SFONDO, markeredgewidth=2.0, linestyle="none", zorder=5)
+    ax.plot(centri[i_min], p_min, marker="o", markersize=9, color=INCHIOSTRO,
+            markeredgecolor=SFONDO, markeredgewidth=2.0, linestyle="none", zorder=5)
+
+    ax.set_xlim(0, 26.4 if freccia else 24)
+    ax.set_xticks(range(0, 25, 3))
+    ax.set_xlabel("Ora")
+    ax.grid(True, axis="y", linewidth=0.7)
+    ax.set_axisbelow(True)
+    for lato in ("top", "right"):
+        ax.spines[lato].set_visible(False)
+
+    if freccia:
+        x_freccia = 25.2
+        ax.annotate("", xy=(x_freccia, p_max), xytext=(x_freccia, p_min),
+                    annotation_clip=False,
+                    arrowprops=dict(arrowstyle="<->", color=INCHIOSTRO_SECONDARIO,
+                                    linewidth=1.3, shrinkA=0, shrinkB=0))
+        ax.text(x_freccia + 0.45, (p_min + p_max) / 2,
+                f"spread {_it(p_max - p_min)} €/MWh",
+                rotation=90, ha="left", va="center", fontsize=9,
+                color=INCHIOSTRO_SECONDARIO)
+
+    return {
+        "minimo": p_min, "massimo": p_max, "spread": p_max - p_min,
+        "ora_minimo": float(ore_min[0]), "ora_massimo": float(ore_max[0]),
+        "_ax": ax,
+        "_ore": ore,
+        "_prezzi": p,
+        "_punto_min": (float(centri[i_min]), p_min),
+        "_punto_max": (float(centri[i_max]), p_max),
+        "_testo_min": f"minimo {_it(p_min)} €/MWh\nore {_intervalli(ore_min)}",
+        "_testo_max": f"massimo {_it(p_max)} €/MWh\nore {_intervalli(ore_max)}",
+    }
+
+
+#: Ingombro stimato di un'etichetta a due righe, in punti-schermo. Non serve che sia
+#: esatto: serve a scegliere fra tre posizioni, non a impaginare.
+INGOMBRO_ETICHETTA_PX: tuple[float, float] = (118.0, 30.0)
+DISTACCO_ETICHETTA_PX: float = 14.0
+
+
+def _annota_estremi(esito: dict, quota_ore: float = 24.0) -> None:
+    """
+    Scrive le etichette di minimo e massimo nel punto piu' libero attorno al marcatore.
+
+    Va chiamata **dopo** `set_ylim`, perche' la posizione dipende dallo spazio davvero
+    disponibile, che prima non si conosce.
+
+    Come sceglie
+    ------------
+    Prima il verso: sopra il marcatore per il massimo e sotto per il minimo, salvo che da
+    quel lato manchi lo spazio (un minimo vicino allo zero), nel qual caso si ribalta.
+    Poi l'ancoraggio orizzontale fra centrato, a destra e a sinistra: si stima l'ingombro
+    del testo, si guarda quali ore ricadrebbero sotto di esso e si sceglie la posizione in
+    cui la spezzata non attraversa il rettangolo del testo.
+
+    E' una regola grossolana e va bene che lo sia: risolve automaticamente le collisioni
+    che altrimenti si scoprono solo aprendo il PNG, e nei casi dubbi ricade sulla posizione
+    centrata, che e' quella che si sceglierebbe a mano.
+    """
+    ax = esito["_ax"]
+    basso, alto = ax.get_ylim()
+    ore, prezzi = esito["_ore"], esito["_prezzi"]
+
+    inversa = ax.transData.inverted()
+    origine = inversa.transform((0.0, 0.0))
+    ingombro = inversa.transform(INGOMBRO_ETICHETTA_PX)
+    larghezza = abs(ingombro[0] - origine[0])
+    altezza_testo = abs(ingombro[1] - origine[1])
+    distacco = abs(inversa.transform((0.0, DISTACCO_ETICHETTA_PX))[1] - origine[1])
+
+    for chiave, marcatore, verso in (("max", "_punto_max", +1), ("min", "_punto_min", -1)):
+        x, y = esito[marcatore]
+
+        # Verso: si ribalta solo se dal lato naturale non c'e' posto.
+        margine = (alto - y) if verso > 0 else (y - basso)
+        if margine < distacco + altezza_testo:
+            verso = -verso
+        va = "bottom" if verso > 0 else "top"
+
+        # Fascia verticale che il testo occuperebbe.
+        if verso > 0:
+            fascia = (y + distacco, y + distacco + altezza_testo)
+        else:
+            fascia = (y - distacco - altezza_testo, y - distacco)
+
+        # Il criterio: l'etichetta di un massimo dev'essere tutta sopra la spezzata, quella
+        # di un minimo tutta sotto. Si misura di quanto la spezzata invade il rettangolo del
+        # testo — in euro, non in numero di ore — e si sceglie l'ancoraggio meno invaso.
+        candidati = {
+            "center": (x - larghezza / 2, x + larghezza / 2, 0),
+            "left":   (x, x + larghezza, 6),
+            "right":  (x - larghezza, x, -6),
+        }
+        scala = max(alto - basso, 1e-9)
+        ha, dx, migliore = "center", 0, None
+        for nome, (da, a, scarto) in candidati.items():
+            coperti = prezzi[(ore - 0.5 >= da) & (ore - 0.5 <= a)]
+            if len(coperti) == 0:
+                invasione = 0.0
+            elif verso > 0:
+                invasione = max(0.0, float(np.nanmax(coperti)) - fascia[0])
+            else:
+                invasione = max(0.0, fascia[1] - float(np.nanmin(coperti)))
+            fuori = max(0.0, -da) + max(0.0, a - quota_ore)
+            punteggio = invasione / scala + fuori
+            if migliore is None or punteggio < migliore - 1e-9:
+                migliore, ha, dx = punteggio, nome, scarto
+
+        ax.annotate(esito[f"_testo_{chiave}"], xy=(x, y),
+                    xytext=(dx, DISTACCO_ETICHETTA_PX * verso),
+                    textcoords="offset points", ha=ha, va=va,
+                    fontsize=9, color=INCHIOSTRO, linespacing=1.3, zorder=6)
+
+
+def figura_profilo_prezzi(
+    profilo: pd.DataFrame,
+    data: str,
+    zona: str = "NORD",
+    colonna: str = "prezzo",
+) -> plt.Figure:
+    """Figura singola: il profilo orario di una giornata, con lo spread quotato."""
+    _stile()
+    figura, ax = plt.subplots(figsize=(8.2, 5.0))
+    esito = profilo_prezzi(profilo, ax, colonna=colonna)
+    ax.set_ylabel("Prezzo di equilibrio [€/MWh]")
+    ax.set_title(f"Zona {zona} — {data_estesa(data)}\n"
+                 f"spread infragiornaliero {_it(esito['spread'])} €/MWh")
+    _respiro_verticale(ax, esito)
+    _annota_estremi(esito)
+    figura.tight_layout()
+    return figura
+
+
+def figura_profili_confronto(
+    profili: dict[str, pd.DataFrame],
+    zona: str = "NORD",
+    colonna: str = "prezzo",
+    scala_comune: bool = True,
+) -> plt.Figure:
+    """
+    Due o piu' giornate affiancate, per default sulla **stessa scala verticale**.
+
+    La scala comune e' una scelta di sostanza, non di stile: con assi indipendenti due
+    spread di ampiezza diversa occupano la stessa altezza sulla pagina e il confronto
+    visivo diventa ingannevole. Condividendo l'asse si leggono insieme l'ampiezza
+    dell'oscillazione e il livello attorno a cui avviene, che sono due informazioni
+    distinte ed entrambe utili.
+    """
+    _stile()
+    figura, assi = plt.subplots(1, len(profili), figsize=(12.6, 5.2), sharey=scala_comune)
+    assi = np.atleast_1d(assi)
+
+    esiti = {}
+    for ax, (data, profilo) in zip(assi, profili.items()):
+        esiti[data] = profilo_prezzi(profilo, ax, colonna=colonna)
+        ax.set_title(f"{data_estesa(data)}\nspread {_it(esiti[data]['spread'])} €/MWh")
+    assi[0].set_ylabel("Prezzo di equilibrio [€/MWh]")
+
+    if scala_comune:
+        _respiro_verticale(assi[0], *esiti.values())
+    else:
+        for ax, esito in zip(assi, esiti.values()):
+            _respiro_verticale(ax, esito)
+    for esito in esiti.values():
+        _annota_estremi(esito)
+
+    figura.suptitle(f"Prezzo di equilibrio ricostruito, zona {zona}: "
+                    f"ampiezza dell'oscillazione infragiornaliera", fontsize=11)
+    figura.tight_layout()
+    return figura
+
+
+def _respiro_verticale(ax: plt.Axes, *esiti: dict) -> None:
+    """
+    Allarga l'asse verticale quel tanto che basta a non far uscire le etichette.
+
+    Le annotazioni degli estremi stanno sopra e sotto i marcatori: senza margine finiscono
+    tagliate dal bordo, e con `tight_layout` il taglio non si vede finche' non si guarda la
+    figura salvata.
+
+    Il margine inferiore **non** viene tagliato a zero. La tentazione sarebbe forte — nel
+    campione non esistono prezzi di equilibrio negativi — ma un minimo vicino allo zero
+    resterebbe senza spazio sotto e l'etichetta finirebbe ribaltata dentro la spezzata. Un
+    asse che scende di qualche euro sotto lo zero non afferma che vi siano prezzi negativi:
+    la linea dello zero resta visibile e sotto non c'e' alcun dato.
+    """
+    basso = min(e["minimo"] for e in esiti)
+    alto = max(e["massimo"] for e in esiti)
+    respiro = 0.20 * (alto - basso)
+    ax.set_ylim(basso - respiro, alto + respiro)
+
+
 def salva(figura: plt.Figure, nome: str) -> str:
     """Salva una figura in `output/figure/` in PNG e PDF, e restituisce il path del PNG."""
     config.assicura_cartelle()
