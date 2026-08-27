@@ -74,6 +74,22 @@ Il margine di arbitraggio si riduce quindi al crescere della taglia dell'accumul
 questo il meccanismo che rende il dimensionamento un problema non banale — al di sopra di una
 certa capacit\`a, l'accumulo distrugge da s\'e la propria fonte di reddito.
 
+\paragraph{Un meccanismo noto da tempo.} L'autoerosione dell'arbitraggio non \`e
+un'ipotesi di questo lavoro ma un risultato consolidato.
+\textcite{sioshansi2009storage} lo documentano su dati reali del mercato PJM fra il 2002
+e il 2007: simulando quantit\`a crescenti di accumulo mostrano che questo appiattisce il
+profilo dei prezzi — abbassa i picchi e solleva i minimi — e che di conseguenza il valore
+unitario dell'arbitraggio decresce al crescere della capacit\`a installata. \`E la
+dinamica descritta dalla~\eqref{eq:obiettivo}, osservata su un mercato diverso e quindici
+anni prima.
+
+Il fatto che il fenomeno sia noto sposta la domanda: non si tratta di stabilire \emph{se}
+esista, ma di misurare \textbf{dove} si collochi la soglia in un mercato specifico e con
+quanta incertezza. \`E qui che il presente lavoro si separa da quella letteratura — non
+per il meccanismo, che eredita, ma per la sua quantificazione sulle curve d'asta
+effettivamente presentate al mercato e restituita come distribuzione anzich\'e come
+valore puntuale.
+
 \subsection{I due profitti e l'erosione}
 \label{sec:erosione}
 
@@ -230,6 +246,25 @@ L'incertezza rilevante per la domanda di ricerca non \`e quella sul prezzo di un
 giorno, ma quella \textbf{sulla soglia}: poich\'e $E(d,K)$ varia da giorno a giorno con la
 forma delle curve, la capacit\`a a cui l'accumulo diventa price maker \`e essa stessa una
 variabile aleatoria.
+
+Che la redditivit\`a dell'accumulo vada studiata come distribuzione, e non solo nella sua
+media, trova conferma in un lavoro condotto con strumenti opposti a quelli qui adottati.
+\textcite{dumitrescu2024impact} costruiscono il prezzo di equilibrio come soluzione di un
+sistema di equazioni differenziali stocastiche \emph{forward-backward}, in un mercato con
+rinnovabili, produttori convenzionali e accumulo price taker, calibrato sugli scenari di
+RTE per la Francia. Il loro risultato principale \`e che al crescere della capacit\`a di
+accumulo aumentano \textbf{sia i ricavi medi sia l'ampiezza degli intervalli
+interquantile}: pi\`u profitto atteso, ma anche pi\`u dispersione. La media, da sola,
+descrive male l'investimento.
+
+I due approcci sono complementari, e la loro convergenza \`e ci\`o che li rende
+interessanti l'uno per l'altro. Quello \`e \emph{model driven}: si postula una dinamica in
+tempo continuo e se ne derivano le propriet\`a. Questo \`e \emph{data driven}: non si
+postula alcuna dinamica di prezzo, si ricampionano le curve d'asta osservate e si lascia
+che l'incertezza emerga dalla loro variabilit\`a. Che due strade cos\`i diverse indichino
+entrambe la distribuzione come oggetto rilevante rafforza la scelta di caratterizzare
+$K^*$ come soglia stocastica. Si tratta peraltro di un preprint non ancora sottoposto a
+revisione paritaria, e come tale va citato.
 
 \subsection*{Bootstrap dei giorni storici}
 

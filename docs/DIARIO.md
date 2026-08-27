@@ -2606,6 +2606,127 @@ la compilazione: `10_profilo_20250120`, `10_profilo_20250516` e il confronto app
 
 Nessuna modifica al motore né alle scelte esistenti: è materiale illustrativo.
 
+
+---
+
+## 2026-08-27 — Tre riferimenti nei capitoli 3 e 4: la radice storica, la controparte teorica, il sostegno ai parametri
+
+Integrati tre lavori nella bibliografia e nei capitoli 3 e 4. Non sono materiale
+implementativo: nessuna riga di codice cambia, cambia l'argomentazione. Ciascuno risponde a
+un'obiezione diversa che la tesi si attirerebbe se ne fosse priva.
+
+### Sioshansi, Denholm, Jenkin e Weiss (2009) — la cannibalizzazione non è un'ipotesi
+
+*Energy Economics* 31(2), 269-277. Fra i primi a formalizzare, su dati reali del mercato PJM
+fra il 2002 e il 2007, che l'accumulo su larga scala **appiattisce il profilo dei prezzi** —
+abbassa i picchi, solleva i minimi — e che il valore unitario dell'arbitraggio decresce al
+crescere della capacità installata.
+
+Collocato nel **capitolo 3**, subito dopo l'osservazione che la retroazione agisce contro
+l'operatore in entrambe le direzioni. È il punto in cui il meccanismo viene enunciato per la
+prima volta, e senza un riferimento resterebbe una congettura di questo lavoro.
+
+L'inquadramento conta quanto la citazione: il fenomeno è **noto e consolidato da oltre
+quindici anni**, quindi la domanda di ricerca non è se esista ma *dove* si collochi la soglia
+in un mercato specifico e con quanta incertezza. Detto così, il contributo originale si
+definisce per differenza — curve d'asta effettivamente presentate al mercato, e soglia
+restituita come distribuzione anziché come valore puntuale — invece di essere rivendicato.
+
+### Dumitrescu, Silvente e Tankov (2024) — la stessa conclusione da strumenti opposti
+
+Preprint arXiv (CREST/ENSAE, Institut Polytechnique de Paris). Costruiscono il prezzo di
+equilibrio come soluzione di un sistema di **equazioni differenziali stocastiche
+forward-backward**, in un mercato con rinnovabili, produttori convenzionali e accumulo price
+taker, calibrato sugli scenari RTE per la Francia.
+
+Il risultato che interessa: al crescere della capacità di accumulo aumentano **sia i ricavi
+medi sia l'ampiezza degli intervalli interquantile**. Più profitto atteso, ma anche più
+dispersione — cioè la media da sola descrive male l'investimento.
+
+Collocato nel **capitolo 3**, all'apertura della sezione sulla gestione dell'incertezza, dove
+si dichiara che la soglia è essa stessa una variabile aleatoria.
+
+Il valore argomentativo sta nella **convergenza fra metodi opposti**. Quel lavoro è *model
+driven*: postula una dinamica in tempo continuo e ne deriva le proprietà. Questo è *data
+driven*: non postula alcuna dinamica di prezzo, ricampiona le curve osservate e lascia che
+l'incertezza emerga dalla loro variabilità. Che due strade così diverse indichino entrambe la
+distribuzione come oggetto rilevante è un sostegno più forte di quanto sarebbe una
+concordanza fra lavori metodologicamente affini. Nel testo è dichiarato **preprint non
+sottoposto a revisione paritaria**: citarlo senza dirlo sarebbe scorretto, e la citazione
+regge lo stesso perché serve come conferma convergente, non come autorità.
+
+### McConnell, Forcey e Sandiford (2015) — sostegno puntuale a due scelte
+
+*Applied Energy* 159, 422-432. Due risultati, collocati in due punti diversi del **capitolo
+4** perché sostengono due cose diverse.
+
+**La durata di quattro ore** (§ sugli scenari): trovano valore marginale modesto oltre le
+**sei ore** di durata, perché oltre quel punto l'energia aggiuntiva finisce impiegata in
+periodi troppo poco remunerativi. Quattro ore stanno quindi nella regione in cui il
+rendimento della durata è ancora crescente. Fin qui il caso base poggiava solo sulla
+diffusione commerciale del taglio e su Alonso-Perez (D-32): ora ha anche una ragione
+economica.
+
+**Il rendimento di ciclo** (§ sui parametri tecnici): in un mercato in cui il valore
+dell'accumulo si concentra nei prezzi estremi, il round-trip efficiency incide poco, perché
+con un differenziale ampio qualche punto percentuale di perdita non cambia la convenienza
+dell'operazione. Ne discende una **previsione verificabile** scritta nel testo: la
+sensitività su η (85, 90, 92%) dovrebbe spostare K\* meno di quanto la sposti la durata.
+Vale la pena averla messa per iscritto *prima* di calcolarla: se il rerun la smentisse,
+sarebbe un risultato, non un imbarazzo.
+
+**Il limite del trasferimento è dichiarato nel testo.** Il loro è un mercato *energy only*,
+mentre in Italia esistono un mercato della capacità e il MACSE. L'osservazione vale per la
+sola componente di arbitraggio, che è l'unica considerata qui: scriverlo evita che la
+citazione provi più di quanto possa.
+
+### Bibliografia: cosa resta da completare
+
+Le tre voci sono in coda a `latex/bibliografia.bib`. Restano tre buchi, marcati
+`DA COMPLETARE` e non riempiti a invenzione:
+
+* il **DOI** di Sioshansi e quello di McConnell (entrambi Elsevier);
+* per Dumitrescu, l'**identificativo arXiv** e i **nomi di battesimo** degli autori. I
+  cognomi da soli bastano a far rendere correttamente `\textcite`, ma la voce è incompleta.
+
+I DOI non sono stati inseriti a memoria di proposito: un DOI sbagliato in una tesi è peggio
+di un DOI assente, perché non si vede finché qualcuno non lo clicca.
+
+### Segnalato e non fatto
+
+**Sioshansi starebbe bene anche nel capitolo 1**, nella rassegna che oggi posiziona la tesi
+rispetto ad Alonso-Perez, Veenstra e Lilla: quei tre sono tutti recenti e manca la radice
+storica. Il capitolo 1 è però **fuori perimetro** — dal 27/08 valgono le regole registrate in
+`CLAUDE.md`, per cui da qui si scrive solo nei capitoli 3, 4 e 5, si può aggiungere in
+`acronimi.tex` e in `bibliografia.bib`, e tutto il resto è gestito dallo studente su
+Overleaf. La segnalazione è stata fatta a parole.
+
+Nessun acronimo nuovo è stato necessario: MACSE e MGP erano già definiti.
+
+Il testo per il capitolo 1 è stato **redatto e consegnato allo studente**, non inserito: va
+fra «La domanda non è inedita.» e la frase su Alonso-Perez, nel paragrafo «Il contributo
+rispetto alla letteratura».
+
+### La compilazione ha fatto emergere due difetti preesistenti
+
+Compilazione locale con MiKTeX: **63 pagine, nessun errore**, le tre citazioni nuove si
+risolvono e biber non segnala nulla su di esse. Ha però portato a galla due difetti che non
+c'entrano con questa integrazione e che nessuno aveva notato, perché finora si compilava su
+Overleaf senza leggere il log.
+
+**Chiave di citazione rotta in `05_valutazione_economica.tex`**: il capitolo citava
+`lilla2026storage`, ma nel `.bib` la voce ha oggi la chiave MDPI `su18031404` — il capitolo 1
+la cita già così. A pagina 44 i parametri economici italiani risultavano quindi **senza
+attribuzione**. Corretto: il capitolo 5 è dentro il perimetro.
+
+**`\label{sec:mgp}` commentato** in `02_mercato_elettrico.tex`, mentre `04_simulazione.tex`
+lo referenzia due volte: nel PDF si leggevano due «Sezione **??**», a pagina 26 e 39. Il
+capitolo 2 è fuori perimetro, quindi segnalato e non toccato.
+
+La lezione è di metodo e vale oltre questo caso: **un riferimento rotto non fa fallire la
+compilazione**, produce un `??` o una citazione muta e passa inosservato in un PDF di
+sessanta pagine. Il log va letto, non solo guardato l'esito.
+
 ---
 
 ## Prossimi passi

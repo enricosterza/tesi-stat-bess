@@ -311,6 +311,15 @@ La durata non \`e un dettaglio tecnico: a parit\`a di potenza, una durata maggio
 l'accumulo a operare anche in periodi meno favorevoli, spalmando l'effetto su pi\`u ore e
 quindi riducendo l'impatto su ciascuna.
 
+La scelta di quattro ore trova un riscontro indipendente in
+\textcite{mcconnell2015storage}, che valutano l'accumulo sul mercato all'ingrosso
+australiano e trovano \textbf{valore marginale modesto oltre le sei ore} di durata: al di
+l\`a di quel punto l'energia aggiuntiva finisce impiegata in periodi troppo poco
+remunerativi per giustificarne il costo. Quattro ore stanno dunque nella regione in cui il
+rendimento della durata \`e ancora crescente, e le durate maggiori esplorate nell'analisi
+di sensitivit\`a servono anche a verificare se la saturazione si collochi, su questo
+mercato, dove quel lavoro la trova.
+
 \subsection{I parametri tecnici di riferimento}
 \label{sec:parametri}
 
@@ -356,6 +365,18 @@ Capitolo~\ref{cap:valutazione}. Corroborano per\`o il vincolo di ciclo chiuso gi
 ne implica 365. Va segnalato che il modello, ottimizzando in previsione perfetta, ne produce
 circa 450: il divario \`e coerente con il fatto che la previsione perfetta fornisce un limite
 superiore, e non un risultato conseguibile.
+
+\paragraph{Una previsione sulla sensitivit\`a.} Fra i parametri della
+Tabella~\ref{tab:parametri} il rendimento di ciclo \`e quello per cui ci si attende la
+minore sensibilit\`a del risultato. \textcite{mcconnell2015storage} osservano che dove il
+valore dell'accumulo si concentra nei prezzi estremi, il rendimento round-trip incide
+poco: quando il differenziale fra l'ora di carica e quella di scarica \`e ampio, qualche
+punto percentuale di perdita non cambia la convenienza dell'operazione, e sposta il piano
+solo nelle giornate a margine sottile. Il trasferimento richiede cautela, perch\'e il loro
+\`e un mercato \emph{energy only} mentre in Italia esistono un mercato della capacit\`a e
+il \ac{MACSE}; l'osservazione vale per\`o per la sola componente di arbitraggio, che \`e
+quella considerata qui. Ne discende una previsione verificabile: la sensitivit\`a sul
+rendimento (85, 90, 92\,\%) dovrebbe spostare $K^*$ meno di quanto la sposti la durata.
 
 \subsection{Il campione dei giorni}
 
