@@ -329,6 +329,60 @@ def stato_di_carica(
 DURATA_RIFERIMENTO_ORE: float = config.PARAMETRI_BESS["durata_ore"]
 
 
+def griglia_capacita() -> list[float]:
+    """
+    Griglia delle capacita' aggregate K su cui si misura l'erosione.
+
+    Returns
+    -------
+    list[float]
+        132 capacita' in MW, da 1 a 6000, con passo variabile.
+
+    I quattro regimi di passo, e perche'
+    ------------------------------------
+    ==================  ==========  ======  =====================================================
+    Intervallo (MW)     Passo (MW)  Punti   A che serve
+    ==================  ==========  ======  =====================================================
+    1 - 20                       1      20  la regione del **pavimento di discretezza** (D-30)
+    30 - 400                    10      38  dove cadono le soglie al 5%, 10% e 20%
+    425 - 1000                  25      24  la salita verso la saturazione
+    1100 - 6000                100      50  il tratto oltre il 100% di erosione
+    ==================  ==========  ======  =====================================================
+
+    **Il minimo resta 1 MW e non va abbassato.** `sottrai_pavimento` usa la capacita' piu'
+    piccola della griglia come riferimento di «effetto nullo»: cambiarla ridefinirebbe il
+    pavimento e renderebbe i risultati non confrontabili con quelli gia' prodotti.
+
+    Il **passo di 1 MW sotto i 20** non serve alla risoluzione ma a una verifica: se il
+    pavimento e' davvero discretezza della ricostruzione e non effetto di mercato, la curva
+    li' dev'essere piatta. Su gennaio 2025 lo e' (1 e 2 MW danno lo stesso quantile al 90%,
+    2,76%). Con venti punti a passo unitario quella piattezza si osserva su ogni campione
+    invece di essere assunta.
+
+    Perche' il passo nella regione della soglia e' 10 MW e non 5
+    ------------------------------------------------------------
+    Perche' 10 MW e' gia' circa **cinque volte piu' fine dell'intervallo di confidenza** di
+    K*, che su gennaio 2025 era ampio circa 96 MW (83-179). La griglia e' cosi' calibrata
+    sulla risoluzione informativa reale: raffinarla sotto l'ampiezza dell'incertezza
+    campionaria darebbe una precisione fittizia, che il rumore statistico non giustifica e
+    che costerebbe il doppio del tempo di calcolo.
+
+    L'estensione in alto arriva a 6000 MW perche' il 100% di erosione — cioe' il profitto
+    price maker che diventa negativo — viene attraversato attorno ai 1600 MW sul 90°
+    percentile ma solo attorno ai 2450 MW sulla mediana: per mostrare la saturazione su
+    tutti i quantili, e non solo sul piu' estremo, bisogna spingersi ben oltre.
+    """
+    regimi = (np.arange(1, 21, 1),         # pavimento
+              np.arange(30, 401, 10),      # soglie
+              np.arange(425, 1001, 25),    # transizione
+              np.arange(1100, 6001, 100))  # saturazione
+    return [float(x) for x in np.concatenate(regimi)]
+
+
+#: Griglia predefinita delle capacita' aggregate (MW). Vedi `griglia_capacita`.
+GRIGLIA_CAPACITA_MW: list[float] = griglia_capacita()
+
+
 def flotta(potenza_aggregata_mw: float,
            durata_ore: float = DURATA_RIFERIMENTO_ORE,
            **parametri) -> Batteria:

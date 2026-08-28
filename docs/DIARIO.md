@@ -86,11 +86,11 @@ PREJ 20).
    resta comunque difensiva su entrambi i separatori → **D-04**.
 2. **`STATUS_CD` non ha due valori ma sei**: `ACC`, `REP`, `REJ`, `REV`, `INC`, `PREJ`.
    Non è un dettaglio: cambia radicalmente quali offerte entrano nelle curve → **D-06**.
-3. **La granularità è mista anche nei dati recenti**: nel giorno pilota, zona NORD,
+7. **La granularità è mista anche nei dati recenti**: nel giorno pilota, zona NORD,
    convivono PT15 (96 periodi), PT60 (24 periodi) e PT30 (48 periodi). `PERIOD` non è
    quindi interpretabile da solo: va sempre letto insieme a `GRANULARITY`, altrimenti
    filtrando `PERIOD == 10` si mescolano il decimo quarto d'ora e la decima ora → **D-05**.
-4. **Le offerte a blocchi esistono e sono identificabili**: `OFFER_TYPE` vale `S`
+8. **Le offerte a blocchi esistono e sono identificabili**: `OFFER_TYPE` vale `S`
    (semplice, 563.606) o `B` (a blocchi, 4.579), e i 4.579 `BLOCK_ID` valorizzati
    coincidono esattamente con le righe `B`. Quindi `BLOCK_ID` non è "quasi sempre vuoto"
    per caso: è vuoto per costruzione sulle offerte semplici → **D-03**.
@@ -2727,36 +2727,236 @@ La lezione è di metodo e vale oltre questo caso: **un riferimento rotto non fa 
 compilazione**, produce un `??` o una citazione muta e passa inosservato in un PDF di
 sessanta pagine. Il log va letto, non solo guardato l'esito.
 
+
+---
+
+## 2026-08-28 — Il 2024 come anno base: griglia delle capacità e calcolo parallelo
+
+Il relatore ha approvato il **perimetro temporale**: anno base **2024**, interamente in regime
+orario. È la decisione che bloccava tutto il resto (voce «Prossimi passi» dal 18/08). Questa
+voce copre la preparazione dell'infrastruttura, non il run: griglia delle capacità e
+parallelizzazione, entrambe validate ma non ancora usate per produrre risultati.
+
+### Il 2024 si ricostruisce senza adattamenti, ed è più semplice del 2025
+
+Verificate tre giornate distribuite sull'anno (15 gennaio, 15 giugno, 15 dicembre), non una:
+una deriva di schema può avvenire *dentro* l'anno, come è successo col passaggio al quarto
+d'ora dell'ottobre 2025.
+
+**366 giorni su 366 disponibili**, nessuna lacuna. L'archivio contiene 732 file per il 2024
+perché ogni giorno ha sia `MGPOffertePubbliche` sia `MBOffertePubbliche` (Mercato di
+Bilanciamento, che non ci riguarda). Anche **2020 (366) e 2022 (365) sono completi**, quindi
+il confronto di volatilità previsto non ha buchi.
+
+Tre proprietà rendono il 2024 più semplice del 2025, non solo più veloce:
+
+* **granularità pura**: 100% PT60, zero righe PT15 o PT30. La questione aperta D-13 sul
+  trattamento della quota a granularità minoritaria **non si pone** su questo anno;
+* **perimetro di frontiera ridotto a SVIZ**: FRAN non compare. Il perimetro si costruisce per
+  intersezione con le zone presenti, quindi si adatta da solo, ma va saputo — il blocco di
+  scambio netto (D-16) lavora su un perimetro leggermente diverso da quello di gennaio 2025;
+* **ricostruzione accurata senza messa a punto**: scarto dall'ufficiale mediano 0,05 €/MWh il
+  15 gennaio e 0,00 il 15 giugno, massimo 2,72. In linea con gennaio 2025.
+
+Il vincolo orario D-33 resta **vacuo** per costruzione: un periodo coincide con un'ora.
+
+### Il costo reale: molto più basso di quanto si temeva
+
+La stima di ~27 ore per l'anno veniva dai 4,5 minuti per giorno del PT15. Quel numero è di un
+altro problema: 96 periodi invece di 24, e la validazione completa invece del solo calcolo
+dell'erosione. Misurato sull'orario, il rapporto è di circa **1 a 60**.
+
+| | lettura | curve + prezzi rif. | erosione (9 capacità) | totale |
+|---|---|---|---|---|
+| A freddo (parsing dallo zip) | 15,60 s | 5,48 s | 1,50 s | **22,58 s** |
+| A caldo (da cache Parquet) | 0,41 s | 2,92 s | 1,33 s | **4,66 s** |
+
+Con la griglia vecchia a 9 punti l'anno costava **28 minuti** in sequenza, non 27 ore. Questo
+ha aperto la possibilità di infittire la griglia, che è il passo successivo.
+
+### La griglia delle capacità: 132 punti, quattro regimi
+
+Prima una **correzione a un ricordo sbagliato**. Sulla curva di gennaio 2025, al 90°
+percentile e sull'erosione **lorda**, le soglie cadono a: 5% → 24 MW, 10% → 78 MW, 20% → 270
+MW, 50% → 740 MW, 100% → 1.568 MW (sulla mediana, 2.447 MW). Il K\* = 136 MW noto è al
+**netto del pavimento** (D-30): sottraendolo la curva si abbassa e il 10% viene attraversato
+più tardi. Lordo 78, netto 136 — quasi un fattore due, tutto pavimento di discretezza. Per
+dimensionare la griglia contano entrambi, perché il calcolo passa dal lordo.
+
+| Regime | Intervallo | Passo | Punti | A che serve |
+|---|---|---|---|---|
+| Fondo | 1–20 MW | **1 MW** | 20 | il pavimento D-30 e la sua verifica |
+| Soglia | 30–400 MW | **10 MW** | 38 | le convenzioni al 5, 10 e 20%, lorde e nette |
+| Transizione | 425–1.000 MW | 25 MW | 24 | la salita verso la saturazione |
+| Saturazione | 1.100–6.000 MW | 100 MW | 50 | il tratto oltre il 100% di erosione |
+
+Definita in `batteria.griglia_capacita`, che ne documenta ogni regime.
+
+**Il minimo resta 1 MW e non va abbassato.** `sottrai_pavimento` usa la capacità più piccola
+della griglia come riferimento di «effetto nullo»: cambiarla ridefinirebbe il pavimento e
+renderebbe i risultati non confrontabili con quelli già prodotti.
+
+**Il passo di 1 MW sotto i 20 non serve alla risoluzione ma a una verifica.** Se il pavimento
+è davvero discretezza della ricostruzione e non effetto di mercato, la curva lì dev'essere
+piatta — su gennaio 2025 lo è (1 e 2 MW danno lo stesso q90, 2,76%). Con venti punti a passo
+unitario quella piattezza si osserva sul 2024 invece di essere assunta.
+
+**Il passo nella regione della soglia è 10 MW e non 5**, ed è una scelta deliberata dello
+studente. Dieci megawatt sono già circa **cinque volte più fini dell'intervallo di confidenza**
+di K\*, ampio ~96 MW su gennaio (83–179). La griglia è quindi calibrata sulla risoluzione
+informativa reale: raffinare sotto l'ampiezza dell'incertezza campionaria darebbe una
+**precisione fittizia**, che il rumore statistico non giustifica e che costerebbe il doppio del
+tempo. Il passo a 5 MW era stato proposto e scartato per questa ragione (170 punti contro 132).
+
+Costo misurato: **143 ms per capacità**, identico al costo per capacità della griglia vecchia
+(147 ms), quindi lineare e senza sorprese. La giornata passa da 4,7 a **21,5 s** e l'anno da
+28 minuti a **2,2 ore** in sequenza. La frase «infittire è quasi gratis» valeva a trenta punti,
+non a centotrenta: il tempo si sposta tutto sull'erosione, che diventa l'86% del totale.
+
+### Un rischio da sorvegliare quando si lancerà il bootstrap
+
+`_attraversamento` prende il **primo** superamento della soglia, il che presuppone che la
+curva erosione-capacità sia monotona. Con griglia fitta, un sobbalzo locale del quantile
+dentro un ricampionamento bootstrap potrebbe far scattare l'attraversamento in anticipo e
+spostare K\* **verso il basso**. Su gennaio la curva q90 è monotona su tutti i 22 punti della
+griglia fine, quindi il rischio è per ora teorico — ma va verificato prima di fidarsi del
+numero finale, non dopo.
+
+Piano concordato, da eseguire **al momento del bootstrap** e non ora:
+
+1. misurare la **frequenza** di non-monotonia, cioè quanti ricampionamenti hanno almeno un
+   doppio attraversamento;
+2. misurare anche l'**ampiezza** dei sobbalzi, distinguendo il rumore di campionamento del
+   quantile (frazioni di punto percentuale) dai doppi attraversamenti economicamente
+   significativi. La correzione giusta dipende da *com'è fatta* la non-monotonia, non solo da
+   quanto è frequente;
+3. **decidere la correzione solo se emerge**, fra: (a) prendere l'ultimo attraversamento
+   invece del primo — robusto ma grezzo, adatto ai veri doppi attraversamenti; (b) lisciare
+   la curva quantile prima di cercare l'attraversamento (regressione isotonica, che impone
+   monotonia, o media mobile sulle capacità) — più elegante e statisticamente motivata, adatta
+   se i sobbalzi sono rumore locale;
+4. qualunque correzione sposta la soglia, quindi va registrata come **D-37** datata al momento
+   della scelta, non adesso.
+
+### La parallelizzazione: 4,4× e nessun cambiamento nei risultati
+
+Il calcolo è imbarazzantemente parallelo — ogni giorno ha le proprie curve e non dipende dagli
+altri. Nuovo modulo `src/mgp/parallelo.py`, che **avvolge** il calcolo validato senza
+modificarlo: `erosioni_giorno` è la stessa funzione che stava in `scripts/06`, spostata nel
+package perché la logica riutilizzabile vi appartiene e perché il runner deve importarla.
+Lo script 06 ha ora l'opzione `--processi`.
+
+**La macchina non è quella che si credeva**: AMD Zen/Zen+, **4 core fisici e 8 thread**, non
+6/12. Il tetto realistico è quindi attorno a 4×, non 6×.
+
+| Processi | Secondi (16 gg) | s/giorno | Speedup | Efficienza | Anno 2024 |
+|---|---|---|---|---|---|
+| 1 | 343,6 | 21,48 | 1,00 | 1,00 | 2,18 h |
+| 2 | 186,4 | 11,65 | 1,84 | 0,92 | 1,18 h |
+| 4 | 114,9 | 7,18 | 2,99 | 0,75 | 0,73 h |
+| 6 | 94,8 | 5,93 | 3,62 | 0,60 | 0,60 h |
+| 8 | 78,3 | 4,89 | **4,39** | 0,55 | **0,50 h** |
+
+**L'anno 2024 passa da 2,2 ore a 30 minuti** su otto processi. Il guadagno oltre i quattro
+processi viene dal solo SMT, e infatti l'efficienza crolla da 0,75 a 0,55.
+
+#### Uno speedup falso, e come si è riconosciuto
+
+La prima misura dava **8,18× con efficienza 1,71 su due processi**. È un risultato impossibile:
+uno speedup superlineare su lavoro CPU-bound non esiste, e l'efficienza maggiore di uno è il
+sintomo che la baseline è stata penalizzata.
+
+La causa: i sedici giorni di marzo non erano in cache. La prova sequenziale, girando per prima,
+ha pagato ~15 s per giorno di parsing dagli zip; le quattro prove parallele successive hanno
+trovato la cache Parquet già scritta. Il confronto attribuiva alla parallelizzazione un
+guadagno che era soltanto I/O già fatto — la baseline risultava 40,18 s/giorno contro i 21,48
+reali.
+
+Corretto aggiungendo al benchmark una passata di **riscaldamento della cache** prima di
+cronometrare, documentata nello script con questo ragionamento perché è un errore che si rifà
+volentieri. Vale come regola generale: **quando una misura di prestazione dà un risultato
+migliore del possibile, l'errore è nella misura.**
+
+### Non regressione: identici bit a bit, non «al centesimo»
+
+Sei giornate calcolate in sequenza e su quattro processi: tutte e dieci le colonne numeriche
+**coincidono esattamente**, righe nello stesso ordine, colonne testuali identiche.
+
+Il confronto è esatto di proposito. Accontentarsi di due decimali nasconderebbe una differenza
+sistematica piccola, che è il sintomo peggiore perché non si nota e si propaga a tutto l'anno.
+`erosioni_giorno` è pura rispetto alla data, quindi i float *devono* coincidere: se non lo
+facessero, ci sarebbe un problema da capire, non una tolleranza da allargare.
+
+### Il seme del bootstrap in parallelo: il problema non si pone
+
+Domanda legittima, risposta strutturale: **il parallelismo sta interamente a monte del
+generatore casuale**. I lavoratori calcolano una tabella deterministica giorno × capacità e non
+estraggono alcun numero; `bootstrap_soglia` gira **dopo**, in un solo processo, con il suo
+parametro `seme`. Non esiste stato di generatore da dividere fra processi né corsa critica sul
+seme.
+
+Restano due condizioni, entrambe verificate:
+
+1. **stessi valori** — garantito dalla purezza di `erosioni_giorno` e dal test di non
+   regressione;
+2. **stesso ordine** — `executor.map` restituisce i risultati nell'ordine degli argomenti, non
+   in quello di completamento.
+
+La seconda condizione è **più forte del necessario**, e questo è il punto interessante:
+`bootstrap_soglia` costruisce una `pivot_table` indicizzata per `data` e ordinata per capacità,
+quindi l'ordine delle righe in ingresso non raggiunge il generatore in alcun modo. Verificato
+mescolando le righe: K\* e intervallo identici. L'ordinamento deterministico serve dunque alla
+riproducibilità *bit a bit dei CSV*, non alla correttezza del bootstrap. Che la replicabilità
+poggi su **due garanzie indipendenti** invece che su una è voluto.
+
+Controprova necessaria: con seme diverso l'intervallo cambia. Se non cambiasse, i test di
+riproducibilità non proverebbero nulla.
+
+### Prodotti
+
+`src/mgp/parallelo.py` (nuovo), `batteria.griglia_capacita` e `GRIGLIA_CAPACITA_MW`,
+`scripts/11_verifica_parallelo.py` (non regressione, seme, speedup; da rieseguire ogni volta
+che si tocca `parallelo`, `batteria` o la griglia), `scripts/06` collegato al runner con
+`--processi`. Quattordici test nuovi in `tests/test_parallelo.py`: **117 test verdi**.
+
+La parallelizzazione è **riutilizzabile senza modifiche per il 2020 e il 2022**: prende una
+lista di giorni qualsiasi. Il primo run completo resterà però al solo 2024, con gli altri due
+anni da aggiungere a 2024 consolidato.
+
+Nulla è stato lanciato: il run completo e il bootstrap sono il passo successivo.
+
 ---
 
 ## Prossimi passi
 
 *Sezione viva, riscritta man mano: a differenza delle voci datate qui sopra, non è
-append-only. Ultimo allineamento 2026-08-18.*
+append-only. Ultimo allineamento 2026-08-28.*
 
-**Il blocco è uno solo**: la decisione del relatore sul **perimetro temporale**. Da essa
-dipendono la stratificazione, la sensitività e tutti i numeri del capitolo 5, che oggi sono
-segnaposto.
+**Il blocco è caduto**: il relatore ha approvato il perimetro temporale, **anno base 2024 in
+regime orario**. Griglia delle capacità (132 punti) e calcolo parallelo (4,4×, anno in mezz'ora)
+sono pronti e validati, ma non ancora usati per produrre risultati.
 
-1. **Estendere il campione ad almeno un anno**, una volta deciso il perimetro. Senza dodici
-   mesi la stratificazione per stagione (D-28) non è calcolabile e i risultati restano
-   preliminari. L'evidenza raccolta sostiene i **dodici mesi omogenei in regime orario**: il
-   trimestre a quarto d'ora si ricostruisce con deviazione standard 5,42 contro 1,06
-   dell'orario, il divario è **diffuso** e non aggirabile con un filtro sui giorni, e non è un
-   effetto del livello dei prezzi (verificato su aprile 2025). Costo: ~4,5 minuti per giorno
-   sul PT15, molto meno sull'orario; il trimestre è comunque già in cache.
-2. **Rerun su PT15 con il vincolo orario** (D-33), quando serva: è attivo ma non ha ancora
+1. **Lanciare il run completo sul 2024**: 366 giorni, 132 capacità, con il bootstrap e la
+   stratificazione. È il passo immediatamente successivo. Costo atteso ~30 minuti su otto
+   processi a cache calda, più ~1,5 ore di parsing la prima volta.
+2. **Verificare la non-monotonia della curva quantile** dentro i ricampionamenti bootstrap —
+   frequenza *e* ampiezza dei sobbalzi — prima di fidarsi di K\*. Se emerge, scegliere fra
+   ultimo attraversamento e lisciamento isotonico e registrare la scelta come **D-37**
+   (piano dettagliato nella voce del 28/08).
+3. **Aggiungere 2020 e 2022** per il confronto di volatilità, a 2024 consolidato: la
+   parallelizzazione li accetta senza modifiche, e i due anni sono completi in archivio.
+4. **Rerun su PT15 con il vincolo orario** (D-33), quando serva: è attivo ma non ha ancora
    prodotto numeri, e darà una K\* più bassa di prima — il valore corretto.
-3. **Stratificare** per stagione e regime, e misurare quanto la soglia si sposta: la non
+5. **Stratificare** per stagione e regime, e misurare quanto la soglia si sposta: la non
    stazionarietà è essa stessa un risultato.
-4. **Sensitività**: durata della flotta (1, 2, 4, 8 ore), rendimento di ciclo (85/90/92%),
+6. **Sensitività**: durata della flotta (1, 2, 4, 8 ore), rendimento di ciclo (85/90/92%),
    costo di degrado, perimetro zonale, e i due regimi di **K** (1 contro 2,3). A parità di
    potenza una durata maggiore dovrebbe alzare la soglia: previsione da verificare.
-5. **Numeri del capitolo 5**: VAN, TIR, tempo di ritorno e LCOS ai due regimi di K. L'impianto
+7. **Numeri del capitolo 5**: VAN, TIR, tempo di ritorno e LCOS ai due regimi di K. L'impianto
    c'è (`economia.py`, D-36); manca solo il campione annuale, perché su un mese invernale
    l'annualizzazione sarebbe grossolana.
-6. **Dimensionamento ottimale** (potenza, capacità, durata) tenendo conto della retroazione:
-   è l'obiettivo dichiarato della tesi e presuppone i punti 4 e 5.
+8. **Dimensionamento ottimale** (potenza, capacità, durata) tenendo conto della retroazione:
+   è l'obiettivo dichiarato della tesi e presuppone i punti 6 e 7.
 
 **Questioni aperte minori**: il residuo non identificato del ritardo PT15 (dichiarato come
 limite noto); la riverifica dei prezzi negativi sui mesi centrali dell'anno; il DOI di Lilla et

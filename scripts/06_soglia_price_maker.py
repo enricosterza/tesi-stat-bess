@@ -44,7 +44,7 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
 from mgp import batteria as bt  # noqa: E402
-from mgp import config, curve, io_gme  # noqa: E402
+from mgp import config, curve, io_gme, parallelo  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from importlib import import_module  # noqa: E402
@@ -53,68 +53,14 @@ giorni_del_mese = import_module("03_valida_mese").giorni_del_mese
 
 #: Griglia di capacita' aggregata predefinita, in MW.
 #:
-#: La prima versione partiva da 250 MW, ragionando sulla dimensione del mercato: in zona NORD
-#: si scambiano 15-25 GW per asta, quindi poche centinaia di MW sembravano marginali. La
-#: prima prova ha smentito il ragionamento — a 250 MW l'erosione era gia' del 12% e la soglia
-#: cadeva fuori griglia — perche' cio' che conta non e' il volume complessivo ma la pendenza
-#: della curva **attorno all'equilibrio**, dove i gradini sono pochi e larghi. La griglia
-#: parte quindi da poche decine di MW.
-GRIGLIA_PREDEFINITA = [25.0, 50.0, 100.0, 200.0, 400.0, 800.0, 1500.0, 3000.0, 6000.0]
-
-STAGIONI = {12: "inverno", 1: "inverno", 2: "inverno", 3: "primavera", 4: "primavera",
-            5: "primavera", 6: "estate", 7: "estate", 8: "estate", 9: "autunno",
-            10: "autunno", 11: "autunno"}
+#: Definita in `batteria.griglia_capacita`, che ne documenta i quattro regimi di passo
+#: e la ragione di ciascuno. Qui si tiene solo l'alias, perche' la griglia e' una
+#: scelta di disegno della simulazione e appartiene al package, non allo script.
+GRIGLIA_PREDEFINITA = bt.GRIGLIA_CAPACITA_MW
 
 
 def _sezione(titolo: str) -> str:
     return f"\n{'=' * 78}\n{titolo}\n{'=' * 78}"
-
-
-def erosioni_giorno(data: str, griglia: list[float], durata_ore: float) -> pd.DataFrame:
-    """
-    Calcola l'erosione di una giornata su tutta la griglia di capacita'.
-
-    Le curve d'asta e i prezzi di riferimento si calcolano **una volta sola** e si riusano
-    per ogni capacita': cambia solo il profilo che vi si inserisce.
-    """
-    granularita = config.granularita_prevalente(data)
-    df = io_gme.carica_giorno(data=data, zona=None)
-    zone_presenti = set(df["ZONE_CD"].dropna().unique())
-    perimetro = ["NORD"] + [z for z in config.ZONE_FRONTIERA_NORD if z in zone_presenti]
-
-    offerte_giorno = curve.offerte_giornata(df, granularita, zone=perimetro, con_import=True)
-    periodi = sorted(offerte_giorno)
-    riferimento = np.array(
-        [curve.prezzo_equilibrio(offerte_giorno[p]).prezzo for p in periodi], dtype=float
-    )
-
-    mese = int(data[4:6])
-    righe = []
-    for potenza in griglia:
-        e = bt.erosione(df, potenza_aggregata_mw=potenza, granularita=granularita, data=data,
-                        durata_ore=durata_ore, zone=perimetro,
-                        prezzi_riferimento=riferimento, offerte_giorno=offerte_giorno)
-        righe.append({
-            "data": data,
-            "granularita": granularita,
-            "anno": data[:4],
-            "mese": data[4:6],
-            "stagione": STAGIONI[mese],
-            "potenza_mw": potenza,
-            "durata_ore": durata_ore,
-            "profitto_price_taker": e.profitto_price_taker,
-            "profitto_price_maker": e.profitto_price_maker,
-            "erosione_assoluta": e.erosione_assoluta,
-            "erosione_relativa": e.erosione_relativa,
-            "variazione_prezzo_media": e.variazione_prezzo_media,
-            "cicli_equivalenti": e.cicli_equivalenti,
-            # D-31: giornate in cui il differenziale non copre il costo di degrado e il
-            # piano ottimo e' non fare nulla. Restano nel campione con erosione nulla.
-            "piano_vuoto": e.piano_vuoto,
-            "prezzo_medio_riferimento": float(np.nanmean(riferimento)),
-            "spread_giornaliero": float(np.nanmax(riferimento) - np.nanmin(riferimento)),
-        })
-    return pd.DataFrame(righe)
 
 
 def main() -> None:
@@ -130,6 +76,10 @@ def main() -> None:
     parser.add_argument("--soglia", type=float, default=0.10,
                         help="quota di erosione che definisce il passaggio a price maker")
     parser.add_argument("--n-boot", type=int, default=1000)
+    parser.add_argument("--processi", type=int, default=None,
+                        help="processi per il calcolo delle erosioni; "
+                             "1 = sequenziale, 0 = tutti i logici. Non tocca "
+                             "il bootstrap, che resta sequenziale e seminato.")
     parser.add_argument("--riusa-tabella", action="store_true",
                         help="rilegge la tabella delle erosioni gia' calcolata")
     args = parser.parse_args()
@@ -165,13 +115,10 @@ def main() -> None:
         out(f"\nTabella delle erosioni riletta da {f_erosioni.name}: {len(erosioni)} righe.")
     else:
         inizio = time.time()
-        pezzi = []
-        for i, data in enumerate(giorni, start=1):
-            pezzi.append(erosioni_giorno(data, griglia, args.durata))
-            if i % 5 == 0 or i == len(giorni):
-                out(f"  [{i:>3}/{len(giorni)}] {data}  "
-                    f"({time.time() - inizio:.0f} s)")
-        erosioni = pd.concat(pezzi, ignore_index=True)
+        erosioni = parallelo.erosioni_campione(
+            giorni, griglia=griglia, durata_ore=args.durata,
+            processi=args.processi, avanzamento=out, ogni=5,
+        )
         erosioni.to_csv(f_erosioni, index=False)
         out(f"\nCalcolo completato in {time.time() - inizio:.0f} secondi.")
 
