@@ -2925,6 +2925,373 @@ anni da aggiungere a 2024 consolidato.
 
 Nulla è stato lanciato: il run completo e il bootstrap sono il passo successivo.
 
+
+---
+
+## 2026-08-28 — Cambio di impianto: la previsione a D-1 diventa il cuore statistico
+
+Il relatore ha approvato un **impianto a due fasi**, e questo cambia il baricentro della tesi.
+Fino a oggi la batteria pianificava sui prezzi reali (previsione perfetta, D-22) e
+l'incertezza veniva dal ricampionamento dei giorni (D-26). Da ora:
+
+* **fase 1**: si prevede il prezzo orario del giorno D usando solo l'informazione disponibile
+  a D-1, e la batteria pianifica su quei prezzi **previsti**;
+* **fase 2** (già costruita e validata): il piano si inserisce nelle curve d'asta reali, si
+  ricalcola l'equilibrio, si misurano profitto effettivo ed erosione.
+
+Il **bootstrap dei giorni esce dall'impianto**: l'incertezza non viene più dal ricampionamento
+ma dall'errore di previsione. Registrato come D-37, che supera D-22 e D-26. La previsione
+perfetta **non si butta**: resta il limite superiore contro cui misurare tutto.
+
+Il punto che vale la pena fissare: l'obiettivo **non è prevedere bene**. È caratterizzare
+l'errore e la sua propagazione. La previsione è il motore che rende la batteria non
+onnisciente; l'oggetto statistico è l'errore.
+
+### La fase 2 non accettava un piano da previsione, e il motivo era sottile
+
+Verificato prima di toccare qualsiasi cosa. In `erosione` il parametro `prezzi_riferimento`
+faceva **due lavori insieme**: costruiva il piano *e* valorizzava il profitto price taker.
+Passandogli le previsioni, il piano sarebbe stato giusto ma π_PT sarebbe risultato valorizzato
+ai prezzi **previsti** — cioè avremmo misurato il profitto che la batteria *credeva* di fare,
+non quello che avrebbe fatto. L'erosione non sarebbe più stata confrontabile con quella del
+perfect foresight.
+
+Risolto con `prezzi_piano` (D-38), additivo: con il default `None` il comportamento è identico
+a prima. Verifica su tre giornate reali e sei capacità, **162 confronti esatti** — non al
+centesimo, bit a bit. Il degrado continua a modellare il piano e a farlo sui prezzi del piano;
+il parametro K (D-35) resta fuori dal piano, verificato ai due regimi.
+
+Aggiunto il campo `profitto_atteso`: lo stesso piano valorizzato ai prezzi su cui è stato
+costruito. Servono **tre** grandezze, non due — atteso, price taker realizzato, price maker
+realizzato — perché le due perdite sono concettualmente diverse: quella da **incertezza
+informativa** (perfect foresight meno previsione, entrambi ai prezzi veri) e quella da
+**cannibalizzazione** (price taker meno price maker, a parità di piano).
+
+**La proprietà di cancellazione dell'erosione sopravvive.** π_PT e π_PM restano entrambi
+valorizzati sui prezzi ricostruiti, con e senza accumulo: l'errore di ricostruzione entra
+identico nei due termini e si semplifica. La previsione cambia *quale* piano si costruisce,
+non *come* lo si valorizza.
+
+### Due cose emerse dai controlli, entrambe sostanziali
+
+**La soglia di convenienza dell'arbitraggio è oltre il doppio di quella analitica.** La
+formula `cv · η_s + p · (1 − η)` dà ~8 €/MWh; misurata su un profilo sinusoidale a 24 ore, la
+soglia vera è **~18 €/MWh senza degrado e ~42 con degrado a 12 €/MWh**. Il motivo è il
+**vincolo di durata**: con quattro ore la batteria non transa nell'ora estrema ma su finestre
+di quattro ore, e su un profilo liscio cattura molto meno dello spread nominale. La formula
+chiusa va quindi usata come ordine di grandezza, mai come soglia operativa.
+
+**Un errore di previsione non può invertire l'ordine fisico delle operazioni.** Il primo test
+scritto — previsione esattamente rovesciata — è fallito, e correttamente: la batteria dovrebbe
+scaricare prima di aver caricato, mentre parte da stato zero con ciclo chiuso. Il piano è
+*infeasible*, non subottimo. L'errore previsivo può spostare **quando** si opera, non l'ordine
+carica→scarica. È un vincolo che limita strutturalmente quanto danno l'errore può fare, ed è
+esso stesso un risultato.
+
+Il test riprogettato è calcolabile a mano: prezzi veri (100, 200, 300, 150), previsione
+(200, 100, 150, 300) → la batteria **crede** di fare +20.000 € e ne fa **−5.000**, con il price
+maker ancora peggiore. Su una previsione sbagliata la retroazione **aggrava la perdita** invece
+di erodere un margine: è un meccanismo diverso dalla cannibalizzazione, e va tenuto distinto.
+
+### La serie storica: 2023-2024, prezzi ufficiali
+
+Estratti 731 giorni, **17.544 ore**, nessun buco. Si prevedono i prezzi **ufficiali GME** e non
+i ricostruiti: è quello che osserva un operatore reale, e prevedere la propria ricostruzione
+significherebbe prevedere anche il proprio errore di ricostruzione, che non è un fenomeno di
+mercato.
+
+Media 117,58 €/MWh, dev. std 33,89, minimo **0,10**, massimo 295,00. **Nessun prezzo ≤ 0**: il
+logaritmo resta comunque escluso, perché con un minimo di 0,10 sarebbe fragile per costruzione
+e sul MGP i prezzi negativi sono ammessi fino a −500.
+
+**Un difetto trovato e corretto**: la prima versione costruiva l'istante come `data + ora`, che
+sui giorni di cambio ora produce un **istante duplicato e un buco**. In 183 giorni il totale
+quadrava lo stesso, perché +1 e −1 si compensano, quindi il conteggio non lo rivelava.
+Trattamento (a), D-40: 24 slot in ora locale, media delle due occorrenze dell'ora ripetuta e
+interpolazione di quella mancante. Quattro slot ricostruiti in due anni, tutti alle 02:00. Che
+le due occorrenze siano davvero la stessa ora si legge nei dati: 110,00 e 113,00 il 29/10/2023,
+95,35 e 97,64 il 27/10/2024. Vale per la **sola serie di previsione**; la fase 2 continua a
+usare i periodi d'asta reali.
+
+### La specifica SARIMAX, letta dal correlogramma
+
+Le due stagionalità, misurate su ottobre 2023 – marzo 2024:
+
+* **giornaliera, forte**: profilo da 88 €/MWh alle 3-4 a 135 alle 19, ampiezza **47,8 €/MWh,
+  il 44% della media**, con doppio picco (mattutino a 129, serale a 135) e ventre a 95;
+* **settimanale, modesta**: feriali 110-113, sabato 101, domenica 97, ampiezza 15,8 €/MWh. Ma
+  tolto il profilo orario il giorno della settimana spiega solo il **5,2%** della varianza
+  residua.
+
+La differenziazione **non la decidono i test** (con d=1 la dev. std è già 11,49 contro 9,91
+della doppia) ma l'ACF:
+
+| | ACF a 24, 48, 72, 96, 120 |
+|---|---|
+| d=1 | +0,62 +0,57 +0,53 +0,53 +0,52 |
+| d=1 e D=1 | −0,43 −0,01 −0,05 +0,00 −0,06 |
+
+Con la sola differenza prima la stagionalità **non decade affatto**. Con anche quella
+stagionale collassa e resta **una sola punta negativa a lag 24 che taglia netto** (PACF
+−0,429): la firma di una media mobile stagionale di ordine 1. Da qui **D=1, P=0, Q=1, s=24**,
+che non è una scelta ma una lettura.
+
+A lag 168 resta +0,129: struttura settimanale residua, che i **regressori di Fourier** devono
+assorbire. Non una seconda stagionalità — SARIMA ne ammette una sola e differenziare a 168
+costerebbe una settimana di burn-in — ma due coppie di armoniche più dummy sabato, domenica e
+festivi italiani (Lunedì dell'Angelo incluso). Sette regressori, tutti leggibili.
+
+### La selezione dell'ordine, e un tranello evitato
+
+| Ordine | AIC | BIC | par | σ² | convergenza |
+|---|---|---|---|---|---|
+| **(2,1,1)** | **63.572,10** | 63.657,01 | 12 | 84,20 | **No a maxiter=50** |
+| (1,1,2) | 63.575,47 | 63.660,38 | 12 | 84,24 | Sì |
+| (1,1,1) | 63.833,29 | 63.911,12 | 11 | 86,79 | Sì |
+| (0,1,1) | 64.319,99 | 64.390,75 | 10 | 91,81 | Sì |
+
+Il vincitore per AIC **non era convergente**: l'ottimizzatore si era fermato per esaurimento
+di iterazioni, non perché avesse trovato il massimo. **Un AIC non convergente non è
+confrontabile con uno convergente**, e adottarlo avrebbe significato scegliere il modello su
+un numero che non misura ciò che dovrebbe.
+
+Rilanciato con `maxiter=200`: **converge in 55 iterazioni**, cinque più del limite, con AIC
+identico al millesimo (63572,101 contro 63572,104). La stima era già all'ottimo, mancava solo
+la conferma formale. Il confronto è quindi valido e **(2,1,1) vince legittimamente** — anche
+se per soli 3,37 punti su 63.572 e a parità di parametri, quindi la scelta non è delicata.
+
+Conseguenza operativa registrata nel codice: `maxiter` predefinito portato a **200**. Una
+stima non convergente non è un errore visibile — restituisce numeri plausibili — e nelle
+ristime mensili nessuno guarderebbe il diagnostico.
+
+Quello che il confronto dice senza ambiguità è che **la parte autoregressiva serve**: da
+(0,1,1) a (1,1,1) l'AIC scende di 487 punti, e il secondo termine ne vale altri 258. Lì il
+margine non è ambiguo.
+
+**Ljung-Box p < 0,0001 su tutti i candidati.** Su 8.760 osservazioni il test rifiuta per
+scostamenti minimi: non è una bocciatura, è un numero da dichiarare. L'autocorrelazione
+residua è materia del passo successivo, dove la struttura dell'errore è l'oggetto e non il
+disturbo.
+
+**σ² ≈ 84 corrisponde a una dev. std dei residui di ≈ 9,2 €/MWh, ma a un passo.** Le previsioni
+sono a 24 passi: l'errore vero sarà sensibilmente maggiore, e ci si attende che cresca con
+l'orizzonte, perché le ore serali del giorno D distano 30-44 ore dall'ultima osservazione.
+
+### Prodotti e prossimo passo
+
+`src/mgp/previsione.py` (nuovo), `prezzi_piano` e `profitto_atteso` in `batteria.erosione`,
+`parallelo.serie_prezzi`/`prezzi_giorno`, `scripts/12_serie_prezzi.py`,
+`scripts/13_seleziona_ordine.py`. `statsmodels 0.15.0` aggiunto a `requirements.txt`.
+Cinque test nuovi sul piano da previsione: **122 test verdi**.
+
+Il passo successivo è la **previsione a origine mobile su tutto il 2024** — 12 ristime mensili
+e 366 previsioni a 24 passi — da cui esce la caratterizzazione dell'errore: per ora del giorno,
+autocorrelazione, code, eteroschedasticità.
+
+
+---
+
+## 2026-08-29 — La firma dell'errore di previsione: sei dimensioni e una sintesi
+
+Previsione a origine mobile completata su tutto il 2024: **8.784 ore, 366 giorni, 11 ristime
+mensili, 7 ore e 14 minuti** di calcolo. Da qui la caratterizzazione dell'errore
+$e(g,h) = p_{\text{reale}} - p_{\text{previsto}}$, che è il pezzo statistico centrale della
+fase 1. Non interessa quanto il modello sbagli — quello lo dice l'RMSE, 14,75 €/MWh — ma
+**come** sbaglia, perché è quella struttura che si propagherà al piano della batteria.
+
+Prodotti in `scripts/15_errore_previsione.py`, quattro figure in `output/figure/15_*`.
+
+### 1. L'errore segue l'ora del giorno, non l'orizzonte
+
+Varia di **2,4 volte** fra l'ora migliore e la peggiore: RMSE 8,22 €/MWh allo slot 0, **19,97
+allo slot 14**. Le ore notturne piatte si prevedono bene (8-12), il pomeriggio male.
+
+* correlazione fra RMSE orario e **variabilità** del prezzo in quell'ora: **+0,931**
+* correlazione con il **livello** medio del prezzo: **+0,185**
+
+L'aspettativa di partenza — errore massimo nei picchi delle 8 e delle 19 — è **per metà
+smentita**. L'ora 8 è effettivamente fra le peggiori (17,80), ma il picco serale delle 19, che
+è l'ora di prezzo più alto dell'anno (138 €/MWh), si prevede **meglio** (16,61) del ventre
+pomeridiano. Il picco serale è alto ma regolare; il pomeriggio è mediamente basso ma erratico,
+perché dipende dal fotovoltaico.
+
+**Avvertenza di identificazione, dichiarata**: l'origine è sempre la fine di D-1, quindi
+l'orizzonte *h* coincide sempre con l'ora *h−1*. Le due variabili **non sono separabili** su
+questi dati. Si può però escludere che sia un puro effetto di orizzonte, perché lo schema non
+è monotono: scende da 12,31 alle 3 a 10,04 alle 6, risale a 19,97 alle 14, ridiscende a 10,65
+alle 23.
+
+**Il fatto emerso e non cercato**: l'errore standard **dichiarato** dal SARIMA cresce monotono
+da 8,60 a 17,62 €/MWh, come impone la teoria — l'incertezza è funzione dell'orizzonte. Quello
+**realizzato** segue l'ora. Le due curve si incrociano tre volte e il rapporto
+realizzato/dichiarato va da **0,60** alle ore 5-6 e 22-23 a **1,15** alle 14. Il modello ha
+una teoria dell'errore che dipende solo dalla distanza temporale, mentre l'errore vero dipende
+da quale ora si prevede: prende il livello quasi giusto e **sbaglia la forma lungo la
+giornata**. Figura `15_errore_orario`.
+
+### 2. Non distorto, molto disperso
+
+Media **0,0148** €/MWh, mediana 0,0352, test t su media nulla **p = 0,925**. Il bias massimo
+per ora del giorno vale **0,29 €/MWh** contro una dispersione di **14,75**.
+
+Il modello è praticamente non distorto: **tutto l'errore è dispersione**. Non c'è una
+correzione sistematica da applicare — nessun aggiustamento del tipo «alza i picchi del tot» —
+si può solo convivere con la varianza, ed è quella che si propagherà al piano.
+
+Quantili: p1 −42,87, p25 −7,83, p50 +0,04, p75 +7,54, p99 +39,92.
+
+### 3. Code spesse, e concentrate dove si guadagna
+
+Asimmetria **−0,0002** (perfettamente simmetrica), **curtosi in eccesso +3,97**.
+
+| Oltre k·σ | Osservato | Gaussiana | Rapporto |
+|---|---|---|---|
+| 1σ | 23,14% | 31,73% | **0,7×** |
+| 2σ | 5,19% | 4,55% | 1,1× |
+| 3σ | 1,67% | 0,27% | **6,2×** |
+| 4σ | 0,638% | 0,006% | **101×** |
+| 5σ | 0,148% | ~0% | **2.581×** |
+
+Più massa al centro *e* nelle code, meno nelle spalle. **L'1% peggiore delle ore porta il 19,0%
+della somma dei quadrati; il 5% peggiore il 45,4%.** Figura `15_errore_forma`: l'istogramma da
+solo ingannerebbe, perché le code sono invisibili proprio dove contano; il diagramma
+quantile-quantile mostra la classica S dello scostamento agli estremi.
+
+**Il legame che collega la fase 1 alla redditività.** Il RMSE giornaliero correla:
+
+* con lo **spread reale** del giorno: **+0,600** (p = 3·10⁻³⁷)
+* con la **volatilità** del giorno: **+0,638** (p = 3·10⁻⁴³)
+* con il **livello medio** del giorno: +0,045, **non significativo** (p = 0,39)
+
+| Quintile di spread | Spread (€/MWh) | RMSE medio | Errore sullo spread |
+|---|---|---|---|
+| 1 | 20–47 | 9,89 | **−10,01** |
+| 2 | 47–56 | 9,90 | −1,12 |
+| 3 | 57–66 | 11,65 | +5,04 |
+| 4 | 66–79 | 13,19 | +8,96 |
+| 5 | **79–158** | **20,56** | **+37,58** |
+
+L'errore **raddoppia** nelle giornate a spread ampio, cioè proprio quelle in cui l'arbitraggio
+vale di più. E l'ultima colonna dice qualcosa di peggio: nelle giornate migliori il modello
+**sottostima lo spread di 37,58 €/MWh in media**.
+
+Figura `15_errore_spread`, pannello destro: lo spread **previsto** vive in una fascia stretta,
+40–80 €/MWh, mentre quello **reale** spazia da 20 a 158. Il modello **contrae lo spread verso
+la sua media** — comportamento atteso di un modello a ritorno in media su orizzonte lungo, ma
+qui la conseguenza è specifica e grave: la batteria vede quasi la stessa opportunità ogni
+giorno. Lo spread è sottostimato nel **65%** delle giornate.
+
+### 4. Memoria dentro la giornata, nessuna fra giornate
+
+ACF dei residui: **+0,849** a lag 1, +0,670 a lag 2, +0,518 a lag 3. La PACF vale +0,849 a lag
+1, **−0,184 a lag 2** e poi si annulla: struttura di tipo autoregressivo del primo ordine.
+
+Ljung-Box rifiuta massicciamente a 24, 48 e 168 (p = 0 in tutti i casi). **I residui non sono
+bianchi.** Va dichiarato senza attenuazioni: resta segnale non sfruttato, e il modello si
+potrebbe migliorare. Con 8.784 osservazioni il test rifiuterebbe comunque per scostamenti
+minimi, ma un'ACF di 0,849 a lag 1 non è uno scostamento minimo.
+
+Il punto però è **dove** vive quella memoria. L'ACF dell'errore **medio giornaliero** vale
++0,034 a lag 1, dentro la banda: **le giornate difficili non si presentano a grappoli**. Una
+giornata sbagliata non ne annuncia un'altra.
+
+È il verso peggiore per il piano della batteria. Un errore coerente per l'intera giornata
+sbaglia l'**ordinamento** delle ore — che è esattamente ciò che determina quando caricare e
+quando scaricare — mentre errori indipendenti si compenserebbero.
+
+*(Nota di metodo: l'interpretazione «le giornate difficili vengono a grappoli» era stata
+scritta nel report **prima** di vedere i dati, che la smentiscono. È stata sostituita con un
+commento condizionato al risultato. Scrivere l'interpretazione prima del numero è un errore da
+non ripetere.)*
+
+### 5. Eteroschedasticità: a U sul livello, monotona sulla volatilità
+
+Sul **livello del prezzo previsto** — e i decili si costruiscono sul previsto, non sul
+realizzato, perché raggruppare per il realizzato è contaminato per costruzione, e infatti dava
+un bias apparente da −14,88 a +10,92 che è quasi tutto artefatto:
+
+| Decile previsto | RMSE |
+|---|---|
+| più basso (28–77 €/MWh) | **22,01** |
+| centrali | **10,96** |
+| più alto (141–215) | **20,63** |
+
+**Andamento a U: l'errore raddoppia a entrambi gli estremi.** La correlazione di rango vale
++0,001 (p = 0,92) e da sola direbbe «nessuna eteroschedasticità»: cerca monotonia, e qui la
+relazione non è monotona. La tabella dice più del coefficiente.
+
+Sulla **volatilità della giornata** la relazione è invece monotona e forte:
+
+| Quintile di volatilità | Volatilità (€/MWh) | RMSE medio |
+|---|---|---|
+| 1 | 4,6–13,3 | 9,93 |
+| 3 | 16,2–18,8 | 10,97 |
+| 5 | **23,7–50,8** | **20,45** |
+
+L'errore **raddoppia** dai giorni tranquilli a quelli agitati. È l'anello che lega l'errore di
+previsione al **regime di mercato**, e va nella direzione sfavorevole: i regimi volatili sono
+quelli in cui l'accumulo guadagna.
+
+### 6. Intervalli larghi al centro, stretti nelle code
+
+| Livello nominale | Copertura osservata | Scarto | Ampiezza mediana |
+|---|---|---|---|
+| 50% | 64,7% | **+14,7 pp** | 22,99 |
+| 80% | 88,2% | +8,2 pp | 43,68 |
+| 90% | 93,6% | +3,6 pp | 56,06 |
+| 95% | 96,0% | +1,0 pp | 66,81 |
+| 99% | 98,1% | **−0,9 pp** | 87,80 |
+
+**Lo scarto decresce in modo monotono e cambia segno.** È la firma esatta di intervalli
+gaussiani costruiti su un errore leptocurtico: troppo larghi al centro, troppo stretti nelle
+code. Non è un difetto di *ampiezza* ma di *forma*, ed è la stessa cosa vista alla dimensione
+3, letta dal lato dell'incertezza dichiarata.
+
+Rapporto realizzato/dichiarato complessivo **0,895**: il modello è mediamente prudente. La
+miscalibrazione è però **strutturata per ora** e rispecchia la dimensione 1: copertura al 90%
+pari a **97-99% nelle ore notturne** (troppo largo) e **86,9-88,8% alle ore 13-15** (troppo
+stretto). Proprio nelle ore che contano per l'arbitraggio il modello è più sicuro di quanto
+dovrebbe. Figura `15_calibrazione`.
+
+### La sintesi: la firma di questo errore
+
+Cinque tratti, che si tengono:
+
+1. **non distorto ma molto disperso** — niente da correggere, solo varianza da subire;
+2. **strutturato per ora del giorno**, con il massimo nel ventre pomeridiano e il minimo di
+   notte, e con il modello che crede invece di sbagliare in funzione dell'orizzonte;
+3. **leptocurtico e simmetrico** — quasi sempre piccolo, rarissimamente enorme, con il 5%
+   peggiore delle ore che porta quasi metà dell'errore quadratico;
+4. **coerente dentro la giornata, indipendente fra giornate** — non si compensa, sbaglia
+   l'ordinamento;
+5. **crescente con volatilità e spread** — grande dove si guadagna.
+
+### Che cosa conterà quando l'errore si propagherà al piano (punto 3)
+
+Quattro caratteristiche puntano tutte nella stessa direzione, e la previsione è che **la
+perdita da previsione imperfetta sarà più che proporzionale all'errore medio**.
+
+**La contrazione dello spread è il meccanismo principale.** Prevedendo 40-80 €/MWh quando il
+vero spread va da 20 a 158, la batteria vede quasi la stessa opportunità ogni giorno e
+**pianificherà quasi allo stesso modo ogni giorno**. Perderà soprattutto le giornate
+eccezionali, che sono quelle che fanno il margine annuo. È un effetto sul *livello* del
+profitto, non sul suo rumore.
+
+**La coerenza intragiornaliera impedisce la compensazione.** Con ACF a 0,849, se il modello
+sbaglia al mattino sbaglia nello stesso verso nelle ore seguenti: l'errore non si media via
+lungo le 24 ore, sposta l'intero profilo.
+
+**L'errore è massimo nell'ora di carica.** Il minimo giornaliero cade spesso nel ventre delle
+13-15, che è l'ora peggio prevista dell'intera giornata (19,97 €/MWh).
+
+**L'errore è massimo nelle giornate migliori.** Correlazione +0,600 con lo spread: il danno si
+concentra dove c'è da guadagnare.
+
+Un vincolo che invece **limita** il danno, ed è emerso dai test del 28/08: un errore di
+previsione può spostare **quando** la batteria opera, non l'**ordine** carica→scarica, perché
+lo stato di carica parte da zero e il ciclo dev'essere chiuso. Il piano peggiore possibile non
+è quello rovesciato, che sarebbe *infeasible*, ma quello che opera nelle ore sbagliate.
+
 ---
 
 ## Prossimi passi

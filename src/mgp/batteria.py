@@ -586,6 +586,11 @@ class Erosione:
         Media sui periodi della differenza fra prezzo con accumulo e prezzo di riferimento.
     energia_ciclata_mwh : float
     cicli_equivalenti : float
+    profitto_atteso : float
+        Il piano valorizzato ai prezzi su cui e' stato **ottimizzato**. Con
+        `prezzi_piano=None` coincide per costruzione con `profitto_price_taker`; quando il
+        piano nasce da una previsione e' invece il profitto che l'operatore si **aspettava**,
+        e la sua distanza da `profitto_price_taker` misura il costo dell'errore previsivo.
     """
 
     data: str
@@ -597,6 +602,7 @@ class Erosione:
     variazione_prezzo_media: float
     energia_ciclata_mwh: float
     cicli_equivalenti: float
+    profitto_atteso: float = float("nan")
     piano_vuoto: bool = False
     profilo: pd.DataFrame = field(default_factory=pd.DataFrame)
 
@@ -615,6 +621,7 @@ def erosione(
     durata_ore: float = DURATA_RIFERIMENTO_ORE,
     zone: list[str] | str | None = None,
     prezzi_riferimento: np.ndarray | None = None,
+    prezzi_piano: np.ndarray | None = None,
     offerte_giorno: dict[int, pd.DataFrame] | None = None,
     con_import: bool = True,
     **parametri_batteria,
@@ -637,8 +644,13 @@ def erosione(
     zone : list[str] | str | None
         Perimetro zonale.
     prezzi_riferimento : array | None
-        Prezzi su cui ottimizzare e valorizzare il profitto price taker. Se None si usano i
-        prezzi ricostruiti **senza** accumulo (vedi nota).
+        Prezzi con cui si **valorizza** il profitto price taker, e su cui si ottimizza il
+        piano se `prezzi_piano` non e' indicato. Se None si usano i prezzi ricostruiti
+        **senza** accumulo (vedi nota).
+    prezzi_piano : array | None
+        Prezzi su cui si **ottimizza** il piano, quando devono essere diversi da quelli con
+        cui lo si valorizza. Se None il piano si ottimizza su `prezzi_riferimento`, che e'
+        il caso di previsione perfetta e il comportamento storico della funzione.
     offerte_giorno : dict[int, pd.DataFrame] | None
         Curve gia' preparate da `curve.offerte_giornata`. Passarle evita di ricostruirle a
         ogni capacita' della griglia: sulle stesse curve cambia solo il profilo inserito.
@@ -681,7 +693,12 @@ def erosione(
         base = np.asarray(prezzi_riferimento, dtype=float)
 
     accumulo = flotta(potenza_aggregata_mw, durata_ore, **parametri_batteria)
-    riferimento = np.nan_to_num(base, nan=float(np.nanmean(base)) if np.isfinite(base).any() else 0.0)
+    # Su quali prezzi si costruisce il piano. Con `prezzi_piano=None` sono gli stessi con
+    # cui lo si valorizza: e' la previsione perfetta, il comportamento storico.
+    base_piano = base if prezzi_piano is None else np.asarray(prezzi_piano, dtype=float)
+    riferimento = np.nan_to_num(
+        base_piano,
+        nan=float(np.nanmean(base_piano)) if np.isfinite(base_piano).any() else 0.0)
     # Il vincolo orario-nei-quarti si deriva dalla granularita' dell'asta: 4 periodi per
     # ora su PT15, 1 su PT60, dove il vincolo e' vacuo e non cambia nulla (D-33).
     periodi_per_ora = int(round(1.0 / delta))
@@ -690,6 +707,10 @@ def erosione(
 
     pi_pt = profitto_price_taker(carica, scarica, base, delta)
     pi_pm, prezzi_nuovi = profitto_price_maker(carica, scarica, offerte_giorno, periodi, delta)
+    # Quello che l'operatore si aspettava di guadagnare: lo stesso piano valorizzato ai
+    # prezzi su cui l'ha costruito. Con previsione perfetta coincide con pi_pt.
+    pi_atteso = (pi_pt if prezzi_piano is None
+                 else profitto_price_taker(carica, scarica, base_piano, delta))
 
     assoluta = pi_pt - pi_pm
     relativa = (assoluta / pi_pt) if abs(pi_pt) >= PROFITTO_MINIMO_PER_RAPPORTO else float("nan")
@@ -711,6 +732,7 @@ def erosione(
     profilo = pd.DataFrame({
         "PERIOD": periodi,
         "prezzo_riferimento": base,
+        "prezzo_piano": base_piano,
         "prezzo_con_accumulo": prezzi_nuovi,
         "carica_mw": carica,
         "scarica_mw": scarica,
@@ -727,6 +749,7 @@ def erosione(
         variazione_prezzo_media=float(np.nanmean(prezzi_nuovi - base)),
         energia_ciclata_mwh=energia_ciclata,
         cicli_equivalenti=energia_ciclata / accumulo.capacita_mwh if accumulo.capacita_mwh else 0.0,
+        profitto_atteso=pi_atteso,
         piano_vuoto=piano_vuoto,
         profilo=profilo,
     )

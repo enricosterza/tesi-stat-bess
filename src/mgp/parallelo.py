@@ -13,6 +13,13 @@ funzione che stava dentro `scripts/06_soglia_price_maker.py`, spostata qui perch
 riutilizzabile appartiene al package e perche' il runner parallelo deve poterla importare.
 Il risultato di un giorno non dipende da chi lo calcola.
 
+Vincolo di Windows, da non dimenticare
+--------------------------------------
+Le funzioni con `processi > 1` vanno chiamate da un **file** e sotto la guardia
+`if __name__ == "__main__"`. Su Windows i processi figli reimportano il modulo principale:
+se questo non e' un file — per esempio codice passato da stdin — il pool muore subito con
+`BrokenProcessPool`, e il messaggio non dice affatto quale sia la causa.
+
 Dove NON c'e' parallelismo, ed e' un bene
 -----------------------------------------
 Il **bootstrap resta sequenziale**. Non e' una rinuncia: e' cio' che rende la
@@ -238,3 +245,136 @@ def erosioni_campione(
     segnala(f"Completato in {durata:.0f} s "
             f"({durata / max(len(giorni), 1):.2f} s per giorno).")
     return pd.concat(pezzi, ignore_index=True)
+
+
+# ---------------------------------------------------------------------------
+#  Serie storica dei prezzi zonali: il dato di ingresso della fase 1
+# ---------------------------------------------------------------------------
+
+def prezzi_giorno(data: str, zona: str = config.ZONA_DEFAULT) -> pd.DataFrame:
+    """
+    Prezzi zonali **ufficiali** di una giornata, uno per periodo.
+
+    Parameters
+    ----------
+    data : str
+        Giorno di mercato, formato 'AAAAMMGG'.
+    zona : str
+        Zona di mercato. Default NORD.
+
+    Returns
+    -------
+    pd.DataFrame
+        Colonne `data`, `PERIOD`, `ora`, `prezzo`, `granularita`.
+
+    Perche' i prezzi UFFICIALI e non quelli ricostruiti
+    ---------------------------------------------------
+    La fase 1 previsiva deve riprodurre l'informazione di cui dispone un operatore reale il
+    giorno prima, e quell'operatore osserva i prezzi **pubblicati dal GME**, non una
+    ricostruzione. Prevedere la propria ricostruzione significherebbe prevedere anche il
+    proprio errore di ricostruzione, che non e' un fenomeno di mercato.
+
+    La scelta non rompe la proprieta' su cui poggia l'erosione. Il piano costruito sulle
+    previsioni viene poi valorizzato in fase 2 sui prezzi **ricostruiti**, con e senza
+    accumulo: l'errore di ricostruzione entra identico nei due termini e si semplifica nella
+    differenza, esattamente come prima. La previsione cambia *quale* piano si costruisce, non
+    *come* lo si valorizza.
+    """
+    granularita = config.granularita_prevalente(data)
+    df = io_gme.carica_giorno(data=data, zona=None)
+    uff = io_gme.prezzi_ufficiali(df[df["ZONE_CD"] == zona], granularita=granularita)
+    durata = config.DURATA_ORE[granularita]
+    return pd.DataFrame({
+        "data": data,
+        "PERIOD": uff["PERIOD"].astype(int),
+        "ora": ((uff["PERIOD"].astype(int) - 1) * durata).astype(int),
+        "prezzo": uff["prezzo_ufficiale"].astype(float),
+        "granularita": granularita,
+    })
+
+
+def _lavoro_prezzi(argomenti: tuple[str, str]) -> pd.DataFrame:
+    data, zona = argomenti
+    return prezzi_giorno(data, zona=zona)
+
+
+def serie_prezzi(
+    giorni: Iterable[str],
+    zona: str = config.ZONA_DEFAULT,
+    processi: int | None = None,
+    avanzamento: Callable[[str], None] | None = None,
+    ogni: int = 25,
+) -> pd.DataFrame:
+    """
+    Serie storica dei prezzi zonali ufficiali su un intervallo di giorni.
+
+    Parameters
+    ----------
+    giorni : Iterable[str]
+        Giorni di mercato, formato 'AAAAMMGG'.
+    zona : str
+        Zona di mercato.
+    processi : int | None
+        Come in `erosioni_campione`: `None` o `1` esegue in sequenza.
+    avanzamento, ogni
+        Come in `erosioni_campione`.
+
+    Returns
+    -------
+    pd.DataFrame
+        Colonne `istante` (datetime), `data`, `ora`, `prezzo`, ordinate nel tempo.
+
+    Il costo e' quasi tutto **parsing degli XML**: estrarre i prezzi ufficiali richiede
+    comunque di leggere il file delle offerte, perche' `AWARDED_PRICE_NO` sta sulle righe
+    accettate. La cache Parquet lo paga una volta sola, e chi la scalda qui la trova calda
+    anche per la fase 2.
+    """
+    giorni = list(giorni)
+    if not giorni:
+        return pd.DataFrame(columns=["istante", "data", "ora", "prezzo"])
+
+    if processi is not None and processi <= 0:
+        processi = os.cpu_count() or 1
+
+    def segnala(testo: str) -> None:
+        if avanzamento is not None:
+            avanzamento(testo)
+
+    inizio = time.perf_counter()
+    argomenti = [(g, zona) for g in giorni]
+    pezzi: list[pd.DataFrame] = []
+
+    if processi is None or processi == 1:
+        segnala(f"Serie prezzi {zona}: {len(giorni)} giorni, in sequenza.")
+        for i, argomento in enumerate(argomenti, start=1):
+            pezzi.append(_lavoro_prezzi(argomento))
+            if i % ogni == 0 or i == len(giorni):
+                segnala(f"  [{i:4d}/{len(giorni)}] {giorni[i-1]}  "
+                        f"({time.perf_counter() - inizio:.0f} s)")
+    else:
+        segnala(f"Serie prezzi {zona}: {len(giorni)} giorni su {processi} processi.")
+        precedenti = {v: os.environ.get(v) for v in _VARIABILI_THREAD}
+        for v in _VARIABILI_THREAD:
+            os.environ[v] = "1"
+        try:
+            with ProcessPoolExecutor(max_workers=processi) as esecutore:
+                for i, pezzo in enumerate(esecutore.map(_lavoro_prezzi, argomenti, chunksize=1),
+                                          start=1):
+                    pezzi.append(pezzo)
+                    if i % ogni == 0 or i == len(giorni):
+                        segnala(f"  [{i:4d}/{len(giorni)}] {giorni[i-1]}  "
+                                f"({time.perf_counter() - inizio:.0f} s)")
+        finally:
+            for v, valore in precedenti.items():
+                if valore is None:
+                    os.environ.pop(v, None)
+                else:
+                    os.environ[v] = valore
+
+    serie = pd.concat(pezzi, ignore_index=True)
+    serie["istante"] = (pd.to_datetime(serie["data"], format="%Y%m%d")
+                        + pd.to_timedelta(serie["ora"], unit="h"))
+    serie = serie.sort_values("istante").reset_index(drop=True)
+    segnala(f"Completato in {time.perf_counter() - inizio:.0f} s: "
+            f"{len(serie):,} osservazioni orarie.")
+    return serie[["istante", "data", "ora", "prezzo", "granularita"]]

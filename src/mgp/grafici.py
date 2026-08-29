@@ -599,6 +599,180 @@ def _respiro_verticale(ax: plt.Axes, *esiti: dict) -> None:
     ax.set_ylim(basso - respiro, alto + respiro)
 
 
+
+def figura_distribuzione_errore(errore) -> plt.Figure:
+    """
+    La forma della distribuzione dell'errore, contro la gaussiana che il modello assume.
+
+    Parameters
+    ----------
+    errore : array
+        Errori di previsione, in EUR/MWh.
+
+    Returns
+    -------
+    plt.Figure
+
+    Due pannelli, perche' l'istogramma da solo inganna
+    --------------------------------------------------
+    Sull'istogramma una distribuzione a code spesse sembra semplicemente "un po' piu'
+    appuntita": le code, essendo rare, sono invisibili proprio dove contano. Il diagramma
+    quantile-quantile le rende leggibili, perche' mette sull'asse cio' che la gaussiana si
+    aspetta e mostra di quanto la realta' se ne discosti agli estremi.
+
+    La retta del pannello destro non e' una regressione ma la **bisettrice**: se l'errore
+    fosse gaussiano i punti vi cadrebbero sopra. Lo scostamento agli estremi e' la misura
+    visiva di quanto le code siano piu' spesse dell'assunzione.
+    """
+    from scipy import stats as _st
+
+    errore = np.asarray(errore, dtype=float)
+    sd = float(np.std(errore, ddof=1))
+    _stile()
+    figura, (sx, dx) = plt.subplots(1, 2, figsize=(12.4, 5.2))
+
+    # ---- istogramma con la gaussiana di pari media e varianza
+    sx.hist(errore, bins=120, density=True, color=COLORE_OFFERTA, alpha=0.55,
+            edgecolor="none", label="errore osservato")
+    griglia = np.linspace(errore.min(), errore.max(), 500)
+    sx.plot(griglia, _st.norm.pdf(griglia, errore.mean(), sd), color=INCHIOSTRO,
+            linewidth=2.0, linestyle="--", label="gaussiana di pari varianza")
+    sx.set_xlabel("Errore [€/MWh]")
+    sx.set_ylabel("Densità")
+    sx.set_title(f"Curtosi in eccesso {_st.kurtosis(errore):+.2f}: più massa al centro\n"
+                 "e nelle code, meno nelle spalle", fontsize=10.5)
+    sx.legend(loc="upper left")
+    sx.set_xlim(np.percentile(errore, 0.2), np.percentile(errore, 99.8))
+
+    # ---- quantile-quantile
+    teorici = _st.norm.ppf((np.arange(1, len(errore) + 1) - 0.5) / len(errore),
+                           loc=errore.mean(), scale=sd)
+    osservati = np.sort(errore)
+    dx.plot(teorici, osservati, marker="o", markersize=1.6, linestyle="none",
+            color=COLORE_OFFERTA, alpha=0.5)
+    estremi = [min(teorici.min(), osservati.min()), max(teorici.max(), osservati.max())]
+    dx.plot(estremi, estremi, color=INCHIOSTRO, linewidth=1.6, linestyle="--",
+            label="se l'errore fosse gaussiano")
+    dx.set_xlabel("Quantili attesi sotto la gaussiana [€/MWh]")
+    dx.set_ylabel("Quantili osservati [€/MWh]")
+    dx.set_title("Le code osservate escono dalla retta:\n"
+                 "gli errori estremi sono molto più frequenti", fontsize=10.5)
+    dx.legend(loc="upper left")
+
+    for ax in (sx, dx):
+        ax.grid(True, linewidth=0.7)
+        ax.set_axisbelow(True)
+        for lato in ("top", "right"):
+            ax.spines[lato].set_visible(False)
+
+    figura.tight_layout()
+    return figura
+
+
+def figura_errore_contro_spread(per_giorno: pd.DataFrame) -> plt.Figure:
+    """
+    L'errore giornaliero contro lo spread della giornata: l'errore morde dove si guadagna?
+
+    Parameters
+    ----------
+    per_giorno : pd.DataFrame
+        Una riga per giorno, con `rmse`, `spread_reale`, `spread_previsto`.
+
+    Returns
+    -------
+    plt.Figure
+
+    Perche' questa figura conta piu' di un coefficiente
+    ---------------------------------------------------
+    Lo spread giornaliero e' il ricavo lordo per MWh ciclato dell'arbitraggio: se l'errore
+    di previsione cresce con lo spread, il modello sbaglia di piu' proprio nelle giornate
+    che valgono di piu'. Il pannello di destra mostra la stessa cosa dal lato che alla
+    batteria interessa davvero: quanto il modello sbaglia lo **spread**, non il livello.
+    Sotto la bisettrice il modello lo sottostima, e sottostimarlo e' l'errore piu' costoso —
+    porta a rinunciare a operare in giornate redditizie.
+    """
+    _stile()
+    figura, (sx, dx) = plt.subplots(1, 2, figsize=(12.4, 5.2))
+
+    sx.plot(per_giorno["spread_reale"], per_giorno["rmse"], marker="o", markersize=4,
+            linestyle="none", color=COLORE_OFFERTA, alpha=0.55)
+    coef = np.polyfit(per_giorno["spread_reale"], per_giorno["rmse"], 1)
+    xs = np.linspace(per_giorno["spread_reale"].min(), per_giorno["spread_reale"].max(), 50)
+    sx.plot(xs, np.polyval(coef, xs), color=INCHIOSTRO, linewidth=1.8, linestyle="--")
+    r = float(np.corrcoef(per_giorno["spread_reale"], per_giorno["rmse"])[0, 1])
+    sx.set_xlabel("Spread reale della giornata [€/MWh]")
+    sx.set_ylabel("RMSE della giornata [€/MWh]")
+    sx.set_title(f"L'errore cresce con lo spread (r = {r:+.2f}):\n"
+                 "il modello sbaglia dove l'arbitraggio vale di più", fontsize=10.5)
+
+    dx.plot(per_giorno["spread_reale"], per_giorno["spread_previsto"], marker="o",
+            markersize=4, linestyle="none", color=COLORE_DOMANDA, alpha=0.55)
+    lim = [0, max(per_giorno["spread_reale"].max(), per_giorno["spread_previsto"].max())]
+    dx.plot(lim, lim, color=INCHIOSTRO, linewidth=1.6, linestyle="--",
+            label="previsione esatta dello spread")
+    sotto = float((per_giorno["spread_previsto"] < per_giorno["spread_reale"]).mean())
+    dx.set_xlabel("Spread reale [€/MWh]")
+    dx.set_ylabel("Spread previsto [€/MWh]")
+    dx.set_title(f"Lo spread è sottostimato nel {100*sotto:.0f}% delle giornate\n"
+                 "(punti sotto la bisettrice)", fontsize=10.5)
+    dx.legend(loc="upper left")
+
+    for ax in (sx, dx):
+        ax.grid(True, linewidth=0.7)
+        ax.set_axisbelow(True)
+        for lato in ("top", "right"):
+            ax.spines[lato].set_visible(False)
+
+    figura.tight_layout()
+    return figura
+
+
+def figura_calibrazione(calibrazione: pd.DataFrame) -> plt.Figure:
+    """
+    Copertura osservata contro copertura nominale degli intervalli di previsione.
+
+    Parameters
+    ----------
+    calibrazione : pd.DataFrame
+        Colonne `nominale` e `copertura`, in frazione.
+
+    Returns
+    -------
+    plt.Figure
+
+    La bisettrice e' la calibrazione perfetta. Sopra, il modello e' **prudente**: dichiara
+    piu' incertezza di quanta ne realizzi, e chi usasse i suoi intervalli per dimensionare
+    un margine di rischio sovradimensionerebbe. Sotto, e' **sovra-sicuro**, che e' il verso
+    pericoloso.
+    """
+    _stile()
+    figura, ax = plt.subplots(figsize=(7.2, 5.6))
+
+    x = calibrazione["nominale"].to_numpy(dtype=float) * 100
+    y = calibrazione["copertura"].to_numpy(dtype=float) * 100
+    ax.plot([40, 100], [40, 100], color=INCHIOSTRO, linewidth=1.6, linestyle="--",
+            label="calibrazione perfetta")
+    ax.plot(x, y, marker="o", markersize=8, linewidth=2.0, color=COLORE_OFFERTA,
+            label="copertura osservata")
+    for xi, yi in zip(x, y):
+        ax.annotate(f"{yi:.1f}%", xy=(xi, yi), xytext=(0, 10),
+                    textcoords="offset points", ha="center", fontsize=9, color=INCHIOSTRO)
+
+    ax.set_xlabel("Livello nominale dell'intervallo [%]")
+    ax.set_ylabel("Copertura osservata [%]")
+    ax.set_title("Il modello dichiara più incertezza di quanta ne realizzi,\n"
+                 "ma il margine si assottiglia ai livelli estremi", fontsize=11)
+    ax.grid(True, linewidth=0.7)
+    ax.set_axisbelow(True)
+    ax.legend(loc="lower right")
+    for lato in ("top", "right"):
+        ax.spines[lato].set_visible(False)
+
+    figura.tight_layout()
+    return figura
+
+
+
 def salva(figura: plt.Figure, nome: str) -> str:
     """Salva una figura in `output/figure/` in PNG e PDF, e restituisce il path del PNG."""
     config.assicura_cartelle()
@@ -607,3 +781,75 @@ def salva(figura: plt.Figure, nome: str) -> str:
     figura.savefig(config.FIGURE_DIR / f"{nome}.pdf", bbox_inches="tight")
     plt.close(figura)
     return str(png)
+
+
+# ---------------------------------------------------------------------------
+#  Errore di previsione: come si distribuisce lungo la giornata
+# ---------------------------------------------------------------------------
+
+def figura_errore_orario(per_ora: pd.DataFrame) -> plt.Figure:
+    """
+    L'errore di previsione ora per ora, accanto a cio' che lo spiega.
+
+    Parameters
+    ----------
+    per_ora : pd.DataFrame
+        Indicizzato per `slot` (0-23), con almeno `rmse`, `mae`, `se_dichiarato`,
+        `prezzo_medio`, `dev_std_prezzo`.
+
+    Returns
+    -------
+    plt.Figure
+
+    Che cosa deve far vedere
+    ------------------------
+    Due fatti che una tabella non rende immediati.
+
+    Il primo: l'errore **realizzato** non ha la stessa forma di quello **dichiarato** dal
+    modello. L'errore standard di un SARIMA cresce in modo monotono con l'orizzonte, perche'
+    e' cosi' che la teoria lo costruisce; quello vero segue invece l'ora del giorno. Le due
+    curve del pannello superiore si incrociano, ed e' li' il risultato.
+
+    Il secondo: cio' che l'errore segue e' la **variabilita'** del prezzo in quell'ora, non
+    il suo livello. Il pannello inferiore mette le due grandezze una accanto all'altra
+    perche' il lettore possa verificarlo con l'occhio invece che fidarsi del coefficiente
+    di correlazione.
+    """
+    _stile()
+    figura, (alto, mezzo, basso) = plt.subplots(
+        3, 1, figsize=(9.5, 8.6), sharex=True, height_ratios=[3, 2, 2])
+
+    ore = per_ora.index.to_numpy()
+    alto.plot(ore, per_ora["rmse"], color=COLORE_OFFERTA, linewidth=2.2,
+              marker="o", markersize=4, label="errore realizzato (RMSE)")
+    alto.plot(ore, per_ora["mae"], color=COLORE_OFFERTA, linewidth=1.4,
+              linestyle=(0, (1, 2)), label="errore realizzato (MAE)")
+    alto.plot(ore, per_ora["se_dichiarato"], color=INCHIOSTRO, linewidth=2.0,
+              linestyle="--", label="errore dichiarato dal modello")
+    alto.set_ylabel("Errore [€/MWh]")
+    alto.set_title("L'errore realizzato segue l'ora del giorno,\n"
+                   "quello dichiarato dal modello segue solo l'orizzonte", fontsize=11)
+    alto.legend(loc="lower right")
+
+    # I due pannelli inferiori hanno scale molto diverse (decine contro centinaia) e vanno
+    # tenuti separati: sovrapporli su un asse solo schiaccerebbe la variabilita' fino a
+    # farla sembrare piatta, cioe' nasconderebbe proprio la grandezza che spiega l'errore.
+    mezzo.plot(ore, per_ora["dev_std_prezzo"], color=COLORE_DOMANDA, linewidth=2.2,
+               marker="s", markersize=4)
+    mezzo.set_ylabel("Variabilità del\nprezzo [€/MWh]")
+
+    basso.plot(ore, per_ora["prezzo_medio"], color=INCHIOSTRO_SECONDARIO, linewidth=2.0,
+               linestyle="-.")
+    basso.set_ylabel("Livello medio del\nprezzo [€/MWh]")
+    basso.set_xlabel("Ora del giorno")
+
+    for ax in (alto, mezzo, basso):
+        ax.grid(True, linewidth=0.7)
+        ax.set_axisbelow(True)
+        ax.set_xticks(range(0, 24, 3))
+        ax.set_xlim(-0.5, 23.5)
+        for lato in ("top", "right"):
+            ax.spines[lato].set_visible(False)
+
+    figura.tight_layout()
+    return figura

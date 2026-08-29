@@ -545,3 +545,112 @@ def test_periodi_non_divisibili_in_ore_sono_segnalati():
     b = bt.flotta(10.0, durata_ore=2.0)
     with pytest.raises(ValueError, match="divisibili"):
         bt.profilo_ottimo([10.0] * 6, b, 0.25, periodi_per_ora=4)
+
+
+# --------------------------------------------------------------------------------------
+# Il piano costruito su previsioni: `prezzi_piano` (impianto a due fasi)
+# --------------------------------------------------------------------------------------
+# `prezzi_riferimento` dice con che cosa si VALORIZZA, `prezzi_piano` su che cosa si
+# OTTIMIZZA. Tenerli distinti e' cio' che permette di misurare il profitto realmente
+# ottenuto da una batteria che ha pianificato su una previsione sbagliata, invece del
+# profitto che credeva di ottenere.
+def test_prezzi_piano_assente_equivale_a_passarli_uguali():
+    """Il default non deve cambiare nulla: e' la garanzia di non regressione."""
+    df = _giornata([100.0, 300.0])
+    riferimento = np.array([100.0, 300.0])
+    comune = dict(potenza_aggregata_mw=100.0, granularita="PT60", durata_ore=1.0,
+                  con_import=False, rendimento_carica=1.0, rendimento_scarica=1.0)
+
+    senza = bt.erosione(df, prezzi_riferimento=riferimento, **comune)
+    con = bt.erosione(df, prezzi_riferimento=riferimento, prezzi_piano=riferimento, **comune)
+
+    assert senza.profitto_price_taker == con.profitto_price_taker
+    assert senza.profitto_price_maker == con.profitto_price_maker
+    assert senza.erosione_assoluta == con.erosione_assoluta
+    assert senza.erosione_relativa == con.erosione_relativa
+
+
+def test_in_previsione_perfetta_il_profitto_atteso_e_quello_price_taker():
+    """
+    Se il piano nasce dagli stessi prezzi con cui lo si valorizza, cio' che la batteria si
+    aspettava e cio' che avrebbe ottenuto da price taker coincidono per definizione.
+    """
+    df = _giornata([100.0, 300.0])
+    e = bt.erosione(df, potenza_aggregata_mw=100.0, granularita="PT60", durata_ore=1.0,
+                    con_import=False, rendimento_carica=1.0, rendimento_scarica=1.0)
+    assert e.profitto_atteso == e.profitto_price_taker
+
+
+def test_una_previsione_sbagliata_fa_guadagnare_meno_di_quanto_la_batteria_crede():
+    """
+    Il caso calcolabile a mano che mostra a che serve la separazione.
+
+    Prezzi veri     (100, 200, 300, 150): conviene caricare al periodo 1 e scaricare al 3.
+    Previsione      (200, 100, 150, 300): la batteria crede che convenga caricare al
+                    periodo 2 e scaricare al 4, e pianifica cosi'.
+
+    * quello che **crede** di fare: 300x100 - 100x100 = +20.000 euro
+    * quello che **fa davvero**:    150x100 - 200x100 =  -5.000 euro
+
+    Il profitto price maker e' ancora peggiore: scaricare abbassa il prezzo dove gia' si
+    vende male e caricare lo alza dove gia' si compra caro. La retroazione, che con una
+    previsione giusta erode il margine, con una sbagliata aggrava la perdita.
+
+    La previsione non e' semplicemente rovesciata, ed e' un punto che vale la pena
+    ricordare: rovesciarla renderebbe il piano **infeasible**, perche' la batteria
+    dovrebbe scaricare prima di aver caricato mentre parte da stato di carica nullo e deve
+    chiudere il ciclo. L'errore previsivo puo' spostare *quando* si opera, non l'ordine
+    fisico delle operazioni.
+    """
+    df = _giornata([100.0, 200.0, 300.0, 150.0])
+    e = bt.erosione(df, potenza_aggregata_mw=100.0, granularita="PT60", durata_ore=1.0,
+                    con_import=False, rendimento_carica=1.0, rendimento_scarica=1.0,
+                    costo_variabile_eur_mwh=0.0,
+                    prezzi_riferimento=np.array([100.0, 200.0, 300.0, 150.0]),
+                    prezzi_piano=np.array([200.0, 100.0, 150.0, 300.0]))
+
+    assert e.profitto_atteso == pytest.approx(20000.0)
+    assert e.profitto_price_taker == pytest.approx(-5000.0)
+    assert e.profitto_price_maker < e.profitto_price_taker
+
+    # Il piano segue la previsione: carica al periodo 2, scarica al 4.
+    assert e.profilo["carica_mw"].iloc[1] == pytest.approx(100.0)
+    assert e.profilo["scarica_mw"].iloc[3] == pytest.approx(100.0)
+
+
+def test_il_piano_segue_i_prezzi_del_piano_non_quelli_di_valorizzazione():
+    """
+    Con una previsione piatta non c'e' differenziale da sfruttare e il piano resta vuoto,
+    anche se i prezzi veri avrebbero un differenziale ampio. E' il controllo che il
+    parametro agisca dove deve: sull'ottimizzazione, non sulla valorizzazione.
+    """
+    df = _giornata([100.0, 300.0])
+    e = bt.erosione(df, potenza_aggregata_mw=100.0, granularita="PT60", durata_ore=1.0,
+                    con_import=False, rendimento_carica=1.0, rendimento_scarica=1.0,
+                    prezzi_riferimento=np.array([100.0, 300.0]),
+                    prezzi_piano=np.array([200.0, 200.0]))  # previsione piatta
+    assert e.piano_vuoto
+    assert e.erosione_assoluta == 0.0
+
+
+def test_il_parametro_K_non_tocca_il_piano_nemmeno_su_previsione(monkeypatch):
+    """
+    D-35: il rapporto fra prezzo di prelievo e di immissione entra **solo** nella
+    valorizzazione. Deve restarne fuori anche quando il piano nasce da una previsione,
+    altrimenti il regime tariffario cambierebbe la strategia fisica e non solo il conto.
+    """
+    df = _giornata([100.0, 300.0])
+    argomenti = dict(potenza_aggregata_mw=100.0, granularita="PT60", durata_ore=1.0,
+                     con_import=False, rendimento_carica=1.0, rendimento_scarica=1.0,
+                     prezzi_riferimento=np.array([100.0, 300.0]),
+                     prezzi_piano=np.array([120.0, 260.0]))
+
+    piani, profitti = [], []
+    for k in (1.0, 2.3):
+        monkeypatch.setitem(config.PARAMETRI_BESS, "rapporto_prezzo_acquisto", k)
+        e = bt.erosione(df, **argomenti)
+        piani.append(e.profilo[["carica_mw", "scarica_mw"]].to_numpy(float))
+        profitti.append(e.profitto_price_taker)
+
+    assert np.array_equal(piani[0], piani[1])      # il piano fisico non cambia
+    assert profitti[0] != profitti[1]              # il conto invece si'
