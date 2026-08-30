@@ -773,6 +773,86 @@ def figura_calibrazione(calibrazione: pd.DataFrame) -> plt.Figure:
 
 
 
+
+def figura_curva_erosione(
+    curve: dict,
+    soglie: tuple[float, ...] = (0.10, 0.20),
+    soglie_k: dict | None = None,
+) -> plt.Figure:
+    """
+    La curva erosione-capacita' nelle due varianti di piano, con le soglie e i K*.
+
+    Parameters
+    ----------
+    curve : dict
+        `{etichetta: DataFrame}` indicizzato per capacita', con le colonne `mediana` e `q90`
+        dell'erosione **netta**.
+    soglie : tuple[float, ...]
+        Livelli di erosione da tracciare come riferimenti orizzontali.
+    soglie_k : dict | None
+        `{(etichetta, soglia): K}` da annotare sull'asse delle capacita'.
+
+    Returns
+    -------
+    plt.Figure
+
+    Perche' l'asse delle capacita' e' logaritmico
+    ---------------------------------------------
+    La griglia va da 1 MW a 6 GW, quattro ordini di grandezza, e la regione che decide —
+    dove la curva attraversa il 10 e il 20 per cento — sta nelle prime centinaia di MW. Su
+    scala lineare quella regione occuperebbe un ventesimo della larghezza e la figura
+    mostrerebbe soprattutto il tratto di saturazione, che e' il meno informativo.
+
+    Si tracciano **due** quantili e non uno. La mediana descrive la giornata tipica; il 90°
+    percentile e' quello su cui K* e' definita (D-27), perche' la decisione di investimento
+    dipende dal caso avverso ragionevole e non da quello medio. Vederli insieme mostra
+    quanto siano distanti, cioe' quanto l'erosione vari fra le giornate.
+    """
+    _stile()
+    figura, ax = plt.subplots(figsize=(9.6, 6.2))
+
+    stili = {"perfetta": (INCHIOSTRO, "--"), "previsione": (COLORE_OFFERTA, "-")}
+    nomi = {"perfetta": "previsione perfetta", "previsione": "previsione SARIMAX"}
+
+    for etichetta, tabella in curve.items():
+        colore, tratto = stili.get(etichetta, (COLORE_DOMANDA, "-."))
+        ax.plot(tabella.index, tabella["q90"], color=colore, linestyle=tratto,
+                linewidth=2.2, label=f"{nomi.get(etichetta, etichetta)} — 90° perc.")
+        ax.plot(tabella.index, tabella["mediana"], color=colore, linestyle=tratto,
+                linewidth=1.2, alpha=0.55,
+                label=f"{nomi.get(etichetta, etichetta)} — mediana")
+
+    for soglia in soglie:
+        ax.axhline(soglia, color=INCHIOSTRO_TENUE, linewidth=0.9, linestyle=(0, (4, 3)))
+        ax.annotate(f"{soglia:.0%}", xy=(1.05, soglia), xytext=(2, 3),
+                    textcoords="offset points", fontsize=9, color=INCHIOSTRO_SECONDARIO)
+
+    if soglie_k:
+        for (etichetta, soglia), k in sorted(soglie_k.items(), key=lambda x: x[1]):
+            if not np.isfinite(k):
+                continue
+            colore, _ = stili.get(etichetta, (COLORE_DOMANDA, "-."))
+            ax.plot([k], [soglia], marker="o", markersize=8, color=colore,
+                    markeredgecolor=SFONDO, markeredgewidth=2.0, linestyle="none", zorder=6)
+
+    ax.set_xscale("log")
+    ax.set_xlabel("Capacità aggregata installata [MW]")
+    ax.set_ylabel("Erosione di profitto (netta del pavimento)")
+    ax.set_ylim(0, 1.25)
+    ax.set_title("La flotta che pianifica su previsioni erode di più,\n"
+                 "e diventa price maker a una capacità inferiore", fontsize=11)
+    ax.grid(True, which="major", linewidth=0.7)
+    ax.grid(True, which="minor", linewidth=0.4, alpha=0.5)
+    ax.set_axisbelow(True)
+    ax.legend(loc="upper left")
+    for lato in ("top", "right"):
+        ax.spines[lato].set_visible(False)
+
+    figura.tight_layout()
+    return figura
+
+
+
 def salva(figura: plt.Figure, nome: str) -> str:
     """Salva una figura in `output/figure/` in PNG e PDF, e restituisce il path del PNG."""
     config.assicura_cartelle()

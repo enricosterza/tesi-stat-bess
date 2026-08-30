@@ -3448,6 +3448,123 @@ la classifica delle ore.
 piano da previsione, non da previsione perfetta. La differenza è il 10,4% sul margine e un
 K\* inferiore del 44%: entrambi spostano il VAN nella direzione sfavorevole.
 
+
+---
+
+## 2026-08-30 — K* definitiva sulla griglia a 132 punti, nelle due varianti di piano
+
+Rifatta la stima della soglia con l'infrastruttura completa: griglia a **132 punti**, erosione
+**netta** del pavimento di discretezza (D-30), due varianti del piano a confronto — previsione
+perfetta e previsione SARIMAX. 366 giorni, 96.624 righe, circa un'ora su otto processi.
+`scripts/16_propagazione.py --completa` per il calcolo, `scripts/17_soglia_definitiva.py` per
+la soglia.
+
+### Il ruolo del bootstrap, che va precisato
+
+D-37 aveva tolto il bootstrap dei giorni dall'impianto: l'incertezza del modello non viene più
+dal ricampionamento ma dall'errore di previsione. Il bootstrap resta però come **strumento
+inferenziale** per l'intervallo di confidenza di K\*, che è una stima campionaria come
+un'altra. Sono due ruoli distinti — sorgente dell'incertezza contro strumento di inferenza — e
+non sono in contraddizione, ma vanno tenuti separati per non far sembrare che D-26 sia stata
+reintrodotta di soppiatto.
+
+### La verifica di non-monotonia: negativa, e senza margini di dubbio
+
+Era la condizione posta prima di fidarsi del numero. La regola del primo attraversamento
+presuppone che la curva erosione-capacità sia crescente; con 132 punti un sobbalzo locale del
+quantile poteva farla scattare in anticipo.
+
+Su 1.000 ricampionamenti, per tutte e quattro le combinazioni di origine e soglia:
+
+* ricampionamenti con **più di un attraversamento: 0,0%** (massimo osservato: 1);
+* ricampionamenti **senza** attraversamento: 0,0%;
+* calo massimo della curva: **mediana −0,01 punti percentuali**, 90° percentile 0,00;
+* **scarto fra ultimo e primo attraversamento: 0,00 MW, sia in media sia al massimo.**
+
+Sulla curva osservata il calo massimo vale −0,05 punti percentuali con previsione perfetta e
+−0,06 con previsione SARIMAX: rumore di arrotondamento, non un avvallamento.
+
+**Nessuna correzione serve, e nessuna decisione nuova va registrata.** La D-41 che era stata
+prenotata per l'eventualità non nasce. Vale la pena aver misurato: la frequenza da sola non
+avrebbe deciso nulla, è lo scarto fra primo e ultimo attraversamento — esattamente zero — a
+chiudere la questione.
+
+### K* definitiva
+
+Erosione netta, quantile prudenziale 90°, intervallo di confidenza al 90% da 1.000
+ricampionamenti.
+
+| Origine del piano | Soglia | **K\*** | IC 90% |
+|---|---|---|---|
+| previsione perfetta | 10% | **75,9 MW** | 70,5 – 81,7 |
+| previsione perfetta | 20% | **173,1 MW** | 157,5 – 189,0 |
+| **previsione SARIMAX** | 10% | **50,1 MW** | 43,3 – 57,5 |
+| **previsione SARIMAX** | 20% | **129,3 MW** | 108,0 – 142,9 |
+
+**Il confronto è il risultato**: la soglia scende del **34,0%** al livello del 10% e del
+**25,3%** al 20%. Gli intervalli di confidenza delle due varianti **non si sovrappongono** a
+nessuna delle due soglie, quindi la differenza non è un artefatto campionario.
+
+Una flotta che pianifica su previsioni realistiche diventa price maker **prima**. Lo stesso
+errore che le costa il 10,4% di profitto la fa anche operare in modo meno mirato, quindi con
+più effetto sul prezzo a parità di capacità installata — e l'erosione assoluta lo conferma,
+non solo il rapporto.
+
+Figura `17_curva_erosione`: le due curve sovrapposte su asse logaritmico, mediana e 90°
+percentile per ciascuna, con le soglie e i quattro K\* segnati. La curva SARIMAX sta sopra
+quella perfetta a ogni capacità.
+
+Il confronto con il preliminare del 29/08 (33,7 MW) mostra quanto pesasse l'approssimazione:
+quella stima era su erosione **lorda** e tredici capacità. Il pavimento sottratto alza la
+soglia da 33,7 a 50,1 MW, cioè di metà. Non è un dettaglio di raffinamento: senza D-30 la
+soglia sarebbe sottostimata di un terzo.
+
+### Il pavimento, misurato separatamente per le due varianti
+
+Va misurato per ciascuna origine, perché il piano da previsione ha un pavimento suo:
+
+| Origine | Mediana | 80° perc. | 90° perc. | Massimo |
+|---|---|---|---|---|
+| perfetta | 0,69% | 1,74% | 2,66% | 12,50% |
+| previsione | 0,90% | 2,30% | 3,40% | **94,94%** |
+
+Quel 94,94% è un artefatto e va spiegato, non nascosto: cade il **1° maggio 2024**, giornata in
+cui il profitto price taker a 1 MW vale **4,80 €**. Con un denominatore così piccolo il
+rapporto è puro rumore — è esattamente la situazione che D-29 descrive. La soglia
+`PROFITTO_MINIMO_PER_RAPPORTO` vale 1 €, quindi 4,80 € la supera e il rapporto viene calcolato
+benché non significhi nulla.
+
+Sono 2 giornate su 366 sopra il 25% e 6 sopra il 10%, quindi l'effetto sul 90° percentile
+calcolato su 366 giorni è contenuto. È stato però verificato invece che assunto:
+
+| Campione | K\* perfetta | K\* previsione | Divario |
+|---|---|---|---|
+| tutti i 366 giorni | 75,9 | 50,1 | −34,0% |
+| senza pavimento >10% (n = 360/365) | 77,0 | 55,6 | −27,8% |
+| senza pavimento >5% (n = 348/358) | 78,7 | 57,0 | −27,6% |
+
+**Il risultato qualitativo è robusto** — la soglia scende fra il 26 e il 34% — ma il valore
+esatto dipende da come si trattano le giornate a profitto quasi nullo. Si adotta la stima sul
+campione **completo**, coerentemente con D-29, che vieta di scartare le giornate a basso
+differenziale perché sono quelle destinate a diventare più frequenti; e si dichiara la
+sensibilità.
+
+### Un difetto trovato dal run
+
+L'analisi dello script 16 sulla griglia completa è fallita con un errore incomprensibile
+(`Bin edges must be unique: Index([nan, nan, ...])`) perché leggeva le grandezze a una
+capacità **fissata a 25 MW**, che sta nella griglia ridotta ma **non** in quella definitiva:
+la griglia a 132 punti passa da 20 a 30 MW. Il filtro produceva una tabella vuota e l'errore
+emergeva molto più avanti, dove la causa era irriconoscibile.
+
+Corretto cercando la capacità **più vicina fra quelle disponibili**, con una nota esplicita nel
+report quando non coincide. Le grandezze della sezione B si leggono ora a 20 MW e sono
+invariate nelle quote — perdita informativa 10,4%, efficienza 89,6% — perché sono rapporti.
+
+La lezione, che vale oltre questo caso: una costante che indicizza una griglia va **cercata**
+nella griglia, non data per presente. Il fallimento silenzioso è il modo peggiore in cui un
+parametro sbagliato si manifesta.
+
 ---
 
 ## Prossimi passi

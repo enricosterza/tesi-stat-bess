@@ -68,6 +68,8 @@ def main() -> None:
     ap.add_argument("--processi", type=int, default=8)
     ap.add_argument("--riusa", action="store_true",
                     help="rilegge la tabella gia' calcolata invece di rifarla")
+    ap.add_argument("--completa", action="store_true",
+                    help="usa la griglia definitiva a 132 punti invece di quella ridotta")
     args = ap.parse_args()
 
     config.assicura_cartelle()
@@ -77,13 +79,17 @@ def main() -> None:
         print(testo, flush=True)
         buffer.write(str(testo) + "\n")
 
-    destinazione_tabella = config.PROCESSED_DIR / "propagazione_NORD_2024.csv"
+    from mgp import batteria as bt
+    griglia = bt.GRIGLIA_CAPACITA_MW if args.completa else GRIGLIA
+    destinazione_tabella = config.PROCESSED_DIR / (
+        "propagazione_NORD_2024_completa.csv" if args.completa
+        else "propagazione_NORD_2024.csv")
     if args.riusa and destinazione_tabella.exists():
         t = pd.read_csv(destinazione_tabella, dtype={"data": str, "mese": str})
         out(f"Tabella riletta da {destinazione_tabella.name}: {len(t):,} righe.")
     else:
         previsioni = pd.read_csv(config.PROCESSED_DIR / args.previsioni, dtype={"data": str})
-        t = parallelo.propagazione_campione(previsioni, GRIGLIA, processi=args.processi,
+        t = parallelo.propagazione_campione(previsioni, griglia, processi=args.processi,
                                             avanzamento=out, ogni=25)
         t.to_csv(destinazione_tabella, index=False)
 
@@ -94,12 +100,21 @@ def main() -> None:
 
     out("=" * 88)
     out(f"PROPAGAZIONE DELL'ERRORE — {confronto['data'].nunique()} giorni, "
-        f"{len(GRIGLIA)} capacita'")
+        f"{t['potenza_mw'].nunique()} capacita'")
     out("=" * 88)
 
     # ================================================================== A. i due piani
     _sezione(out, "A. QUANTO I DUE PIANI DIFFERISCONO")
-    pt = confronto[confronto["potenza_mw"] == CAPACITA_PRICE_TAKER].copy()
+    # La capacita' di lettura va CERCATA nella griglia, non data per presente: la griglia
+    # ridotta contiene 25 MW, quella definitiva a 132 punti no (salta da 20 a 30). Un
+    # confronto con una costante produrrebbe una tabella vuota e un errore molto piu' avanti,
+    # dove la causa non si riconosce.
+    disponibili = np.sort(confronto["potenza_mw"].unique())
+    capacita = float(disponibili[np.argmin(np.abs(disponibili - CAPACITA_PRICE_TAKER))])
+    if capacita != CAPACITA_PRICE_TAKER:
+        out(f"  nota: {CAPACITA_PRICE_TAKER:.0f} MW non e' nella griglia, si legge a "
+            f"{capacita:.0f} MW (la piu' vicina disponibile).")
+    pt = confronto[confronto["potenza_mw"] == capacita].copy()
 
     def ore(colonna):
         return pt[colonna].apply(
@@ -132,7 +147,7 @@ def main() -> None:
         f"{100*float((pt['ora_max_reale_perf'] == pt['ora_max_prevista_perf']).mean()):5.1f}%")
 
     # ============================================== B. le tre grandezze, regime price taker
-    _sezione(out, f"B. LE TRE GRANDEZZE A {CAPACITA_PRICE_TAKER:.0f} MW (regime price taker)")
+    _sezione(out, f"B. LE TRE GRANDEZZE A {capacita:.0f} MW (regime price taker)")
     out("A questa capacita' l'effetto sul prezzo e' trascurabile, quindi la differenza fra")
     out("i due piani e' PURA perdita informativa, non cannibalizzazione.")
     out("")
@@ -219,10 +234,11 @@ def main() -> None:
         piani_vuoti=("piano_vuoto", "sum"))
     out(curva.round(4).to_string())
 
-    destinazione = config.TABLE_DIR / "16_propagazione.txt"
+    suffisso = "_completa" if args.completa else ""
+    destinazione = config.TABLE_DIR / f"16_propagazione{suffisso}.txt"
     destinazione.write_text(buffer.getvalue(), encoding="utf-8")
-    validi.to_csv(config.TABLE_DIR / "16_efficienza_per_giorno.csv", index=False)
-    curva.to_csv(config.TABLE_DIR / "16_curva_erosione_due_origini.csv")
+    validi.to_csv(config.TABLE_DIR / f"16_efficienza_per_giorno{suffisso}.csv", index=False)
+    curva.to_csv(config.TABLE_DIR / f"16_curva_erosione_due_origini{suffisso}.csv")
     print(f"\nReport salvato in {destinazione}")
 
 

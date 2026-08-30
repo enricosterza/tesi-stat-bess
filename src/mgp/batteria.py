@@ -1156,3 +1156,142 @@ def curva_erosione(
     aggregazioni["media"] = (colonna_erosione, "mean")
     aggregazioni["n_giorni"] = (colonna_erosione, "count")
     return erosioni.groupby(chiavi).agg(**aggregazioni).reset_index()
+
+
+def attraversamenti(griglia: np.ndarray, valori: np.ndarray, soglia: float) -> list[float]:
+    """
+    Tutti i punti in cui una curva attraversa una soglia **verso l'alto**, per interpolazione.
+
+    Parameters
+    ----------
+    griglia : np.ndarray
+        Capacita' crescenti.
+    valori : np.ndarray
+        Valori della curva, uno per capacita'.
+    soglia : float
+
+    Returns
+    -------
+    list[float]
+        Le capacita' di attraversamento, in ordine. Vuota se la curva non attraversa mai.
+
+    `_attraversamento` restituisce il **primo** attraversamento, che e' cio' che serve alla
+    stima. Questa funzione li restituisce tutti, ed esiste per una ragione diagnostica: la
+    regola del primo attraversamento presuppone che la curva sia monotona, e su una griglia
+    fitta un sobbalzo locale del quantile puo' farla scattare in anticipo. Sapere **quanti**
+    attraversamenti ci sono, e quanto distino fra loro, e' il modo per stabilire se quella
+    presunzione regga.
+    """
+    griglia = np.asarray(griglia, dtype=float)
+    valori = np.asarray(valori, dtype=float)
+    punti: list[float] = []
+    for i in range(1, len(valori)):
+        y0, y1 = valori[i - 1], valori[i]
+        if not (np.isfinite(y0) and np.isfinite(y1)):
+            continue
+        if y0 < soglia <= y1:
+            x0, x1 = griglia[i - 1], griglia[i]
+            punti.append(x1 if y1 == y0 else x0 + (soglia - y0) * (x1 - x0) / (y1 - y0))
+    if len(valori) and np.isfinite(valori[0]) and valori[0] >= soglia:
+        punti.insert(0, float(griglia[0]))
+    return punti
+
+
+def diagnostica_monotonia(
+    erosioni: pd.DataFrame,
+    soglia: float = 0.10,
+    quantile: float = 0.90,
+    n_boot: int = 1000,
+    colonna_erosione: str = "erosione_relativa",
+    seme: int | None = 12345,
+) -> dict:
+    """
+    Misura quanto la curva quantile sia non monotona nei ricampionamenti bootstrap.
+
+    Parameters
+    ----------
+    erosioni : pd.DataFrame
+        Come in `bootstrap_soglia`.
+    soglia, quantile, n_boot, colonna_erosione, seme
+        Come in `bootstrap_soglia`. Il seme e' lo stesso, cosi' i ricampionamenti sono gli
+        stessi e la diagnostica descrive **quella** stima, non una simile.
+
+    Returns
+    -------
+    dict
+        Frequenza dei doppi attraversamenti, ampiezza dei sobbalzi, e — il numero che
+        decide — di quanto cambierebbe K* prendendo l'ultimo attraversamento invece del
+        primo.
+
+    Perche' non basta contare, e serve misurare
+    ------------------------------------------
+    `_attraversamento` prende il **primo** superamento della soglia, il che presuppone che
+    la curva erosione-capacita' sia crescente. Con una griglia fitta e un quantile stimato
+    su qualche centinaio di giorni, un sobbalzo locale puo' far scattare l'attraversamento
+    in anticipo e spostare K* verso il basso.
+
+    La frequenza da sola non basta a decidere che fare. Un sobbalzo di frazioni di punto
+    percentuale attorno alla soglia e' rumore di campionamento del quantile e non sposta
+    nulla; un vero doppio attraversamento, con la curva che scende sotto la soglia per un
+    tratto ampio e poi risale, e' un fenomeno diverso e chiede una correzione diversa. Per
+    questo si riportano **tre** grandezze: quanti ricampionamenti hanno piu' di un
+    attraversamento, quanto sono profondi i cali della curva, e quanto disterebbero le due
+    stime. Se la terza e' trascurabile, la questione non si pone.
+    """
+    tabella = erosioni.pivot_table(index="data", columns="potenza_mw",
+                                   values=colonna_erosione, aggfunc="mean").sort_index(axis=1)
+    griglia = tabella.columns.to_numpy(dtype=float)
+    valori = tabella.to_numpy(dtype=float)
+    n_giorni = valori.shape[0]
+    generatore = np.random.default_rng(seme)
+
+    n_attraversamenti: list[int] = []
+    discesa_massima: list[float] = []
+    primo: list[float] = []
+    ultimo: list[float] = []
+
+    # La curva osservata, prima dei ricampionamenti.
+    osservata = np.nanquantile(valori, quantile, axis=0)
+    punti_oss = attraversamenti(griglia, osservata, soglia)
+    cali_oss = np.diff(osservata)
+    diagnostica_osservata = {
+        "n_attraversamenti": len(punti_oss),
+        "discesa_massima": float(-np.nanmin(cali_oss)) if cali_oss.size else 0.0,
+        "primo": punti_oss[0] if punti_oss else float("nan"),
+        "ultimo": punti_oss[-1] if punti_oss else float("nan"),
+    }
+
+    for _ in range(n_boot):
+        estratti = generatore.integers(0, n_giorni, size=n_giorni)
+        with np.errstate(invalid="ignore"):
+            curva = np.nanquantile(valori[estratti], quantile, axis=0)
+        punti = attraversamenti(griglia, curva, soglia)
+        cali = np.diff(curva)
+        n_attraversamenti.append(len(punti))
+        discesa_massima.append(float(-np.nanmin(cali)) if cali.size else 0.0)
+        primo.append(punti[0] if punti else float("nan"))
+        ultimo.append(punti[-1] if punti else float("nan"))
+
+    n_attraversamenti = np.array(n_attraversamenti)
+    discesa_massima = np.array(discesa_massima)
+    primo_a = np.array(primo)
+    ultimo_a = np.array(ultimo)
+    entrambi = np.isfinite(primo_a) & np.isfinite(ultimo_a)
+    scarto = ultimo_a[entrambi] - primo_a[entrambi]
+
+    return {
+        "soglia": soglia,
+        "quantile": quantile,
+        "n_boot": n_boot,
+        "osservata": diagnostica_osservata,
+        "quota_multipli": float(np.mean(n_attraversamenti > 1)),
+        "quota_senza": float(np.mean(n_attraversamenti == 0)),
+        "attraversamenti_max": int(n_attraversamenti.max()),
+        "discesa_massima_mediana": float(np.median(discesa_massima)),
+        "discesa_massima_q90": float(np.quantile(discesa_massima, 0.9)),
+        "discesa_massima_max": float(discesa_massima.max()),
+        "scarto_primo_ultimo_medio": float(np.mean(scarto)) if scarto.size else float("nan"),
+        "scarto_primo_ultimo_max": float(np.max(scarto)) if scarto.size else float("nan"),
+        "K_primo": float(np.nanmedian(primo_a)),
+        "K_ultimo": float(np.nanmedian(ultimo_a)),
+    }
