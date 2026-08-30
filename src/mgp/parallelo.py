@@ -36,6 +36,7 @@ from typing import Callable, Iterable, Sequence
 
 import numpy as np
 import pandas as pd
+from scipy import stats
 
 from . import batteria as bt, config, curve, io_gme
 
@@ -378,3 +379,228 @@ def serie_prezzi(
     segnala(f"Completato in {time.perf_counter() - inizio:.0f} s: "
             f"{len(serie):,} osservazioni orarie.")
     return serie[["istante", "data", "ora", "prezzo", "granularita"]]
+
+
+# ---------------------------------------------------------------------------
+#  Propagazione dell'errore di previsione al piano e al risultato
+# ---------------------------------------------------------------------------
+
+def previsione_per_asta(previsione_24: np.ndarray, n_periodi: int) -> np.ndarray:
+    """
+    Riporta una previsione a 24 slot sul numero di periodi che l'asta ha davvero.
+
+    Parameters
+    ----------
+    previsione_24 : np.ndarray
+        Previsione a 24 slot in ora locale, come la produce la fase 1.
+    n_periodi : int
+        Periodi dell'asta: 24 nei giorni normali, 23 o 25 nei due cambi dell'ora.
+
+    Returns
+    -------
+    np.ndarray
+        Previsione lunga `n_periodi`.
+
+    E' l'inverso esatto della normalizzazione di `previsione.serie_regolare` (D-40): la
+    serie di previsione lavora a 24 slot in ora locale, la fase 2 sui periodi d'asta reali.
+    Nei due giorni di cambio dell'ora le due cose non coincidono, e la conversione va fatta
+    **esplicitamente** invece di lasciare che un disallineamento silenzioso accoppi la
+    previsione dell'ora sbagliata all'asta sbagliata.
+
+    * asta da 25 periodi (fine dell'ora legale): lo slot 2, che era la media delle due
+      occorrenze dell'ora ripetuta, viene **duplicato** sui periodi 3 e 4;
+    * asta da 23 periodi (inizio dell'ora legale): lo slot 2, che era interpolato perche'
+      quell'ora non e' esistita, viene **tolto**.
+    """
+    previsione_24 = np.asarray(previsione_24, dtype=float)
+    if len(previsione_24) != 24:
+        raise ValueError(f"attesi 24 slot, ricevuti {len(previsione_24)}")
+    if n_periodi == 24:
+        return previsione_24
+    if n_periodi == 25:
+        return np.concatenate([previsione_24[:2], previsione_24[2:3], previsione_24[2:]])
+    if n_periodi == 23:
+        return np.concatenate([previsione_24[:2], previsione_24[3:]])
+    raise ValueError(f"{n_periodi} periodi: attesi 23, 24 o 25")
+
+
+def propagazione_giorno(
+    data: str,
+    previsione_24: Sequence[float],
+    griglia: Sequence[float],
+    durata_ore: float = bt.DURATA_RIFERIMENTO_ORE,
+) -> pd.DataFrame:
+    """
+    Confronta, su una giornata, il piano da previsione con quello da previsione perfetta.
+
+    Parameters
+    ----------
+    data : str
+        Giorno di mercato.
+    previsione_24 : Sequence[float]
+        Prezzi previsti a D-1 per le 24 ore, dalla fase 1.
+    griglia : Sequence[float]
+        Capacita' aggregate in MW.
+    durata_ore : float
+
+    Returns
+    -------
+    pd.DataFrame
+        Due righe per capacita', una per `origine` ("previsione" e "perfetta"), piu' le
+        grandezze di giornata che servono a spiegare la differenza.
+
+    Le tre grandezze, e perche' servono tutte
+    -----------------------------------------
+    * `profitto_atteso`: il piano valorizzato ai prezzi su cui e' stato costruito. Con
+      previsione perfetta coincide con il price taker; con previsione imperfetta e' quello
+      che l'operatore **credeva** di guadagnare.
+    * `profitto_price_taker`: lo stesso piano ai prezzi veri, senza effetto sul prezzo. La
+      differenza fra questo e il caso perfetto e' la **perdita da incertezza informativa**.
+    * `profitto_price_maker`: ai prezzi ricalcolati con l'accumulo in mercato. La differenza
+      dal price taker e' l'**erosione**, cioe' la cannibalizzazione.
+
+    Le due perdite sono meccanismi distinti e vanno tenute separate: la prima dipende da
+    quanto il modello sbaglia, la seconda da quanta capacita' c'e' in mercato.
+
+    La correlazione di rango come diagnostica del piano
+    ---------------------------------------------------
+    Si riporta anche la correlazione di rango fra prezzi previsti e reali della giornata.
+    E' la statistica che conta davvero per l'arbitraggio: il piano dipende dall'**ordine**
+    delle ore, non dal livello dei prezzi. Un modello che sbagliasse tutti i prezzi di
+    venti euro ma ne indovinasse l'ordinamento produrrebbe il piano ottimo.
+    """
+    granularita = config.granularita_prevalente(data)
+    df = io_gme.carica_giorno(data=data, zona=None)
+    zone_presenti = set(df["ZONE_CD"].dropna().unique())
+    perimetro = ["NORD"] + [z for z in config.ZONE_FRONTIERA_NORD if z in zone_presenti]
+
+    offerte_giorno = curve.offerte_giornata(df, granularita, zone=perimetro, con_import=True)
+    periodi = sorted(offerte_giorno)
+    reali = np.array([curve.prezzo_equilibrio(offerte_giorno[p]).prezzo for p in periodi],
+                     dtype=float)
+    previsti = previsione_per_asta(np.asarray(previsione_24, dtype=float), len(periodi))
+
+    validi = np.isfinite(reali) & np.isfinite(previsti)
+    rango = (float(stats.spearmanr(previsti[validi], reali[validi]).statistic)
+             if validi.sum() > 2 else float("nan"))
+    lineare = (float(np.corrcoef(previsti[validi], reali[validi])[0, 1])
+               if validi.sum() > 2 else float("nan"))
+
+    comune = {
+        "data": data,
+        "mese": data[4:6],
+        "stagione": STAGIONI[int(data[4:6])],
+        "n_periodi": len(periodi),
+        "spread_reale": float(np.nanmax(reali) - np.nanmin(reali)),
+        "spread_previsto": float(np.nanmax(previsti) - np.nanmin(previsti)),
+        "correlazione_rango": rango,
+        "correlazione_lineare": lineare,
+        "ora_min_reale": int(periodi[int(np.nanargmin(reali))]),
+        "ora_min_prevista": int(periodi[int(np.nanargmin(previsti))]),
+        "ora_max_reale": int(periodi[int(np.nanargmax(reali))]),
+        "ora_max_prevista": int(periodi[int(np.nanargmax(previsti))]),
+    }
+
+    righe = []
+    for origine, piano in (("perfetta", None), ("previsione", previsti)):
+        for potenza in griglia:
+            e = bt.erosione(df, potenza_aggregata_mw=potenza, granularita=granularita,
+                            data=data, durata_ore=durata_ore, zone=perimetro,
+                            prezzi_riferimento=reali, prezzi_piano=piano,
+                            offerte_giorno=offerte_giorno)
+            righe.append({
+                **comune,
+                "origine": origine,
+                "potenza_mw": potenza,
+                "durata_ore": durata_ore,
+                "profitto_atteso": e.profitto_atteso,
+                "profitto_price_taker": e.profitto_price_taker,
+                "profitto_price_maker": e.profitto_price_maker,
+                "erosione_assoluta": e.erosione_assoluta,
+                "erosione_relativa": e.erosione_relativa,
+                "energia_ciclata_mwh": e.energia_ciclata_mwh,
+                "cicli_equivalenti": e.cicli_equivalenti,
+                "piano_vuoto": e.piano_vuoto,
+                # Ore in cui il piano opera: servono a misurare quanto i due piani
+                # coincidano, non solo quanto rendano.
+                "ore_carica": tuple(
+                    int(x) for x in np.flatnonzero(e.profilo["carica_mw"].to_numpy() > 1e-9)),
+                "ore_scarica": tuple(
+                    int(x) for x in np.flatnonzero(e.profilo["scarica_mw"].to_numpy() > 1e-9)),
+            })
+    return pd.DataFrame(righe)
+
+
+def _lavoro_propagazione(argomenti) -> pd.DataFrame:
+    data, previsione_24, griglia, durata_ore = argomenti
+    return propagazione_giorno(data, previsione_24, list(griglia), durata_ore)
+
+
+def propagazione_campione(
+    previsioni: pd.DataFrame,
+    griglia: Sequence[float],
+    durata_ore: float = bt.DURATA_RIFERIMENTO_ORE,
+    processi: int | None = None,
+    avanzamento: Callable[[str], None] | None = None,
+    ogni: int = 25,
+) -> pd.DataFrame:
+    """
+    Propaga l'errore di previsione su tutte le giornate del campione.
+
+    Parameters
+    ----------
+    previsioni : pd.DataFrame
+        Output della fase 1: colonne `data`, `slot`, `previsione`.
+    griglia : Sequence[float]
+        Capacita' aggregate in MW.
+    durata_ore : float
+    processi : int | None
+        Come in `erosioni_campione`. Su Windows va chiamata da un file, sotto la guardia
+        `if __name__ == "__main__"`.
+    avanzamento, ogni
+    """
+    def segnala(testo: str) -> None:
+        if avanzamento is not None:
+            avanzamento(testo)
+
+    griglia = tuple(griglia)
+    per_giorno = {data: fetta.sort_values("slot")["previsione"].to_numpy(dtype=float)
+                  for data, fetta in previsioni.groupby("data")}
+    giorni = sorted(per_giorno)
+    argomenti = [(g, per_giorno[g], griglia, durata_ore) for g in giorni]
+
+    if processi is not None and processi <= 0:
+        processi = os.cpu_count() or 1
+
+    inizio = time.perf_counter()
+    pezzi: list[pd.DataFrame] = []
+    segnala(f"Propagazione su {len(giorni)} giorni, {len(griglia)} capacita', "
+            f"due origini del piano.")
+
+    if processi is None or processi == 1:
+        for i, argomento in enumerate(argomenti, start=1):
+            pezzi.append(_lavoro_propagazione(argomento))
+            if i % ogni == 0 or i == len(giorni):
+                segnala(f"  [{i:4d}/{len(giorni)}] {giorni[i-1]}  "
+                        f"({time.perf_counter() - inizio:.0f} s)")
+    else:
+        precedenti = {v: os.environ.get(v) for v in _VARIABILI_THREAD}
+        for v in _VARIABILI_THREAD:
+            os.environ[v] = "1"
+        try:
+            with ProcessPoolExecutor(max_workers=processi) as esecutore:
+                for i, pezzo in enumerate(
+                        esecutore.map(_lavoro_propagazione, argomenti, chunksize=1), start=1):
+                    pezzi.append(pezzo)
+                    if i % ogni == 0 or i == len(giorni):
+                        segnala(f"  [{i:4d}/{len(giorni)}] {giorni[i-1]}  "
+                                f"({time.perf_counter() - inizio:.0f} s)")
+        finally:
+            for v, valore in precedenti.items():
+                if valore is None:
+                    os.environ.pop(v, None)
+                else:
+                    os.environ[v] = valore
+
+    segnala(f"Completato in {time.perf_counter() - inizio:.0f} s.")
+    return pd.concat(pezzi, ignore_index=True)

@@ -3292,6 +3292,162 @@ previsione può spostare **quando** la batteria opera, non l'**ordine** carica�
 lo stato di carica parte da zero e il ciclo dev'essere chiuso. Il piano peggiore possibile non
 è quello rovesciato, che sarebbe *infeasible*, ma quello che opera nelle ore sbagliate.
 
+
+---
+
+## 2026-08-29 — La propagazione: la mia previsione teorica è smentita dai dati
+
+Punto 3 dell'impianto a due fasi: l'errore di previsione si propaga al piano della batteria e
+al risultato. 366 giorni, 13 capacità, due origini del piano — previsione perfetta e
+previsione SARIMAX — a confronto sulle stesse curve d'asta.
+`scripts/16_propagazione.py`, ~15 minuti su otto processi.
+
+Le due ipotesi erano state formulate **prima** di guardare i dati, come previsioni opposte:
+
+* la **contrazione dello spread** avrebbe dovuto peggiorare le cose, perché il modello
+  prevede spread in 40-80 €/MWh contro un reale di 20-158 e li sottostima nel 65% delle
+  giornate;
+* il **vincolo di ammissibilità e l'ordinamento** avrebbero dovuto proteggere, perché il
+  piano dipende dall'ordine delle ore e non dal livello dei prezzi.
+
+Il disegno le rendeva distinguibili: la prima lega l'efficienza allo spread, la seconda alla
+correlazione di rango. **La prima è smentita, la seconda è confermata con forza.**
+
+### A. I due piani si somigliano più di quanto l'errore facesse temere
+
+**Nessuna giornata su 366 in cui la previsione faccia rinunciare a operare**, e nessuna in cui
+faccia operare quando non conveniva. Il piano è non vuoto in tutte e 366 le giornate con
+entrambe le origini.
+
+* ore di **carica** azzeccate: **78,4%**
+* ore di **scarica** azzeccate: **86,2%**
+* ora del **minimo** indovinata esattamente: **24,6%**
+* ora del **massimo** indovinata esattamente: **49,2%**
+
+Il contrasto fra le ultime due coppie di numeri è il punto. Il modello sbaglia l'ora esatta
+del minimo in tre giornate su quattro, eppure sceglie correttamente quasi quattro ore di
+carica su cinque. La ragione è la **durata**: con quattro ore la batteria non opera nell'ora
+estrema ma su una finestra, e le ore vicine hanno prezzi vicini. Sbagliare di un'ora costa
+poco.
+
+### B. Il costo dell'incertezza: 10,4% del profitto
+
+A 25 MW, dove l'effetto sul prezzo è trascurabile e la differenza fra i due piani è **pura**
+perdita informativa:
+
+| | € sull'anno |
+|---|---|
+| profitto che la batteria **si aspettava** | 1.696.701 |
+| profitto **realizzato** | **1.684.613** |
+| profitto con **previsione perfetta** | 1.879.240 |
+
+**Perdita da incertezza informativa: 194.627 €, il 10,4%** del limite superiore. Efficienza
+informativa **89,6%**.
+
+**Attenzione all'illusione, che sull'aggregato inganna.** Atteso meno realizzato vale in totale
+soli 12.088 € (+0,6%), il che farebbe pensare che la batteria sappia prevedere il proprio
+guadagno. È **compensazione, non accuratezza**: giorno per giorno l'illusione ha media
+assoluta di **1.552 €** e **media assoluta relativa del 48,1%**, con il 53,3% di giornate in
+cui il modello si aspetta più di quanto realizza. Sul singolo giorno la batteria si sbaglia
+di quasi la metà; sull'anno gli errori si annullano. Riportare solo il totale sarebbe
+fuorviante.
+
+### C. Ipotesi 1 SMENTITA: la contrazione dello spread non peggiora le cose
+
+| Quintile di spread | Spread (€/MWh) | Efficienza media | Perdita media (€) |
+|---|---|---|---|
+| 1 | 20–47 | **0,838** | 334 |
+| 2 | 47–57 | 0,899 | 396 |
+| 3 | 57–66 | 0,894 | 490 |
+| 4 | 66–79 | **0,911** | 551 |
+| 5 | **79–158** | 0,899 | 891 |
+
+Correlazione spread ~ efficienza: **+0,120** (p = 0,02). **Positiva, non negativa.**
+
+La previsione era che l'efficienza crollasse nelle giornate a spread ampio. Accade il
+contrario: l'efficienza è **più bassa nel quintile a spread stretto** (0,838) e resta attorno
+a 0,90 in tutti gli altri. La correlazione con la perdita **in euro** è invece +0,250, ma
+quella è quasi meccanica — cresce anche il profitto potenziale — e non decide nulla.
+L'avvertenza era stata scritta nel report prima di vedere il risultato, ed è servita.
+
+Perché l'ipotesi era sbagliata: la contrazione riguarda il **livello** dello spread, mentre il
+piano dipende dall'**ordinamento**. Nelle giornate a spread ampio il segnale è grande rispetto
+all'errore, quindi l'ordinamento sopravvive anche a una previsione mediocre. Nelle giornate
+piatte l'errore è comparabile allo spread stesso e scompiglia l'ordine delle ore — ed è lì che
+l'efficienza cede.
+
+### D. Ipotesi 2 CONFERMATA: conta l'ordinamento, non il livello
+
+| Efficienza correlata con | r | p |
+|---|---|---|
+| **correlazione di rango** previsione/realtà | **+0,735** | 2·10⁻⁶³ |
+| correlazione lineare | +0,705 | 3·10⁻⁵⁶ |
+| **errore sul livello dello spread** | **−0,046** | 0,38 (**non significativo**) |
+
+| Quintile di rango | Rango | Efficienza media |
+|---|---|---|
+| 1 | 0,08–0,78 | **0,695** |
+| 3 | 0,86–0,92 | 0,921 |
+| 5 | 0,95–0,99 | **0,971** |
+
+L'errore in livello è **irrilevante** per il risultato: il coefficiente è praticamente nullo e
+non significativo. Conta solo se il modello mette le ore nell'ordine giusto.
+
+Correlazione di rango mediana sull'anno: **0,884**; il 45,6% delle giornate sta sopra 0,9. È
+questo che spiega perché un errore da 14,75 €/MWh di RMSE costi solo il 10,4% del profitto:
+**il SARIMAX sbaglia i prezzi ma azzecca la classifica delle ore.**
+
+### E. L'erosione peggiora, e la soglia si abbassa
+
+L'erosione resta misurata a parità di piano dentro ciascuna origine, quindi continua a isolare
+il solo effetto sul prezzo; il confronto fra origini va letto come «quanta della propria fonte
+di reddito distrugge una flotta che pianifica come pianifica davvero».
+
+| Capacità | Erosione mediana perfetta | da previsione | q90 perfetta | da previsione |
+|---|---|---|---|---|
+| 100 MW | 0,0714 | 0,0786 | 0,1518 | 0,1958 |
+| 400 MW | 0,2395 | 0,2657 | 0,4177 | 0,5721 |
+| 1500 MW | 0,7855 | 0,8873 | 1,1357 | 1,9170 |
+
+**Soglia K\* (erosione lorda, 90° percentile, griglia grossolana):**
+
+| Livello | Previsione perfetta | Da previsione |
+|---|---|---|
+| 10% | 60,6 MW | **33,7 MW** |
+| 20% | 147,5 MW | **103,6 MW** |
+
+Una flotta che pianifica su previsioni realistiche **diventa price maker a una capacità
+inferiore del 44%** al livello del 10%. Il risultato va preso con due riserve: è erosione
+**lorda**, senza la sottrazione del pavimento di discretezza (D-30), e la griglia qui è a 13
+punti, non a 132.
+
+Il meccanismo non è solo il denominatore più piccolo. L'erosione **assoluta** è anch'essa
+maggiore: 7,68 M€ contro 7,46 a 400 MW, 93,8 contro 88,5 a 1500. Un piano meno mirato guadagna
+meno **e** fa più danno al prezzo — presumibilmente perché opera in ore scelte da un segnale
+rumoroso, dove la curva può essere più ripida.
+
+### La sintesi
+
+**L'errore di previsione costa il 10,4% del profitto, molto meno di quanto la sua dimensione
+facesse temere, e per una ragione precisa: l'arbitraggio non ha bisogno di prezzi giusti, ha
+bisogno dell'ordine giusto delle ore.** Un RMSE di 14,75 €/MWh su prezzi che ne valgono in
+media 118 lascia intatta una correlazione di rango mediana di 0,884, e su quella si costruisce
+un piano che cattura il 90% del valore ottimo.
+
+Le due caratteristiche dell'errore che sembravano più minacciose alla fase 1 — la contrazione
+dello spread e la concentrazione dell'errore nelle giornate redditizie — **non mordono**,
+perché agiscono sul livello e non sull'ordinamento. Quella che morde è la sola che scompiglia
+l'ordine: l'errore relativamente grande nelle giornate **piatte**, dove è comparabile al
+segnale.
+
+Il danno vero non è dove lo si cercava. Non è sulle giornate eccezionali, che restano
+riconoscibili; è sulle giornate ordinarie, dove il margine è sottile e basta poco a invertire
+la classifica delle ore.
+
+**Conseguenza per il capitolo 5**: il conto economico va rifatto sul profitto price maker con
+piano da previsione, non da previsione perfetta. La differenza è il 10,4% sul margine e un
+K\* inferiore del 44%: entrambi spostano il VAN nella direzione sfavorevole.
+
 ---
 
 ## Prossimi passi
