@@ -3565,6 +3565,97 @@ La lezione, che vale oltre questo caso: una costante che indicizza una griglia v
 nella griglia, non data per presente. Il fallimento silenzioso è il modo peggiore in cui un
 parametro sbagliato si manifesta.
 
+
+---
+
+## 2026-08-30 — I risultati veri nei capitoli 3 e 4
+
+Sostituiti i segnaposto con i numeri del 2024. Compilazione locale: **76 pagine, zero
+errori**; restano solo i due `sec:mgp` preesistenti del capitolo 2, fuori perimetro e già
+segnalati.
+
+### Un segnaposto che chiedeva un controllo, e il controllo smentisce il testo
+
+A `03_strategia_ottima.tex` c'era scritto di «quantificare l'affermazione precedente
+ripetendo il calcolo dell'erosione con piani subottimi e verificando di quanto si sposta
+K\*». L'affermazione da quantificare era:
+
+> «La previsione perfetta distorce quindi il *livello* dei profitti più di quanto distorca la
+> *soglia*.»
+
+**È falsa.** Il livello scende del 10,4%, la soglia del 34,0%: la soglia è distorta più di
+**tre volte** il livello, non meno. Il passaggio è stato riscritto come congettura smentita,
+con la ragione: un piano meno mirato guadagna meno **e** incide di più sul prezzo, perché
+opera in ore scelte da un segnale rumoroso invece che dove la curva d'offerta è più piatta.
+Il numeratore dell'erosione cala meno del denominatore.
+
+L'assunzione di previsione perfetta non era quindi conservativa, come si era supposto, ma
+**ottimistica proprio sulla grandezza che la tesi vuole stimare**. È il tipo di errore che un
+segnaposto serve a intercettare, e in questo caso l'ha fatto.
+
+### Che cosa è entrato
+
+**Capitolo 3** — riscritta la coda della sezione sull'incertezza:
+
+* `sec:due-fasi`, che sostituisce la vecchia «Bootstrap dei giorni storici». L'incertezza non
+  viene più dal ricampionamento ma dall'errore di previsione; il bootstrap resta come
+  strumento inferenziale per l'intervallo di confidenza, ed è scritto che sono due ruoli
+  distinti. Le due alternative scartate (dati funzionali, linearizzazione) restano, spostate.
+* `sec:due-varianti`, che sostituisce «La previsione perfetta»: il perfect foresight passa da
+  assunzione operativa a limite superiore, e contiene la congettura smentita.
+* `sec:ordinale`, nuova: **l'arbitraggio è un problema ordinale, non cardinale**. È il
+  risultato portante, con il meccanismo (la durata di quattro ore fa operare su una finestra,
+  e le ore contigue hanno prezzi simili), la localizzazione del danno (giornate ordinarie e
+  piatte, non eccezionali) e le tre delimitazioni dichiarate come portata e non come
+  debolezza: durata quattro ore, ciclo giornaliero singolo con SoC nullo e ciclo chiuso,
+  valorizzazione ai prezzi veri.
+
+**Capitolo 4** — due sezioni nuove:
+
+* `sec:previsione`: orizzonte e sua giustificazione, specifica SARIMAX con la lettura del
+  correlogramma che fissa la parte stagionale, protocollo a origine mobile, e la
+  caratterizzazione dell'errore nelle **sei dimensioni** con quattro figure;
+* `sec:limiti-previsione`: i due limiti dichiarati;
+* `sec:soglia-definitiva`: la verifica di monotonia, la tabella dei quattro K\*, la figura
+  della curva erosione-capacità, il peso del pavimento e la sensibilità;
+* `sec:propagazione`: la perdita informativa e l'illusione che sull'aggregato inganna.
+
+**I limiti li dichiara la tesi per prima.** I residui non sono bianchi (ACF 0,849, Ljung-Box
+p < 10⁻⁴): il modello è migliorabile in senso statistico. Ma il testo prosegue mostrando
+perché questo **non intacca il risultato economico** — l'autocorrelazione residua riguarda il
+livello, il valore dell'arbitraggio dipende dall'ordinamento — e ne trae un'indicazione
+operativa: raffinare il modello sull'AIC o sulla bianchezza dei residui è la strada meno
+promettente, converrebbe valutarlo sulla correlazione di rango giornaliera. Stessa cosa per
+la collinearità fra ora e orizzonte: dichiarata come limite del disegno, con l'esclusione del
+puro effetto di orizzonte perché lo schema non è monotono.
+
+### Aggiunte fuori dai capitoli, entrambe additive
+
+`acronimi.tex`: SARIMAX, ACF, PACF, RMSE, MAE, AIC. Nessuno supera `DDS 2024` in lunghezza,
+quindi il parametro di larghezza dell'ambiente **non è stato toccato**.
+
+`bibliografia.bib`: Box, Jenkins, Reinsel e Ljung (2015) per la metodologia SARIMA, e Weron
+(2014) per la previsione dei prezzi elettrici. Il DOI di Weron resta `DA COMPLETARE`: un DOI
+inventato è peggio di un DOI assente.
+
+### Tre difetti trovati compilando
+
+**`\text{\euro}` non funziona dentro l'argomento unità di siunitx.** Dodici errori di
+«Undefined control sequence». Il progetto ha già la macro `\euromwh`, che è l'idioma usato
+negli altri capitoli: adottata quella.
+
+**Una collisione di acronimi introdotta il 27/08.** Nel paragrafo su Dumitrescu avevo scritto
+«RTE per la Francia» intendendo il gestore di rete francese, ma `acronimi.tex` definisce già
+`RTE` come *Round-Trip Efficiency*. Non si rompeva nulla perché l'avevo scritto a mano, ma
+sarebbe stata una trappola per chiunque avesse usato `\ac{RTE}`. Risolto scrivendo per esteso
+il nome dell'operatore.
+
+**Biber non aggiorna le citazioni nuove in una sola passata di `latexmk`.** Le due voci
+risultavano irrisolte pur essendo nel `.bcf`, e biber non emetteva alcun avviso. Risolto
+eseguendo `biber main` esplicitamente e poi ricompilando. Da ricordare: quando si aggiungono
+voci al `.bib`, una sola esecuzione di `latexmk` può non bastare, e il sintomo è una
+citazione irrisolta **senza** messaggio di biber.
+
 ---
 
 ## Prossimi passi

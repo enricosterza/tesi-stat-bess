@@ -301,6 +301,7 @@ definitiva scende fino a 1~MW, il che ha anche permesso di individuare e corregg
 pavimento di discretezza discusso nella Sezione~\ref{sec:pavimento}.
 
 \subsection{La durata}
+\label{sec:durata}
 
 Il rapporto fra capacit\`a energetica e potenza determina per quanti periodi consecutivi
 l'accumulo pu\`o caricare o scaricare a potenza piena. Il valore di riferimento \`e
@@ -703,3 +704,333 @@ relativa, anche quella in \textbf{valore assoluto} (euro al giorno), che resta i
 a qualunque livello di differenziale. Il rapporto viene semplicemente omesso dove il profitto
 di riferimento \`e trascurabile, e il numero di casi in cui ci\`o accade \`e riportato con i
 risultati.
+
+\section{La fase previsiva e la struttura del suo errore}
+\label{sec:previsione}
+
+La fase 1 dell'impianto a due fasi (Sezione~\ref{sec:due-fasi}) produce, per ogni giorno del
+campione, la previsione delle ventiquattro ore successive formulata con la sola informazione
+disponibile alla chiusura del mercato. Questa sezione ne descrive la specifica e, soprattutto,
+\textbf{caratterizza l'errore che ne risulta}: non per misurare l'accuratezza del modello, che
+non \`e l'oggetto della tesi, ma perch\'e \`e la struttura di quell'errore a propagarsi al
+piano dell'accumulo e al risultato economico.
+
+\subsection{L'orizzonte, e perch\'e \`e esattamente ventiquattro}
+
+Il \ac{MGP} del giorno $D$ chiude a mezzogiorno di $D-1$, ma gli esiti di $D-1$ sono stati
+pubblicati il giorno prima: al momento della decisione l'operatore conosce \textbf{tutte} le
+ventiquattro ore di $D-1$ e nessuna di $D$. L'origine della previsione \`e quindi la fine di
+$D-1$ e l'orizzonte $h = 1, \dots, 24$. Nessuna informazione dal futuro entra nel piano, e non
+serve troncare la giornata a met\`a.
+
+Si prevedono i prezzi zonali \textbf{ufficiali} pubblicati dal \ac{GME}, non quelli
+ricostruiti dal modello di clearing. \`E quello che osserva un operatore reale, e prevedere la
+propria ricostruzione significherebbe prevedere anche il proprio errore di ricostruzione, che
+non \`e un fenomeno di mercato. La scelta non intacca l'erosione, perch\'e la fase 2 continua
+a valorizzare sui prezzi ricostruiti con e senza accumulo: l'errore di ricostruzione entra
+identico nei due termini e si semplifica.
+
+\subsection{La specifica}
+\label{sec:specifica}
+
+Si adotta un modello \ac{SARIMAX} nella formulazione classica di
+\textcite{box2015timeseries}, e non un metodo di apprendimento automatico. La ragione discende
+dall'oggetto: poich\'e interessa la \emph{struttura} dell'errore e non la sua sola dimensione,
+serve un modello con una teoria dell'errore esplicita --- intervalli di previsione derivati,
+residui analizzabili --- e non soltanto misurabile a posteriori. \textcite{weron2014previsione}
+documenta del resto che i modelli di questa famiglia restano il termine di confronto
+obbligato nella previsione dei prezzi elettrici, qualunque sia il metodo che li affianca.
+
+La specifica adottata \`e
+\[
+  \text{SARIMAX}(2,1,1)\times(0,1,1)_{24}
+\]
+con regressori esogeni deterministici.
+
+\paragraph{La parte stagionale non \`e una scelta ma una lettura.} Sulla serie oraria della
+zona NORD, la \ac{ACF} della sola differenza prima ai multipli di ventiquattro vale
+$+0{,}62$, $+0{,}57$, $+0{,}53$, $+0{,}53$, $+0{,}52$: \textbf{non decade}, cio\`e resta una
+stagionalit\`a non rimossa. Aggiungendo la differenza stagionale i medesimi valori diventano
+$-0{,}43$, $-0{,}01$, $-0{,}05$, $+0{,}00$, $-0{,}06$: una \textbf{sola punta negativa a
+ritardo ventiquattro che poi taglia netto}, con \ac{PACF} pari a $-0{,}429$. \`E la firma di
+una media mobile stagionale di ordine uno, da cui $D = 1$, $P = 0$, $Q = 1$, $s = 24$.
+
+\paragraph{La stagionalit\`a settimanale entra come regressore, non come seconda
+stagionalit\`a.} Un modello SARIMA ne ammette una sola, e differenziare a ritardo
+centosessantotto costerebbe una settimana di osservazioni iniziali. Si usano invece due coppie
+di termini di Fourier a periodo $168$ e tre indicatrici, per sabato, domenica e festivi
+italiani. La scelta \`e sostenuta dai dati: tolto il profilo orario, il giorno della settimana
+spiega il \SI{5,2}{\percent} della varianza residua, con un'escursione di
+15,8~\euromwh{}. Merita qualche regressore, non una struttura stagionale.
+
+\paragraph{Nessuna trasformazione logaritmica.} Il minimo osservato nel biennio vale
+0,10~\euromwh{} e sul \ac{MGP} i prezzi negativi sono ammessi fino a
+$-500$~\euromwh{}: il logaritmo sarebbe fragile per costruzione.
+
+\paragraph{Ordine congelato.} Gli ordini non stagionali sono stati scelti confrontando per
+\ac{AIC} quattro candidati dichiarati in anticipo, \emph{una volta sola} sull'anno di
+addestramento, e poi \textbf{congelati} per tutto il periodo di valutazione. Sono cio\`e un
+dato dichiarato del lavoro, non un iperparametro riottimizzato a ogni passo.
+
+\paragraph{Protocollo a origine mobile.} Per ogni giorno del campione si producono
+ventiquattro passi con origine alla fine del giorno precedente. I coefficienti si ristimano
+una volta al mese, non ogni giorno: sia perch\'e trecentosessantasei stime complete
+costerebbero giorni di calcolo per un guadagno previsivo trascurabile, sia perch\'e nessun
+operatore ricalibra un modello ogni notte. Fra una ristima e l'altra il filtro assorbe il
+giorno appena osservato aggiornando lo \emph{stato} senza toccare i \emph{coefficienti}.
+
+\subsection{La struttura dell'errore, in sei dimensioni}
+\label{sec:errore}
+
+Sia $e(g,h)$ l'errore del giorno $g$ all'ora $h$, definito come prezzo reale meno prezzo
+previsto: positivo dove il modello ha sottostimato. Sull'anno di valutazione l'errore vale
+14,75~\euromwh{} di \ac{RMSE} e 10,54 di \ac{MAE}. Sono numeri che da soli
+non dicono nulla di utile: quello che conta \`e come si distribuiscono.
+
+\paragraph{1. Per ora del giorno.} L'errore non \`e omogeneo: varia di \textbf{2,4 volte} fra
+l'ora migliore e la peggiore, da 8,22~\euromwh{} a mezzanotte a 19,97 alle
+quattordici (Figura~\ref{fig:errore-orario}). Le ore notturne, piatte, si prevedono bene; il
+pomeriggio male.
+
+Il fattore che lo spiega non \`e il livello del prezzo ma la sua \textbf{variabilit\`a}: la
+correlazione fra l'errore orario e la deviazione standard del prezzo in quell'ora vale
+$+0{,}931$, contro $+0{,}185$ con il livello medio. Il picco serale, che \`e l'ora di prezzo
+pi\`u alto dell'anno, si prevede \emph{meglio} del ventre pomeridiano, perch\'e \`e alto ma
+regolare, mentre il pomeriggio \`e mediamente basso ma erratico, dipendendo dal fotovoltaico.
+
+Il rilievo per l'arbitraggio \`e diretto: la batteria colloca spesso la carica proprio nel
+ventre pomeridiano, che \`e l'ora peggio prevista dell'intera giornata.
+
+\paragraph{2. Distorsione contro dispersione.} Il modello \`e \textbf{non distorto}: media
+dell'errore $0{,}015$~\euromwh{}, con un test $t$ sulla media nulla che d\`a $p = 0{,}93$. Il
+massimo bias per ora del giorno vale $0{,}29$~\euromwh{} contro una dispersione di
+$14{,}75$. Tutto l'errore \`e dunque dispersione, non distorsione sistematica: non esiste una
+correzione da applicare, si pu\`o solo convivere con la varianza.
+
+\paragraph{3. Code e forma.} La distribuzione \`e simmetrica (asimmetria $-0{,}0002$) ma
+decisamente \textbf{leptocurtica}: curtosi in eccesso $+3{,}97$
+(Figura~\ref{fig:errore-forma}). Gli eventi oltre tre deviazioni standard sono \textbf{6,2
+volte} pi\`u frequenti dell'attesa gaussiana, quelli oltre quattro \textbf{101 volte}.
+L'\SI{1}{\percent} peggiore delle ore porta il \SI{19,0}{\percent} della somma dei quadrati,
+il \SI{5}{\percent} peggiore il \SI{45,4}{\percent}.
+
+Questo si lega alla redditivit\`a in modo diretto. L'errore quadratico medio giornaliero
+correla con il differenziale del giorno a $r = +0{,}600$ e con la volatilit\`a a $r =
++0{,}638$, mentre con il livello medio dei prezzi non correla affatto ($r = +0{,}045$, non
+significativo). L'errore \`e cio\`e massimo proprio nelle giornate in cui l'arbitraggio vale
+di pi\`u. Il modello inoltre \textbf{contrae il differenziale} verso la sua media: prevede
+valori compresi fra 40 e 80~\euromwh{} quando il reale spazia da 20 a
+158, e lo sottostima nel \SI{65}{\percent} delle giornate
+(Figura~\ref{fig:errore-spread}).
+
+\paragraph{4. Autocorrelazione.} L'\ac{ACF} dei residui vale $+0{,}849$ a ritardo uno,
+$+0{,}670$ a due, $+0{,}518$ a tre; la \ac{PACF} vale $+0{,}849$ a uno, $-0{,}184$ a due e
+poi si annulla. Il test di Ljung-Box rifiuta l'ipotesi di residui incorrelati con $p$
+inferiore a $10^{-4}$ a tutti i ritardi esaminati. Il trattamento di questo limite \`e nella
+Sezione~\ref{sec:limiti-previsione}.
+
+La memoria vive per\`o \textbf{dentro} la giornata e non fra giornate: l'\ac{ACF} dell'errore
+medio giornaliero vale $+0{,}034$ a ritardo uno, dentro la banda di non significativit\`a. Una
+giornata difficile non ne annuncia un'altra. \`E il verso peggiore per il piano: un errore
+coerente per l'intera giornata sbaglia l'\emph{ordinamento} delle ore, mentre errori
+indipendenti si compenserebbero fra loro.
+
+\paragraph{5. Eteroschedasticit\`a.} Rispetto al \emph{livello} del prezzo previsto l'errore
+segue un andamento \textbf{a U}: \ac{RMSE} pari a $22{,}01$ nel decile pi\`u basso,
+$10{,}96$ nei centrali, $20{,}63$ nel pi\`u alto. Una correlazione di rango non lo
+rivelerebbe --- vale $+0{,}001$, non significativa --- perch\'e cerca monotonia dove la
+relazione non \`e monotona.
+
+Rispetto alla \textbf{volatilit\`a della giornata} la relazione \`e invece monotona e forte:
+l'errore medio passa da $9{,}93$ nel quintile pi\`u tranquillo a $20{,}45$ nel pi\`u agitato.
+\`E l'anello che lega l'errore di previsione al regime di mercato, e va nella direzione
+sfavorevole: i regimi volatili sono quelli in cui l'accumulo guadagna.
+
+I decili si costruiscono sul prezzo \emph{previsto} e non su quello realizzato. Raggruppare
+per il realizzato sarebbe contaminato per costruzione, perch\'e nel gruppo dei prezzi alti
+finirebbero per definizione le ore in cui il prezzo \`e stato pi\`u alto del previsto: si
+misurerebbe una regressione verso la media, non l'eteroschedasticit\`a.
+
+\paragraph{6. Calibrazione degli intervalli.} La copertura empirica degli intervalli di
+previsione, confrontata con quella nominale, decresce in modo monotono e cambia segno:
+\SI{64,7}{\percent} contro un nominale del \SI{50}{\percent}, 88,2 contro
+80, 93,6 contro 90, 96,0 contro 95,
+98,1 contro 99 (Figura~\ref{fig:calibrazione}).
+
+\`E la firma esatta di intervalli gaussiani costruiti su un errore leptocurtico: troppo larghi
+al centro, troppo stretti nelle code. Il difetto non \`e di \emph{ampiezza} ma di
+\emph{forma}, ed \`e la stessa cosa vista al punto 3, letta dal lato dell'incertezza
+dichiarata. La miscalibrazione \`e inoltre strutturata per ora: la copertura al
+\SI{90}{\percent} vale 97--\SI{99}{\percent} nelle ore notturne e scende a
+86,9--\SI{88,8}{\percent} fra le tredici e le quindici, cio\`e il modello \`e pi\`u
+sicuro di quanto dovrebbe proprio nelle ore che contano per l'arbitraggio.
+
+\subsection{Due limiti dichiarati}
+\label{sec:limiti-previsione}
+
+\paragraph{I residui non sono bianchi, e va detto per primo.} L'autocorrelazione dei residui
+vale $+0{,}849$ a ritardo uno e il test di Ljung-Box rifiuta con $p$ inferiore a $10^{-4}$.
+Resta quindi \textbf{struttura non catturata}: il modello \`e migliorabile in senso
+statistico, e sarebbe scorretto presentarlo come adeguato.
+
+Questo per\`o \textbf{non intacca il risultato economico}, e la ragione non \`e una
+minimizzazione ma una conseguenza di quanto stabilito nella Sezione~\ref{sec:ordinale}.
+L'autocorrelazione residua riguarda il \emph{livello} dei prezzi --- \`e su quello che il
+modello lascia segnale non sfruttato --- mentre il valore dell'arbitraggio dipende
+dall'\emph{ordinamento} delle ore. Un modello con residui pi\`u bianchi produrrebbe previsioni
+di livello migliori, ma ridurrebbe il costo del \SI{10,4}{\percent} solo nella misura in cui
+migliorasse specificamente la classifica delle ore, che \`e una propriet\`a diversa e che
+nessuno dei criteri usuali di adattamento misura.
+
+Ne segue anche un'indicazione per chi volesse proseguire: raffinare il modello sul criterio
+d'informazione o sulla bianchezza dei residui \`e la strada meno promettente. Converrebbe
+piuttosto valutarlo direttamente sulla correlazione di rango giornaliera, che \`e la
+statistica che determina il piano.
+
+\paragraph{Ora del giorno e orizzonte non sono separabili.} L'origine della previsione \`e
+sempre la fine di $D-1$, quindi l'orizzonte $h$ corrisponde sempre e solo all'ora $h-1$ del
+giorno $D$: le due variabili sono \textbf{collineari per costruzione} e nessuna analisi su
+questi dati pu\`o attribuire all'una o all'altro lo schema osservato. Non \`e un difetto del
+disegno statistico ma della struttura del mercato, che ammette una sola sessione al giorno.
+
+Si pu\`o per\`o escludere che si tratti di un puro effetto di orizzonte. Un errore crescente
+con la distanza temporale sarebbe monotono, e lo schema non lo \`e: vale
+8,22~\euromwh{} alla prima ora, sale a 19,97 alla quindicesima e ridiscende
+a 10,65 alla ventiquattresima. Il coefficiente di correlazione fra errore orario e
+variabilit\`a del prezzo in quell'ora vale $+0{,}931$, contro $+0{,}185$ con il livello: il
+fattore dominante \`e l'ora, non la distanza.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{15_errore_orario}
+\caption{Errore di previsione per ora del giorno. In alto l'errore realizzato, in due
+metriche, contro quello \emph{dichiarato} dal modello: il secondo cresce in modo monotono con
+l'orizzonte, come impone la teoria, mentre il primo segue l'ora del giorno. Al centro la
+variabilit\`a del prezzo in ciascuna ora, che ha la stessa forma dell'errore ($r = +0{,}931$);
+in basso il livello medio, che ne ha una diversa ($r = +0{,}185$).}
+\label{fig:errore-orario}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{15_errore_forma}
+\caption{Forma della distribuzione dell'errore. L'istogramma da solo ingannerebbe, perch\'e le
+code sono rare proprio dove contano; il diagramma quantile-quantile le rende leggibili come
+scostamento dalla bisettrice.}
+\label{fig:errore-forma}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{15_errore_spread}
+\caption{A sinistra, l'errore giornaliero cresce con il differenziale della giornata: il
+modello sbaglia di pi\`u dove l'arbitraggio vale di pi\`u. A destra, il differenziale
+previsto resta confinato in una fascia stretta mentre quello reale spazia molto di pi\`u:
+il modello lo contrae verso la sua media.}
+\label{fig:errore-spread}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.78\textwidth]{15_calibrazione}
+\caption{Copertura empirica contro copertura nominale degli intervalli di previsione. Lo
+scarto decresce in modo monotono e cambia segno: \`e la firma di intervalli gaussiani su un
+errore a code spesse.}
+\label{fig:calibrazione}
+\end{figure}
+
+\section{La soglia $K^*$}
+\label{sec:soglia-definitiva}
+
+La soglia si stima sulla griglia definitiva a 132 capacit\`a, con l'erosione al netto del
+pavimento di discretezza (Sezione~\ref{sec:pavimento}) e le giornate a piano vuoto contate a
+erosione nulla. Si riportano \textbf{due varianti}: piano da previsione perfetta, che \`e il
+riferimento, e piano da previsione (Sezione~\ref{sec:due-varianti}).
+
+\subsection{La verifica preliminare di monotonia}
+
+La regola con cui si individua $K^*$ prende il \emph{primo} superamento della soglia da parte
+della curva quantile, il che presuppone che la curva sia crescente. Con una griglia fitta un
+sobbalzo locale del quantile dentro un ricampionamento potrebbe farla scattare in anticipo e
+abbassare la stima: la presunzione va quindi verificata prima di usare il risultato, non dopo.
+
+Su mille ricampionamenti e per tutte e quattro le combinazioni di variante e soglia, la quota
+di ricampionamenti con \textbf{pi\`u di un attraversamento \`e nulla}, il calo massimo della
+curva vale $-0{,}01$ punti percentuali in mediana, e lo scarto fra ultimo e primo
+attraversamento \`e \textbf{esattamente zero}, sia in media sia al massimo. La regola del
+primo attraversamento resta quindi valida e non serve alcuna correzione.
+
+\subsection{Il risultato}
+
+\begin{table}[H]
+\centering
+\caption{Soglia $K^*$ al 90\textsuperscript{o} percentile dell'erosione netta, con intervallo
+di confidenza al \SI{90}{\percent} da mille ricampionamenti dei giorni.}
+\label{tab:soglia}
+\begin{tabular}{@{}llrr@{}}
+\toprule
+\textbf{Piano} & \textbf{Soglia} & \textbf{$K^*$ (MW)} & \textbf{IC \SI{90}{\percent}} \\
+\midrule
+previsione perfetta  & \SI{10}{\percent} & 75,9  & 70,5 -- 81,7 \\
+previsione perfetta  & \SI{20}{\percent} & 173,1 & 157,5 -- 189,0 \\
+da previsione        & \SI{10}{\percent} & 50,1  & 43,3 -- 57,5 \\
+da previsione        & \SI{20}{\percent} & 129,3 & 108,0 -- 142,9 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{La differenza fra le due varianti \`e il risultato}: la soglia scende del
+\SI{34,0}{\percent} al livello del \SI{10}{\percent} e del \SI{25,3}{\percent} al
+\SI{20}{\percent}. Gli intervalli di confidenza delle due varianti non si sovrappongono a
+nessuna delle due soglie, quindi la differenza non \`e un artefatto campionario.
+
+Una flotta che pianifica su previsioni realistiche diventa price maker \textbf{prima}. Lo
+stesso errore che le costa il \SI{10,4}{\percent} di profitto la fa anche operare in modo meno
+mirato, quindi con pi\`u effetto sul prezzo a parit\`a di capacit\`a installata --- e lo
+conferma anche l'erosione in valore assoluto, non solo il rapporto.
+
+\paragraph{Quanto pesa il pavimento.} Sulla stessa griglia, ma senza sottrarre il pavimento di
+discretezza, la soglia della variante realistica risulterebbe di \SI{33,7}{MW} invece di
+50,1. La correzione del pavimento non \`e quindi un raffinamento marginale: senza di
+essa la soglia sarebbe sottostimata di un terzo.
+
+\paragraph{Una sensibilit\`a da dichiarare.} Il pavimento \`e mal definito nelle giornate in
+cui il profitto di riferimento \`e quasi nullo, dove il rapporto \`e dominato dal rumore: due
+giornate su trecentosessantasei superano il \SI{25}{\percent} di pavimento, e in una di esse
+il profitto a \SI{1}{MW} vale meno di cinque euro. Escludendo le giornate a pavimento anomalo
+il divario fra le due varianti resta compreso fra il 26 e il \SI{34}{\percent}, quindi
+il risultato qualitativo \`e robusto, ma il valore puntuale ne dipende. Si adotta la stima sul
+campione completo, coerentemente con la scelta di non scartare le giornate a basso
+differenziale (Sezione~\ref{sec:basso-spread}), dichiarando la sensibilit\`a.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{17_curva_erosione}
+\caption{Curva erosione-capacit\`a nelle due varianti di piano, mediana e
+90\textsuperscript{o} percentile, su scala logaritmica delle capacit\`a. La curva della
+variante realistica sta sopra quella della previsione perfetta a ogni capacit\`a: i punti
+segnano i quattro $K^*$ della Tabella~\ref{tab:soglia}.}
+\label{fig:curva-erosione}
+\end{figure}
+
+\subsection{La propagazione dell'errore al piano}
+\label{sec:propagazione}
+
+Il confronto fra le due varianti permette di misurare separatamente le due perdite. A
+capacit\`a piccola, dove l'effetto sul prezzo \`e trascurabile, la differenza fra i due piani
+\`e \textbf{pura perdita informativa}: vale il \SI{10,4}{\percent} del limite superiore,
+cio\`e un'efficienza informativa del \SI{89,6}{\percent}.
+
+\`E molto meno di quanto la dimensione dell'errore facesse temere, e la
+Sezione~\ref{sec:ordinale} ne d\`a la ragione. Due misure la rendono concreta: il modello
+individua l'ora esatta del minimo giornaliero solo nel \SI{24,6}{\percent} dei casi, ma sceglie
+correttamente il \SI{78,4}{\percent} delle ore di carica e l'\SI{86,2}{\percent} di quelle di
+scarica. E in nessuna delle giornate del campione la previsione porta a rinunciare a operare,
+n\'e a operare quando non converrebbe.
+
+\paragraph{Un'illusione che sull'aggregato inganna.} La differenza fra il profitto che la
+batteria si attende --- il piano valorizzato ai prezzi previsti --- e quello che realizza vale
+in totale meno dell'\SI{1}{\percent}, il che farebbe pensare che l'operatore sappia prevedere
+il proprio guadagno. \`E \textbf{compensazione, non accuratezza}: giornata per giornata quella
+differenza ha media assoluta relativa del \SI{48,1}{\percent}, con errori nei due versi che si
+annullano sull'anno. Riportare il solo totale sarebbe fuorviante.

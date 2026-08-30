@@ -251,8 +251,8 @@ Che la redditivit\`a dell'accumulo vada studiata come distribuzione, e non solo 
 media, trova conferma in un lavoro condotto con strumenti opposti a quelli qui adottati.
 \textcite{dumitrescu2024impact} costruiscono il prezzo di equilibrio come soluzione di un
 sistema di equazioni differenziali stocastiche \emph{forward-backward}, in un mercato con
-rinnovabili, produttori convenzionali e accumulo price taker, calibrato sugli scenari di
-RTE per la Francia. Il loro risultato principale \`e che al crescere della capacit\`a di
+rinnovabili, produttori convenzionali e accumulo price taker, calibrato sugli scenari del
+gestore di rete francese. Il loro risultato principale \`e che al crescere della capacit\`a di
 accumulo aumentano \textbf{sia i ricavi medi sia l'ampiezza degli intervalli
 interquantile}: pi\`u profitto atteso, ma anche pi\`u dispersione. La media, da sola,
 descrive male l'investimento.
@@ -266,19 +266,49 @@ entrambe la distribuzione come oggetto rilevante rafforza la scelta di caratteri
 $K^*$ come soglia stocastica. Si tratta peraltro di un preprint non ancora sottoposto a
 revisione paritaria, e come tale va citato.
 
-\subsection*{Bootstrap dei giorni storici}
+\subsection{Da dove viene l'incertezza: l'impianto a due fasi}
+\label{sec:due-fasi}
 
-La distribuzione di $E(\cdot,K)$ si costruisce ricampionando con reimmissione i \textbf{giorni
-storici}, e inserendo le batterie sulle curve d'asta effettivamente osservate. La
-stocasticit\`a sta quindi sulle curve reali, non su un processo di prezzo stimato.
+Un operatore reale non conosce i prezzi del giorno per cui sta offrendo. Il \ac{MGP} del
+giorno $D$ chiude a mezzogiorno di $D-1$, quando gli esiti di $D-1$ sono gi\`a pubblicati:
+al momento della decisione si conoscono tutte le ore del giorno precedente e nessuna di
+quello per cui si offre. Il piano si costruisce quindi su una \textbf{previsione}, e
+l'incertezza che ne deriva non \`e un fastidio da attenuare ma l'oggetto stesso dello studio.
 
-L'unit\`a di ricampionamento \`e la giornata, non la singola osservazione: un giorno entra o
-esce con tutta la sua curva $E(d,\cdot)$. \`E la struttura corretta, perch\'e le erosioni a
-capacit\`a diverse dello stesso giorno sono calcolate sulle stesse curve d'asta e quindi
-fortemente dipendenti fra loro.
+Il modello si articola perci\`o in due fasi.
 
-\paragraph{Alternative scartate.} Due impostazioni pi\`u sofisticate sono state considerate e
-messe da parte.
+\begin{description}
+  \item[Fase 1 --- previsione.] A $D-1$ si prevedono le ventiquattro ore del giorno $D$
+    usando solo l'informazione allora disponibile. Il piano di carica e scarica si ottimizza
+    su quei prezzi \emph{previsti}.
+  \item[Fase 2 --- mercato.] Il piano cos\`i definito si inserisce nelle curve d'asta reali,
+    si ricalcola l'equilibrio di ciascun periodo e si valorizza il piano ai prezzi
+    \emph{veri}.
+\end{description}
+
+La separazione conta perch\'e le due fasi rispondono a due domande diverse, e la loro
+distinzione permette di misurare separatamente due perdite che altrimenti si
+confonderebbero: la \textbf{perdita da incertezza informativa}, che dipende da quanto il
+modello previsivo sbaglia, e l'\textbf{erosione}, che dipende da quanta capacit\`a c'\`e in
+mercato. La prima esisterebbe anche con una sola batteria; la seconda esisterebbe anche con
+la previsione perfetta.
+
+Va sottolineato che la fase 2 valorizza sempre ai prezzi veri. La previsione determina
+\emph{quale} piano si costruisce, non \emph{come} lo si valorizza: la propriet\`a per cui
+l'errore di ricostruzione si semplifica fra i due termini dell'erosione~\eqref{eq:erosione}
+resta quindi intatta.
+
+\paragraph{Il ruolo residuo del ricampionamento.} Il bootstrap dei giorni storici non \`e
+pi\`u la sorgente dell'incertezza, che ora \`e l'errore di previsione. Resta per\`o come
+\textbf{strumento inferenziale}: $K^*$ \`e una stima campionaria e il suo intervallo di
+confidenza si costruisce ricampionando con reimmissione i giorni, ciascuno con l'intera
+curva $E(d,\cdot)$, perch\'e le erosioni a capacit\`a diverse dello stesso giorno sono
+calcolate sulle stesse curve d'asta e non sono indipendenti. Sono due ruoli distinti --- da
+dove viene l'aleatoriet\`a, e come se ne misura l'effetto sulla stima --- e vanno tenuti
+separati.
+
+\paragraph{Alternative scartate.} Due impostazioni pi\`u sofisticate per la generazione
+dell'incertezza sono state considerate e messe da parte.
 
 La prima \`e modellare le curve d'offerta come \textbf{dati funzionali}, stimandone le
 componenti principali e simulandone di nuove. Sarebbe elegante e fornirebbe un modello
@@ -291,23 +321,80 @@ La seconda \`e \textbf{linearizzare} l'effetto sul prezzo con un'elasticit\`a lo
 $\partial p / \partial q$ stimata attorno all'equilibrio, il che renderebbe il calcolo
 immediato. Questa approssimazione per\`o si rompe esattamente dove serve: per $K$ grandi
 l'accumulo percorre molti gradini della curva, e la pendenza locale cessa di essere
-informativa. Le misure raccolte lo confermano — la sensibilit\`a del prezzo \`e nulla in circa
-un quarto delle aste e supera i 20~\euromwh{} per 100~MW in altre, quindi \`e fortemente non
-lineare. Poich\'e $K^*$ \`e per definizione il punto in cui l'effetto smette di essere
-trascurabile, usare un'approssimazione valida solo per effetti piccoli sarebbe circolare.
+informativa. Le misure raccolte lo confermano --- la sensibilit\`a del prezzo \`e nulla in
+circa un quarto delle aste e supera i 20~\euromwh{} per 100~MW in altre, quindi \`e
+fortemente non lineare. Poich\'e $K^*$ \`e per definizione il punto in cui l'effetto smette
+di essere trascurabile, usare un'approssimazione valida solo per effetti piccoli sarebbe
+circolare.
 
-\subsection*{La previsione perfetta}
+\subsection{Previsione perfetta e previsione realistica}
+\label{sec:due-varianti}
 
-Il piano \`e ottimizzato conoscendo i prezzi di tutti i periodi della giornata. Il profitto
-che ne risulta \`e quindi un \textbf{limite superiore}, non un risultato conseguibile da un
-operatore reale.
+Il piano ottimizzato conoscendo i prezzi veri resta nel lavoro, ma cambia ruolo: da
+assunzione operativa diventa \textbf{limite superiore} contro cui misurare la variante
+realistica. Tutti i risultati sono prodotti in due varianti --- piano da previsione perfetta
+e piano da previsione (Sezione~\ref{sec:previsione}) --- ed \`e la loro differenza a
+costituire il risultato.
 
-Questa assunzione \`e per\`o meno onerosa di quanto sembri per l'oggetto dello studio: poich\'e
-l'erosione~\eqref{eq:erosione} \`e un rapporto fra due profitti calcolati sullo stesso piano,
-un piano subottimo ridurrebbe entrambi i termini, e l'effetto sul rapporto \`e di secondo
-ordine. La previsione perfetta distorce quindi il \emph{livello} dei profitti pi\`u di quanto
-distorca la \emph{soglia}.
+\paragraph{Una congettura che i dati smentiscono.} Era ragionevole attendersi che la
+previsione perfetta distorcesse il \emph{livello} dei profitti pi\`u della \emph{soglia}:
+poich\'e l'erosione~\eqref{eq:erosione} \`e un rapporto fra due profitti calcolati sullo
+stesso piano, un piano subottimo dovrebbe ridurre entrambi i termini, con effetto di secondo
+ordine sul rapporto.
 
-% DA COMPLETARE: quantificare l'affermazione precedente ripetendo il calcolo dell'erosione
-% con piani subottimi (ad esempio ottimizzati su una previsione rumorosa dei prezzi) e
-% verificando di quanto si sposta K*.
+La misura sul 2024 mostra il contrario. Il livello del profitto scende del
+\SI{10,4}{\percent}, mentre $K^*$ scende del \SI{34,0}{\percent}
+(Sezione~\ref{sec:soglia-definitiva}). La soglia \`e distorta \textbf{pi\`u di tre volte} il
+livello, non meno.
+
+La ragione \`e che i due termini non si riducono nella stessa proporzione. Un piano meno
+mirato guadagna meno \emph{e} incide di pi\`u sul prezzo, perch\'e opera in ore scelte da un
+segnale rumoroso anzich\'e in quelle dove la curva d'offerta \`e pi\`u piatta: il numeratore
+dell'erosione cala meno del denominatore. L'assunzione di previsione perfetta non era quindi
+conservativa, come si era supposto, ma \textbf{ottimistica proprio sulla grandezza che la
+tesi vuole stimare}.
+
+\subsection{L'arbitraggio \`e un problema ordinale, non cardinale}
+\label{sec:ordinale}
+
+Il risultato centrale dell'impianto a due fasi non riguarda quanto la previsione sia
+accurata, ma \textbf{quale sua propriet\`a conti}.
+
+Il piano ottimo dipende da \emph{quali ore} sono le pi\`u economiche e quali le pi\`u care,
+non da \emph{quanto} costino. Un modello che sbagliasse ogni prezzo di venti euro ma ne
+conservasse l'ordinamento produrrebbe il piano ottimo esatto; uno che azzeccasse il livello
+medio ma scambiasse fra loro l'ora di minimo e quella di picco produrrebbe il piano peggiore
+possibile. L'arbitraggio \`e cio\`e un problema \textbf{ordinale}, non cardinale.
+
+La verifica empirica \`e netta. L'efficienza informativa della giornata --- profitto
+realizzato in rapporto a quello ottenibile con previsione perfetta --- correla con la
+correlazione di rango fra prezzi previsti e reali a $r = +0{,}735$; con l'errore sul
+\emph{livello} dello spread correla a $r = -0{,}046$, statisticamente indistinguibile da zero
+(Sezione~\ref{sec:propagazione}). L'errore in livello, che \`e quello che un indicatore di
+accuratezza misura, \`e irrilevante per il risultato economico.
+
+\paragraph{Il meccanismo: la durata smussa l'errore.} Con una durata di quattro ore
+(Sezione~\ref{sec:durata}) la batteria non opera nell'ora estrema ma su una \emph{finestra}
+di quattro ore consecutive, e le ore contigue hanno prezzi simili. Sbagliare di un'ora costa
+quindi poco. Lo si vede nel contrasto fra due misure: il modello individua l'ora esatta del
+minimo giornaliero in appena il \SI{24,6}{\percent} delle giornate, eppure sceglie
+correttamente il \SI{78,4}{\percent} delle ore di carica.
+
+\paragraph{Dove si concentra il danno.} Ne discende una localizzazione controintuitiva. Il
+danno non sta nelle giornate a differenziale ampio, che sono le pi\`u redditizie e che si
+sarebbe portati a considerare le pi\`u esposte: l\`i il segnale \`e grande rispetto
+all'errore e l'ordinamento sopravvive anche a una previsione mediocre. Sta nelle giornate
+\textbf{ordinarie e piatte}, dove il differenziale \`e comparabile all'errore di previsione e
+basta poco a scompigliare la classifica delle ore. L'efficienza informativa vale $0{,}838$
+nel quintile a differenziale pi\`u stretto e risale a circa $0{,}90$ in tutti gli altri.
+
+\paragraph{Sotto quali condizioni vale.} Il risultato \`e delimitato, e le delimitazioni
+vanno dichiarate perch\'e ne definiscono la portata, non perch\'e lo indeboliscano. Vale per
+un accumulo di \textbf{durata quattro ore}: con una durata molto minore la finestra si
+restringe e l'ora esatta torna a contare. Vale per un \textbf{ciclo giornaliero singolo},
+con stato di carica iniziale nullo e ciclo chiuso: il vincolo impedisce che un errore
+inverta l'ordine fisico carica-scarica, perch\'e scaricare prima di aver caricato non \`e
+ammissibile, e limita quindi strutturalmente il danno possibile. E vale per una
+valorizzazione ai \textbf{prezzi veri} della fase 2: se il ricavo dipendesse da strumenti
+indicizzati al livello previsto, e non alla posizione effettivamente assunta, la propriet\`a
+ordinale non basterebbe.
