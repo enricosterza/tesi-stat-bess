@@ -3806,6 +3806,82 @@ quando l'altro sembra I/O-bound — il parsing degli XML non lo è affatto.
 stessi dati già prodotti da `scripts/16` e `17`: i quattro K\* coincidono esattamente
 (75,95 / 173,05 / 50,11 / 129,29).
 
+
+---
+
+## 2026-08-31 — I capitoli 3 e 4 completati con i risultati veri
+
+Scrittura in quattro blocchi, ciascuno compilato e committato separatamente. La tesi passa
+da 76 a **84 pagine**, zero errori; restano i due `sec:mgp` del capitolo 2, fuori perimetro e
+già segnalati.
+
+### Blocco 1 — i due segnaposto sostanziali del capitolo 3
+
+`§3.2.x I valori dei parametri` e `§3.3 Modellazione del degrado`, quest'ultima prima
+**interamente vuota**. Quattro precisazioni evitano altrettanti fraintendimenti: il rendimento
+è un valore di ciclo e la ripartizione a parti uguali non ha conseguenze con ciclo chiuso e
+prezzi positivi; il costo variabile grava sulla sola scarica; la durata di quattro ore non è
+un parametro indipendente ma la stessa affermazione della condizione sul convertitore;
+l'orizzonte di un giorno è un troncamento che agisce sul livello e non sull'ordinamento.
+
+Il punto non ovvio: **la soglia analitica di convenienza sottostima quella vera di oltre il
+doppio** — circa 20 €/MWh dalla formula chiusa contro ~18 senza degrado e ~42 con il costo
+variabile, misurati. La ragione è il vincolo di durata, che fa operare su finestre e non
+nell'ora estrema.
+
+### Blocco 2 — che cosa determina la soglia
+
+Nuova `§3.1.3`, collocata nel capitolo **teorico** e non fra i risultati, perché l'argomento è
+algebrico e si legge nella definizione di erosione senza guardare un dato: il differenziale
+compare a numeratore e denominatore del rapporto e si semplifica; ciò che resta è lo
+spostamento del prezzo, che dipende dalla **pendenza** della curva.
+
+La collocazione è una scelta di sostanza. Una previsione fatta prima e verificata dopo vale
+più di una regolarità osservata a posteriori, e il capitolo 4 la verifica.
+
+### Blocco 3 — il confronto fra regimi
+
+Nuova `§4.7` con i risultati B e C, la tabella a tre anni e la figura `19_confronto_regimi`.
+La previsione del blocco 2 è confermata e quella intuitiva smentita: ordinamento per
+differenziale 2022 > 2023 > 2024, ordinamento per K\* **inverso e perfetto**.
+
+Il limite di identificazione è dichiarato: ampiezza e ripidità sono co-ordinate per una causa
+comune, la correlazione non le separa, e districarle richiederebbe un controfattuale — un anno
+a differenziali ampi su curva piatta — che i dati osservativi non offrono.
+
+### Blocco 4 — i limiti e la nota di metodo
+
+`§4.5.4` passa da «due limiti dichiarati» a **quattro**: si aggiungono la collinearità del
+blocco esogeno e la calibrazione degli intervalli, quest'ultima scomposta nelle **due ragioni
+distinte** — per *forma* (gaussiani su errore leptocurtico) e per *regime* (la finestra mobile
+eredita l'incertezza dell'anno precedente) — perché hanno cause e rimedi diversi. Aggiunte
+anche le tre condizioni di validità del risultato ordinale, presentate come portata e non come
+debolezza.
+
+Tutti e quattro i limiti convergono sullo stesso scudo, che non è un espediente retorico ma la
+conseguenza del risultato ordinale: riguardano il **livello** dei prezzi, mentre il valore
+dell'arbitraggio dipende dall'**ordinamento** delle ore.
+
+Nuova `§4.8 Una nota di metodo: gli aggregati che ingannano`, con i tre casi incontrati nel
+lavoro: la compensazione che si spaccia per accuratezza (illusione totale sotto l'1% contro
+una media assoluta giornaliera del 48,1%), il coefficiente che cerca la forma sbagliata
+(correlazione di rango +0,001 su una relazione a U), la regolarità costruita su due punti (il
+calo di K\* che sembrava costante). Il quarto caso incontrato — la misura di tempo contaminata
+dalla contesa di CPU — resta **fuori dalla tesi** e vive solo in questo diario: è un errore
+dell'ambiente di calcolo, non un tema metodologico della ricerca.
+
+### Cosa resta
+
+Un solo `DA COMPLETARE` nel capitolo 3: l'effetto numerico del vincolo orario sul regime a
+quarto d'ora, che richiede un rerun mai eseguito. Nel capitolo 4 ne restano quattro, tutti
+legati a numeri non ancora prodotti. Il **capitolo 5** poggia ancora sul price maker con
+previsione perfetta e va rifatto sul piano da previsione.
+
+Nota sulla sincronizzazione: la copia locale dei capitoli coincideva esattamente con l'ultimo
+commit, quindi nessuna modifica fatta su Overleaf è stata sovrascritta — ma questo si può
+verificare solo confrontando con il locale, e se lo studente avesse modificato senza scaricare
+la divergenza andrebbe riconciliata a mano.
+
 ---
 
 ## Prossimi passi

@@ -865,7 +865,7 @@ dichiarata. La miscalibrazione \`e inoltre strutturata per ora: la copertura al
 86,9--\SI{88,8}{\percent} fra le tredici e le quindici, cio\`e il modello \`e pi\`u
 sicuro di quanto dovrebbe proprio nelle ore che contano per l'arbitraggio.
 
-\subsection{Due limiti dichiarati}
+\subsection{Quattro limiti dichiarati}
 \label{sec:limiti-previsione}
 
 \paragraph{I residui non sono bianchi, e va detto per primo.} L'autocorrelazione dei residui
@@ -899,6 +899,65 @@ con la distanza temporale sarebbe monotono, e lo schema non lo \`e: vale
 a 10,65 alla ventiquattresima. Il coefficiente di correlazione fra errore orario e
 variabilit\`a del prezzo in quell'ora vale $+0{,}931$, contro $+0{,}185$ con il livello: il
 fattore dominante \`e l'ora, non la distanza.
+
+
+\paragraph{Il blocco esogeno \`e debolmente identificato.} I termini di Fourier a
+centosessantotto ore e le indicatrici di sabato e domenica descrivono lo \emph{stesso} ciclo
+settimanale: il fine settimana \`e gi\`a una fase dell'armonica. La verosimiglianza \`e perci\`o
+quasi piatta lungo una direzione che li combina, e la stima non li separa bene.
+
+Non \`e una congettura ma una misura. Stimando la medesima finestra da due punti di partenza
+diversi si ottiene la \textbf{stessa} verosimiglianza --- scarto relativo $8 \cdot 10^{-8}$,
+quindi non due ottimi locali --- ma coefficienti esogeni diversi fino al \SI{2,5}{\percent},
+mentre quelli autoregressivi e di media mobile restano identici alla quinta cifra decimale.
+
+La conseguenza pratica \`e stata di rinunciare a una scorciatoia di calcolo: far ripartire ogni
+ristima dai coefficienti della precedente avrebbe risparmiato circa il \SI{10}{\percent} del
+tempo, ma avrebbe reso i coefficienti dipendenti dall'ordine in cui i mesi sono stati stimati.
+In un lavoro che dichiara la propria riproducibilit\`a quel risparmio non compra abbastanza, e
+ogni ristima riparte da zero.
+
+Quanto al risultato economico, la collinearit\`a sposta il livello previsto nei fine settimana
+ma non l'\emph{ordine} delle ore dentro la giornata, che \`e ci\`o da cui il piano dipende
+(Sezione~\ref{sec:ordinale}). \`E un difetto di parsimonia della specifica, non un difetto
+della conclusione.
+
+\paragraph{Gli intervalli di previsione sono mal calibrati, e per due ragioni distinte.} Vanno
+tenute separate perch\'e hanno cause e rimedi diversi.
+
+La prima \`e una questione di \textbf{forma}. Il \ac{SARIMAX} costruisce intervalli gaussiani
+su un errore che gaussiano non \`e: la copertura empirica eccede il nominale ai livelli
+centrali e cede a quelli estremi, con uno scarto che decresce in modo monotono e cambia segno
+(Sezione~\ref{sec:errore}, punto 6). Non \`e un difetto di ampiezza ma della coda assunta, ed
+\`e la stessa leptocurtosi vista nella distribuzione dell'errore.
+
+La seconda \`e una questione di \textbf{regime}, e riguarda il disegno. La finestra di stima
+\`e di trecentosessantacinque giorni, quindi ogni modello dichiara l'incertezza dell'anno
+\emph{precedente}. Il 2022, stimato su un 2021 tranquillo, risulta troppo sicuro
+(\SI{78,0}{\percent} di copertura contro un nominale del \SI{90}{\percent}); il 2023, stimato
+su un 2022 estremo, troppo prudente (\SI{98,2}{\percent}); il 2024, stimato su un 2023
+moderato, \`e il pi\`u vicino al nominale (\SI{93,6}{\percent}).
+
+L'andamento mensile lo conferma: nel 2022 la copertura passa dal \SI{76}{\percent} del primo
+trimestre all'\SI{89}{\percent} dell'ultimo, man mano che la finestra si riempie di dati dello
+stesso regime.
+
+Le due ragioni convergono nella stessa raccomandazione: \textbf{gli intervalli di previsione
+non vanno usati per dimensionare un margine di rischio}, e tanto meno nell'anno successivo a
+una transizione di regime. Le soglie $K^*$ non ne fanno per\`o alcun uso --- si costruiscono
+sulla distribuzione dell'erosione osservata, non sull'incertezza dichiarata dal modello
+previsivo --- quindi il difetto non le tocca.
+
+\paragraph{Le condizioni sotto cui vale il risultato ordinale.} Il risultato della
+Sezione~\ref{sec:ordinale} \`e delimitato, e le delimitazioni ne definiscono la portata
+anzich\'e indebolirlo. Vale per un accumulo di \textbf{durata quattro ore}: \`e la finestra di
+quattro ore consecutive a smussare l'errore, e con una durata molto minore l'ora esatta
+tornerebbe a contare. Vale per un \textbf{ciclo giornaliero singolo} con stato di carica
+iniziale nullo e ciclo chiuso: il vincolo impedisce che un errore inverta l'ordine fisico
+carica-scarica, perch\'e scaricare prima di aver caricato non \`e ammissibile, e limita quindi
+strutturalmente il danno possibile. E vale per una \textbf{valorizzazione ai prezzi
+realizzati}: se il ricavo dipendesse da strumenti indicizzati al livello previsto anzich\'e
+alla posizione effettivamente assunta, la propriet\`a ordinale non basterebbe.
 
 \begin{figure}[H]
 \centering
@@ -1185,3 +1244,42 @@ le curve erosione-capacit\`a intere, che mostrano come l'ordinamento non dipenda
 scelta.}
 \label{fig:regimi}
 \end{figure}
+
+\section{Una nota di metodo: gli aggregati che ingannano}
+\label{sec:aggregati}
+
+Attraversa questo capitolo un tema che vale la pena isolare, perch\'e si \`e presentato in
+forme diverse e ogni volta avrebbe prodotto una conclusione sbagliata se non fosse stato
+riconosciuto: \textbf{una statistica di sintesi pu\`o essere corretta e insieme fuorviante},
+quando la struttura che nasconde \`e proprio quella che conta.
+
+Tre casi, tutti incontrati nel corso del lavoro.
+
+\paragraph{La compensazione che si spaccia per accuratezza.} La differenza fra il profitto che
+la batteria si attende e quello che realizza vale, sull'anno, meno dell'\SI{1}{\percent}. Ne
+seguirebbe che l'operatore sappia prevedere il proprio guadagno. \`E falso: giornata per
+giornata quella differenza ha media assoluta relativa del \SI{48,1}{\percent}, con errori nei
+due versi che si annullano nella somma. Il totale \`e piccolo perch\'e gli errori si
+compensano, non perch\'e siano piccoli.
+
+\paragraph{Il coefficiente che cerca la forma sbagliata.} La correlazione di rango fra prezzo
+previsto e ampiezza dell'errore vale $+0{,}001$, statisticamente indistinguibile da zero, e
+direbbe che non c'\`e eteroschedasticit\`a. La tabella per decili mostra invece un
+\textbf{andamento a U} netto, con l'errore quadratico medio che raddoppia a entrambi gli
+estremi rispetto al centro. Il coefficiente non sbaglia: cerca una relazione monotona, e qui
+la relazione non lo \`e.
+
+\paragraph{La regolarit\`a costruita su due punti.} Il calo di $K^*$ dovuto alla previsione
+valeva $-35{,}1\%$ nel 2022 e $-34{,}0\%$ nel 2024: due valori quasi uguali, che invitavano a
+leggerli come una costante strutturale. Il terzo anno ha mostrato che era una coincidenza, e
+che l'escursione fra le due soglie \emph{dentro} un singolo anno \`e pari a quella fra anni
+(Sezione~\ref{sec:confronto-regimi}).
+
+\medskip
+Il filo comune non \`e che le statistiche di sintesi siano inaffidabili, ma che ciascuna
+risponde a una domanda precisa e tace sulle altre. La cautela che se ne ricava \`e concreta:
+\textbf{prima di leggere un aggregato, guardare la distribuzione che riassume}. In questo
+lavoro \`e la ragione per cui l'efficienza informativa viene riportata in due versioni ---
+pesata per profitto ed equipesata per giornata --- invece che in una sola: rispondono a due
+domande diverse, quella dell'investitore e quella sulla giornata tipica, e nessuna delle due
+sostituisce l'altra.
