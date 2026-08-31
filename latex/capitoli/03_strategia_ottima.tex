@@ -217,27 +217,121 @@ risultati calcolati su quel regime non ne sono toccati.
 % DA COMPLETARE: entita' numerica dell'effetto del vincolo sul profitto price taker e sulla
 % soglia, da quantificare con il rerun sul trimestre a quarto d'ora.
 
-% DA COMPLETARE: scelta dei valori dei parametri fisici.
-% Da fissare, con riferimento a fonti tecniche: rendimento di ciclo completo (tipicamente
-% 0,85-0,92 per batterie agli ioni di litio), profondita' di scarica ammessa, eventuali
-% vincoli di rampa, autoscarica. Va inoltre deciso se imporre e_T = e_0 (ciclo giornaliero
-% chiuso), scelta che semplifica il confronto fra giornate.
+\subsection{I valori dei parametri, e da dove vengono}
+\label{sec:valori-fisici}
+
+I parametri del modello fisico non sono scelte di comodo di questo lavoro: sono ripresi da
+\textcite{alonsoperez2026storage}, che li documenta per un accumulo agli ioni di litio di
+taglia utility, e sono raccolti in un unico punto del codice cos\`i che nessun valore compaia
+sparso nei calcoli.
+
+\begin{table}[H]
+\centering
+\caption{Parametri fisici di riferimento dell'accumulo.}
+\label{tab:parametri-fisici}
+\begin{tabular}{@{}llr@{}}
+\toprule
+\textbf{Parametro} & \textbf{Simbolo} & \textbf{Valore} \\
+\midrule
+Rendimento di ciclo completo & $\eta$              & 0,92 \\
+Rendimento di carica         & $\eta^{c}$          & 0,9592 \\
+Rendimento di scarica        & $\eta^{s}$          & 0,9592 \\
+Costo variabile              & $c_v$               & 12 \euromwh{} \\
+Durata                       & $E^{\max}/P^{\max}$ & 4 ore \\
+Orizzonte di ottimizzazione  & ---                 & 1 giorno \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Il rendimento \`e un valore di ciclo, e va ripartito.} La fonte fornisce il solo
+rendimento \emph{round-trip}, che \`e anche l'unica grandezza misurabile ai morsetti
+dell'impianto; il bilancio~\eqref{eq:bilancio} richiede per\`o $\eta^{c}$ e $\eta^{s}$
+separatamente. Si assume che la perdita si ripartisca in parti uguali, da cui
+$\eta^{c} = \eta^{s} = \sqrt{0{,}92} = 0{,}9592$.
+
+L'assunzione \`e meno onerosa di quanto sembri, e conviene dire perch\'e. Con ciclo chiuso e
+prezzi positivi il profitto dipende dal solo \textbf{prodotto} dei due rendimenti: qualunque
+ripartizione che conservi $\eta$ d\`a lo stesso piano e lo stesso ricavo. La ripartizione
+conta unicamente in presenza di \textbf{prezzi negativi}, dove caricare \`e remunerato e le
+due direzioni cessano di essere simmetriche. Sul campione esaminato non si osservano prezzi
+di equilibrio negativi, quindi la convenzione non ha conseguenze; resterebbe da riprendere se
+il campione si estendesse a periodi che ne contengono.
+
+\paragraph{Il costo variabile si applica alla sola scarica.} Un ciclo completo attraversa
+l'accumulo due volte, in carica e in scarica, ma consuma vita utile una volta sola.
+Applicando $c_v$ a entrambe le direzioni il ciclo costerebbe 24~\euromwh{} invece di 12, e la
+batteria risulterebbe artificiosamente pi\`u pigra. Il costo grava quindi sulla sola energia
+scaricata.
+
+\paragraph{La durata di quattro ore non \`e un parametro indipendente.} La fonte indica come
+condizione di dimensionamento che la potenza del convertitore sia pari al \SI{25}{\percent}
+della capacit\`a energetica, oltre la quale il convertitore smette di essere il vincolo
+attivo. \`E la stessa affermazione: $P^{\max} = 0{,}25\,E^{\max}$ se e solo se
+$E^{\max}/P^{\max} = 4$~ore. Non si tratta quindi di due scelte ma di una, espressa in due
+modi, e le quattro ore trovano un riscontro indipendente in
+\textcite{mcconnell2015storage} (Sezione~\ref{sec:durata}).
+
+\paragraph{L'orizzonte di un giorno \`e un troncamento, ed \`e dichiarato.} Il programma
+lineare ottimizza una giornata alla volta, con stato di carica iniziale nullo e vincolo di
+ciclo chiuso $e_T = e_0$. La condizione rende le giornate \textbf{confrontabili fra loro} ---
+senza di essa l'accumulo potrebbe svuotarsi il primo giorno e mostrare un ricavo non
+ripetibile --- ma preclude l'arbitraggio fra giorni consecutivi, che un operatore reale pu\`o
+invece praticare.
+
+Il costo di questa scelta \`e quantificato dalla fonte: un orizzonte di tre giorni cattura
+oltre il \SI{99}{\percent} del profitto ottenibile con cinque. Il rendimento decrescente
+dell'orizzonte \`e quindi rapido, e il troncamento alla giornata singola sottostima il
+profitto in misura contenuta. Resta un limite dichiarato, e va tenuto presente che agisce sul
+\emph{livello} del profitto e non sull'ordinamento delle ore all'interno della giornata, da
+cui dipende invece il risultato centrale del lavoro (Sezione~\ref{sec:ordinale}).
 
 \section{Modellazione del degrado}
 \label{sec:degrado}
 
-% DA COMPLETARE: modello di degrado della batteria.
-% Elementi da trattare:
-%   - distinzione fra degrado calendariale (funzione del tempo e dello stato di carica
-%     medio) e degrado ciclico (funzione del numero e della profondita' dei cicli);
-%   - scelta di una formulazione trattabile: costo marginale costante per MWh ciclato,
-%     oppure conteggio dei cicli equivalenti con metodo rainflow;
-%   - traduzione del degrado in un costo monetario Phi da inserire nella funzione
-%     obiettivo (eq. 3.4), tipicamente come costo di sostituzione ripartito sui cicli
-%     di vita utile;
-%   - implicazione economica: il degrado introduce un costo opportunita' che rende non
-%     conveniente ogni arbitraggio il cui differenziale di prezzo non lo copra, e quindi
-%     riduce il numero di cicli ottimali rispetto al caso senza degrado.
+Ogni ciclo di carica e scarica consuma una quota della vita utile dell'accumulo. Ignorare quel
+consumo produrrebbe una batteria che opera ogni volta che il differenziale copre la sola
+perdita di rendimento, cio\`e molto pi\`u spesso di quanto convenga davvero.
+
+\paragraph{La formulazione adottata, e le due scartate.} Il degrado entra come \textbf{costo
+variabile costante per MWh ciclato}, $c_v = 12$~\euromwh{}, che nella funzione
+obiettivo~\eqref{eq:obiettivo} costituisce il termine $\Phi$:
+\begin{equation}
+\Phi\!\left(\{c_t, s_t\}\right) \;=\; c_v \sum_{t} s_t \, \Delta_t .
+\label{eq:degrado}
+\end{equation}
+
+Due formulazioni pi\`u ricche sono state considerate e messe da parte. La prima distingue il
+degrado \textbf{calendariale}, funzione del tempo e dello stato di carica medio, da quello
+\textbf{ciclico}: il primo per\`o non dipende dalle decisioni operative e quindi non altera il
+piano ottimo --- entra nel conto economico (Capitolo~\ref{cap:valutazione}) ma non
+nell'ottimizzazione. La seconda conta i \textbf{cicli equivalenti} con il metodo del
+\emph{rainflow}, che pesa i cicli parziali per la loro profondit\`a: sarebbe pi\`u aderente
+alla fisica della cella, ma renderebbe il problema non lineare e non convesso, e la
+letteratura da cui i parametri provengono adotta essa stessa la forma lineare.
+
+\paragraph{Il degrado impone un differenziale minimo, e non \`e quello che si calcolerebbe a
+mano.} L'effetto economico del termine $\Phi$ \`e di rendere non conveniente ogni arbitraggio
+il cui differenziale non lo copra. La soglia analitica sarebbe
+$c_v \eta^{s} + p\,(1 - \eta)$, che con i valori adottati e un prezzo di 100~\euromwh{} d\`a
+circa 20~\euromwh{}.
+
+Quella formula \textbf{sottostima per\`o la soglia vera di oltre il doppio}, e la ragione \`e
+il vincolo di durata. Con quattro ore la batteria non opera nell'ora di minimo e in quella di
+massimo, ma su \emph{finestre} di quattro ore consecutive, e su un profilo di prezzo liscio
+cattura molto meno del differenziale nominale fra i due estremi. Misurata su un profilo
+sinusoidale a ventiquattro ore, la soglia oltre la quale il piano cessa di essere vuoto vale
+circa 18~\euromwh{} in assenza di degrado e circa 42~\euromwh{} con $c_v = 12$.
+
+La formula chiusa va quindi usata come ordine di grandezza e mai come soglia operativa. \`E un
+caso in cui l'intuizione analitica e il comportamento del modello divergono in modo
+sostanziale, e la differenza si vede solo misurando.
+
+\paragraph{Conseguenza: le giornate a piano vuoto.} Nelle giornate in cui il differenziale non
+copre il degrado, il piano ottimo \`e \textbf{non fare nulla}. Sono giornate in cui l'accumulo
+non tocca il mercato e non ha profitto da erodere: la loro erosione \`e nulla \emph{per
+definizione}, non indefinita e non mancante, e restano nel campione con quel valore.
+Escluderle introdurrebbe il medesimo bias verso i giorni ad alta produzione rinnovabile che la
+Sezione~\ref{sec:basso-spread} si preoccupa di evitare.
 
 \section{Gestione dell'incertezza}
 \label{sec:incertezza}
