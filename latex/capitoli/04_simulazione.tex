@@ -1034,3 +1034,154 @@ in totale meno dell'\SI{1}{\percent}, il che farebbe pensare che l'operatore sap
 il proprio guadagno. \`E \textbf{compensazione, non accuratezza}: giornata per giornata quella
 differenza ha media assoluta relativa del \SI{48,1}{\percent}, con errori nei due versi che si
 annullano sull'anno. Riportare il solo totale sarebbe fuorviante.
+
+\section{Il confronto fra regimi di volatilit\`a}
+\label{sec:confronto-regimi}
+
+La pipeline \`e stata ripetuta su altri due anni, scelti per il regime di mercato che
+rappresentano: il \textbf{2022}, dominato dalla crisi del gas, e il \textbf{2023}, di
+transizione. Insieme al 2024 formano tre regimi ordinati per ampiezza del differenziale
+giornaliero.
+
+\paragraph{Che cosa \`e questo confronto, e che cosa non \`e.} Non \`e la fonte di
+stocasticit\`a del lavoro, che resta la propagazione dell'errore di previsione \emph{dentro}
+ciascun anno (Sezione~\ref{sec:propagazione}) ed \`e ci\`o che produce gli intervalli di
+confidenza di $K^*$. I tre anni sono \textbf{tre casi}, non un campione da cui inferire: con
+tre punti non si stima una relazione, si osserva un ordinamento e si verifica se i meccanismi
+trovati su un anno reggano sugli altri. Nessuna delle figure che seguono traccia una retta di
+regressione, perch\'e prometterebbe pi\`u di quanto tre punti contengano.
+
+\begin{table}[H]
+\centering
+\caption{I tre regimi a confronto. Soglie al 90\textsuperscript{o} percentile dell'erosione
+netta.}
+\label{tab:regimi}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+ & \textbf{2022} & \textbf{2023} & \textbf{2024} \\
+\midrule
+Differenziale giornaliero medio (\euromwh{}) & 161,7 & 78,4 & 65,5 \\
+Pavimento a 1~MW, mediana                    & 2,45\% & 1,07\% & 0,69\% \\
+\midrule
+$K^*$ al 10\%, previsione perfetta (MW)      & 35,7  & 40,9  & 75,9 \\
+$K^*$ al 10\%, da previsione (MW)            & 23,2  & 30,5  & 50,1 \\
+$K^*$ al 20\%, previsione perfetta (MW)      & 106,7 & 112,7 & 173,1 \\
+$K^*$ al 20\%, da previsione (MW)            & 70,2  & 83,4  & 129,3 \\
+\midrule
+\ac{RMSE} della previsione (\euromwh{})      & 50,07 & 20,81 & 14,75 \\
+Correlazione di rango, mediana               & 0,865 & 0,868 & 0,884 \\
+Correlazione di rango, 10\textsuperscript{o} perc. & 0,514 & 0,650 & 0,696 \\
+\midrule
+Efficienza informativa, pesata per profitto  & 82,6\% & 88,6\% & 89,6\% \\
+Efficienza informativa, equipesata           & 81,8\% & 87,3\% & 88,8\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{La soglia segue la ripidit\`a, non l'ampiezza}
+
+La previsione della Sezione~\ref{sec:cosa-determina} era che le due letture --- ampiezza
+contro ripidit\`a --- implicassero ordinamenti \textbf{opposti}. I dati sono netti:
+
+\begin{itemize}
+  \item per differenziale: $2022 > 2023 > 2024$ ($161{,}7 > 78{,}4 > 65{,}5$);
+  \item per $K^*$: $2022 < 2023 < 2024$ ($35{,}7 < 40{,}9 < 75{,}9$).
+\end{itemize}
+
+L'ordinamento \`e \textbf{inverso e perfetto}. La lettura per ampiezza \`e smentita: il 2022
+ha differenziali due volte e mezza quelli del 2024 e soglia \emph{meno della met\`a}.
+
+Il pavimento a 1~MW, che misura la pendenza locale, \`e ordinato come il differenziale e
+inversamente a $K^*$: nel 2022 un solo megawatt spostava il prezzo quasi quattro volte pi\`u
+che nel 2024. La spiegazione economica \`e diretta: la crisi del gas aveva spinto l'equilibrio
+ben oltre gli impianti a costo marginale basso, in un tratto della curva dove pochi megawatt
+bastano a scavalcare un gradino.
+
+Non \`e un effetto della soglia scelta ma della curva intera: a 400~MW l'erosione netta
+mediana vale $0{,}305$ nel 2022, $0{,}287$ nel 2023 e $0{,}230$ nel 2024
+(Figura~\ref{fig:regimi}, pannello in basso a destra).
+
+\paragraph{Un limite di identificazione che va dichiarato.} Fra questi tre anni ampiezza e
+ripidit\`a sono \textbf{perfettamente co-ordinate}, e non per caso: come argomentato nella
+Sezione~\ref{sec:cosa-determina}, hanno una causa comune. La correlazione non pu\`o quindi
+separare le due spiegazioni, e con tre punti non separerebbe nulla in ogni caso.
+
+A decidere \`e il \textbf{meccanismo}, non il coefficiente: il pavimento misura direttamente
+quanto la capacit\`a sposta il prezzo, che \`e esattamente ci\`o di cui $K^*$ \`e definita; il
+differenziale misura quanto vale l'arbitraggio, che entra nell'erosione a numeratore e
+denominatore e vi si semplifica. Districare le due spiegazioni sui soli dati richiederebbe un
+controfattuale --- un anno a differenziali ampi su curva piatta --- che i dati osservativi non
+offrono e che solo un esperimento controllato potrebbe costruire.
+
+\subsection{Il risultato ordinale regge fuori dall'anno in cui \`e stato trovato}
+
+\`E la verifica pi\`u forte disponibile per il risultato della Sezione~\ref{sec:ordinale},
+perch\'e i tre anni differiscono proprio nella grandezza che dovrebbe contare se il problema
+fosse cardinale:
+
+\begin{center}
+\begin{tabular}{@{}lr@{}}
+\toprule
+\ac{RMSE} della previsione, variazione fra i regimi & $\times 3{,}4$ \\
+Correlazione di rango mediana, variazione           & $2{,}3\%$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+L'errore in livello cambia di un fattore tre e mezzo passando dal 2024 al 2022; l'ordinamento
+delle ore \textbf{quasi non cambia}. Il costo dell'incertezza informativa cresce di conseguenza
+molto meno del previsto: dal \SI{10,4}{\percent} al \SI{17,4}{\percent}, a fronte di un errore
+che triplica.
+
+\paragraph{Un raffinamento: la robustezza vive nella coda del rango.} Il confronto fra 2022 e
+2023 aggiunge qualcosa che il solo 2024 non poteva mostrare. I due anni hanno correlazione di
+rango \textbf{mediana quasi identica} --- $0{,}865$ e $0{,}868$ --- ed efficienza sensibilmente
+diversa: $81{,}8\%$ contro $87{,}3\%$.
+
+Ci\`o che li distingue \`e il \textbf{decimo percentile} del rango: $0{,}514$ nel 2022 contro
+$0{,}650$ nel 2023. Non conta soltanto quanto il modello azzecchi l'ordinamento di norma, ma
+\textbf{quante giornate lo sbaglia in modo grave}.
+
+\`E la stessa struttura gi\`a osservata nell'errore di previsione, che \`e leptocurtico
+(Sezione~\ref{sec:errore}): piccolo quasi sempre e molto grande di rado, con le poche giornate
+estreme che portano una quota sproporzionata del danno. Ritrovarla sul \emph{rango}, che \`e
+una trasformazione non lineare del prezzo, \`e una coerenza interna che vale la pena
+segnalare: le code non sono un artefatto della scala in cui si misura l'errore.
+
+\subsection{Il calo della soglia \`e un intervallo, non una costante}
+
+Il passaggio dalla previsione perfetta a quella realistica abbassa $K^*$ in tutti e tre gli
+anni e a entrambe le soglie. L'entit\`a per\`o \textbf{non \`e costante}:
+
+\begin{center}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+ & \textbf{Soglia 10\%} & \textbf{Soglia 20\%} \\
+\midrule
+2022 & $-35{,}1\%$ & $-34{,}2\%$ \\
+2023 & $-25{,}5\%$ & $-26{,}0\%$ \\
+2024 & $-34{,}0\%$ & $-25{,}3\%$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Sei valori fra $-25{,}3\%$ e $-35{,}1\%$, con mediana $-30{,}0\%$. L'escursione \emph{dentro}
+un anno, fra le due soglie, arriva a $8{,}7$ punti percentuali --- ed \`e dello stesso ordine
+di quella \emph{fra} anni, che vale $9{,}7$ punti.
+
+Va quindi riportato come \textbf{intervallo fra un quarto e un terzo}, non come costante
+strutturale. Vale la pena dirlo perch\'e con i soli 2022 e 2024 alla soglia del
+\SI{10}{\percent} i due valori erano $-35{,}1\%$ e $-34{,}0\%$, e sarebbe stato naturale
+leggerli come una regolarit\`a: il terzo anno mostra che era una coincidenza.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{19_confronto_regimi}
+\caption{I tre regimi. In alto a sinistra il risultato controintuitivo, la soglia che scende
+dove il differenziale \`e pi\`u ampio; accanto, la stessa soglia contro il pavimento a 1~MW,
+che \`e la grandezza che spiega il meccanismo. In basso a sinistra l'errore in livello e quello
+in ordinamento, indicizzati al 2024 perch\'e le due grandezze non sono commensurabili; a destra
+le curve erosione-capacit\`a intere, che mostrano come l'ordinamento non dipenda dalla soglia
+scelta.}
+\label{fig:regimi}
+\end{figure}
