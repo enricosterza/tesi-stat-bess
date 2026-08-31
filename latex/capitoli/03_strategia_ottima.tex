@@ -72,7 +72,9 @@ dove $\Phi$ rappresenta il costo di degrado associato al profilo di utilizzo
 direzioni: comprando fa salire il prezzo di acquisto, vendendo fa scendere quello di vendita.
 Il margine di arbitraggio si riduce quindi al crescere della taglia dell'accumulo, ed \`e
 questo il meccanismo che rende il dimensionamento un problema non banale — al di sopra di una
-certa capacit\`a, l'accumulo distrugge da s\'e la propria fonte di reddito.
+certa capacit\`a, l'accumulo distrugge da s\'e la propria fonte di reddito. Da che cosa
+dipenda quella capacit\`a \`e per\`o meno ovvio di quanto sembri, e la
+Sezione~\ref{sec:cosa-determina} mostra che la risposta intuitiva non regge.
 
 \paragraph{Un meccanismo noto da tempo.} L'autoerosione dell'arbitraggio non \`e
 un'ipotesi di questo lavoro ma un risultato consolidato.
@@ -134,6 +136,53 @@ confronto: usando la stessa fonte per entrambi, esso si semplifica nella differe
 l'erosione isola il solo effetto di prezzo. La ricostruzione \`e comunque validata contro i
 prezzi ufficiali (Sezione~\ref{sec:esecuzione}), ed \`e quella validazione a garantire che le
 curve su cui si simula siano quelle vere.
+
+\subsection{Che cosa determina la soglia}
+\label{sec:cosa-determina}
+
+Prima di misurare $K^*$ conviene chiedersi da che cosa dipenda, perch\'e la risposta
+intuitiva \`e sbagliata e l'errore ha conseguenze.
+
+\paragraph{La risposta intuitiva.} Verrebbe da pensare che la soglia segua l'\textbf{ampiezza
+dell'arbitraggio}: dove il differenziale fra l'ora di minimo e quella di picco \`e ampio c'\`e
+molto margine, quindi ne serve molto per eroderlo, quindi la soglia \`e alta. Ne discenderebbe
+che nei periodi di mercato agitato l'accumulo possa crescere di pi\`u prima di diventare price
+maker.
+
+\paragraph{Perch\'e \`e sbagliata.} L'erosione~\eqref{eq:erosione} \`e un \emph{rapporto}, e
+il differenziale compare in \textbf{entrambi} i suoi termini: un differenziale ampio alza tanto
+$\pi_{PT}$ quanto $\pi_{PM}$, e in prima approssimazione si semplifica. Ci\`o che non si
+semplifica \`e lo spostamento del prezzo $p^{K}_t - p^{0}_t$, e quello non dipende dal
+differenziale ma dalla \textbf{pendenza della curva d'offerta} nel punto in cui l'accumulo la
+attraversa.
+
+La soglia \`e quindi governata da una propriet\`a \emph{locale} della curva --- quanto ripida
+sia dove si opera --- e non da una propriet\`a \emph{globale} del profilo dei prezzi.
+
+\paragraph{Perch\'e le due cose si confondono facilmente.} Ampiezza e ripidit\`a sono grandezze
+distinte ma spesso concomitanti, e per una ragione strutturale: quando la domanda spinge
+l'equilibrio oltre gli impianti a costo marginale basso, il prezzo sale \emph{perch\'e} la
+curva in quel tratto \`e ripida. Le due grandezze si muovono insieme non per coincidenza ma
+perch\'e hanno una causa comune, ed \`e questo che rende difficile distinguerle osservando i
+dati.
+
+La distinzione conta perch\'e le due letture fanno previsioni \textbf{opposte} sul confronto
+fra periodi di mercato diversi: se contasse l'ampiezza, un anno a differenziali larghi avrebbe
+soglia alta; se conta la ripidit\`a, avrebbe soglia \textbf{bassa}, perch\'e la stessa
+capacit\`a vi sposta il prezzo di pi\`u. La Sezione~\ref{sec:confronto-regimi} mette le due
+previsioni alla prova su tre anni.
+
+\paragraph{Una grandezza che misura la ripidit\`a, e che si ottiene gratis.} Il
+\textbf{pavimento di discretezza} introdotto per una ragione tecnica --- l'erosione apparente
+che si osserva a capacit\`a troppo piccole per contare, e che va sottratta
+(Sezione~\ref{sec:pavimento}) --- si presta anche a un uso diagnostico. Esso misura infatti di
+quanto si muove il prezzo quando si aggiunge un solo megawatt: \`e cio\`e un \textbf{termometro
+della pendenza locale}, espresso nelle stesse unit\`a dell'erosione e disponibile senza calcoli
+aggiuntivi.
+
+\`E la grandezza giusta per il confronto, perch\'e misura \emph{direttamente} ci\`o che $K^*$
+misura --- quanto la capacit\`a sposta il prezzo --- mentre il differenziale misura quanto vale
+l'arbitraggio, che \`e un'altra cosa.
 
 \subsection{Lo scenario simulato: molte batterie non coordinate}
 \label{sec:scenario}
