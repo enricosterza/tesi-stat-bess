@@ -251,7 +251,7 @@ class EsitoStima:
 
 def stima(y: np.ndarray, esogene: pd.DataFrame | None, ordine: tuple[int, int, int],
           stagionale: tuple[int, int, int, int] = ORDINE_STAGIONALE,
-          maxiter: int = 200):
+          maxiter: int = 200, start_params=None):
     """
     Stima un SARIMAX. Restituisce l'oggetto risultati di statsmodels.
 
@@ -269,7 +269,7 @@ def stima(y: np.ndarray, esogene: pd.DataFrame | None, ordine: tuple[int, int, i
 
     modello = SARIMAX(y, exog=esogene, order=ordine, seasonal_order=stagionale,
                       trend="n", enforce_stationarity=True, enforce_invertibility=True)
-    return modello.fit(disp=False, maxiter=maxiter)
+    return modello.fit(disp=False, maxiter=maxiter, start_params=start_params)
 
 
 # --------------------------------------------------------------------------------------
@@ -283,6 +283,7 @@ def previsioni_giornaliere(
     stagionale: tuple[int, int, int, int] = ORDINE_STAGIONALE,
     alpha: float = 0.10,
     ristima_mensile: bool = True,
+    finestra_giorni: int | None = None,
     avanzamento=None,
 ) -> pd.DataFrame:
     """
@@ -303,6 +304,12 @@ def previsioni_giornaliere(
     ristima_mensile : bool
         Se True i coefficienti si ristimano all'inizio di ogni mese; fra una ristima e
         l'altra lo stato si aggiorna senza toccare i parametri.
+    finestra_giorni : int | None
+        Lunghezza della finestra di stima, in giorni. Con `None` la finestra e' **crescente**
+        e ogni ristima usa tutta la storia disponibile; con un valore la stima usa solo gli
+        ultimi `finestra_giorni` giorni. La finestra mobile mantiene il costo di ristima
+        costante invece di farlo crescere con l'avanzare dell'anno, ed e' anche piu' vicina
+        a cio' che fa un operatore, che non ripondera anni di storia.
     avanzamento : callable | None
         Ricevitore delle righe di avanzamento.
 
@@ -322,9 +329,24 @@ def previsioni_giornaliere(
     E' esattamente la distinzione fra "il modello ha visto ieri" e "il modello e' stato
     ricalibrato", e sono due cose diverse.
 
-    Le ristime successive partono dai coefficienti del mese precedente
-    (`start_params`): il punto di partenza e' gia' vicino all'ottimo e le iterazioni
-    necessarie crollano.
+    Perche' ogni ristima riparte da zero
+    ------------------------------------
+    Ripartire dai coefficienti del mese precedente farebbe risparmiare circa il 10% del tempo
+    di ristima, e per un periodo la docstring lo dichiarava: il codice pero' non lo faceva, e
+    quando la cosa e' stata corretta il comportamento e' stato **verificato invece che
+    adottato**.
+
+    La verifica ha mostrato che i due punti di partenza portano alla **stessa**
+    verosimiglianza (scarto relativo 8e-8, quindi non due ottimi locali) ma a coefficienti
+    ESOGENI diversi fino al 2,5%, mentre quelli ARMA restano identici alla quinta cifra. E'
+    una cresta piatta: i termini di Fourier a 168 ore e le indicatrici di sabato e domenica
+    descrivono lo stesso ciclo settimanale e si compensano a vicenda, quindi il blocco
+    esogeno e' debolmente identificato.
+
+    Non e' un errore, ma renderebbe i coefficienti dipendenti dall'ordine in cui i mesi sono
+    stati stimati. Dieci per cento di tempo non vale questa dipendenza in un lavoro che
+    dichiara la propria riproducibilita': ogni ristima riparte quindi da zero. `stima`
+    accetta comunque `start_params`, che resta disponibile e testato.
 
     Nessuna informazione dal futuro
     -------------------------------
@@ -351,10 +373,20 @@ def previsioni_giornaliere(
             f"Giorni da prevedere: {len(giorni)}.")
 
     import time as _time
+
+    def _da(posizione: int) -> int:
+        """Primo indice della finestra di stima che termina in `posizione`."""
+        if finestra_giorni is None:
+            return 0
+        return max(0, posizione - finestra_giorni * ORE_AL_GIORNO)
+
     t0 = _time.perf_counter()
-    risultati = stima(y[:inizio_valutazione], esogene_tutte.iloc[:inizio_valutazione], ordine,
-                      stagionale)
-    parametri = risultati.params
+    avvio = _da(inizio_valutazione)
+    risultati = stima(y[avvio:inizio_valutazione],
+                      esogene_tutte.iloc[avvio:inizio_valutazione], ordine, stagionale)
+    segnala(f"Finestra di stima: "
+            + (f"{finestra_giorni} giorni (mobile)" if finestra_giorni else "crescente")
+            + f" — {inizio_valutazione - avvio:,} ore nella stima iniziale.")
     segnala(f"Stima iniziale in {_time.perf_counter() - t0:.0f} s "
             f"(convergenza {bool(risultati.mle_retvals.get('converged', False))}).")
 
@@ -371,9 +403,11 @@ def previsioni_giornaliere(
         if ristima_mensile and giorno[:6] != mese_corrente:
             mese_corrente = giorno[:6]
             t1 = _time.perf_counter()
-            risultati = stima(y[:posizione], esogene_tutte.iloc[:posizione], ordine,
-                              stagionale)
-            parametri = risultati.params
+            avvio = _da(posizione)
+            # Ogni ristima riparte DA ZERO, deliberatamente: si veda la nota su
+            # `start_params` nella docstring.
+            risultati = stima(y[avvio:posizione], esogene_tutte.iloc[avvio:posizione],
+                              ordine, stagionale)
             ristimato = True
             segnala(f"  ristima a {giorno}: {_time.perf_counter() - t1:.0f} s, "
                     f"convergenza {bool(risultati.mle_retvals.get('converged', False))}")
