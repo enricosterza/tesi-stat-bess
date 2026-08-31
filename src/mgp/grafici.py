@@ -853,6 +853,132 @@ def figura_curva_erosione(
 
 
 
+
+def figura_confronto_regimi(sintesi: pd.DataFrame, curve: dict) -> plt.Figure:
+    """
+    I tre regimi di volatilita' a confronto.
+
+    Parameters
+    ----------
+    sintesi : pd.DataFrame
+        Indicizzato per anno, con `spread_medio`, `pavimento_mediano`, `K_perf_10`,
+        `K_prev_10`, `rmse`, `rango_mediano`, `eff_equipesata`.
+    curve : dict
+        `{anno: DataFrame}` con le curve erosione-capacita' a colonne gerarchiche
+        (origine, quantile).
+
+    Returns
+    -------
+    plt.Figure
+
+    Che cosa deve far vedere, e perche' quattro pannelli
+    ----------------------------------------------------
+    Il pannello in alto a sinistra e' il risultato controintuitivo: la soglia **scende**
+    dove lo spread e' piu' ampio. Da solo verrebbe letto come una relazione stimata, che con
+    tre punti non sarebbe lecita; accanto, il pannello della ripidita' mostra la grandezza
+    che spiega il meccanismo, ed e' li' che la lettura si appoggia.
+
+    In basso a sinistra il confronto fra errore in livello ed errore in ordinamento: l'uno
+    varia di un fattore tre fra i regimi, l'altro quasi per nulla. E' la verifica del
+    risultato ordinale fuori dall'anno in cui e' stato trovato.
+
+    In basso a destra le curve erosione-capacita' sovrapposte, che sono la forma completa da
+    cui i tre K* sono estratti: mostrano che l'ordinamento non dipende dalla soglia scelta.
+
+    I tre anni sono **tre casi**: nessun pannello traccia una retta di regressione, perche'
+    con tre punti sarebbe una figura che promette piu' di quanto i dati contengano.
+    """
+    _stile()
+    figura, assi = plt.subplots(2, 2, figsize=(12.8, 9.0))
+    (sx_alto, dx_alto), (sx_basso, dx_basso) = assi
+
+    anni = list(sintesi.index)
+    colori = {a: c for a, c in zip(sorted(anni), (COLORE_DOMANDA, "#7d3fb8", COLORE_OFFERTA))}
+
+    def punti(ax, x, y, etichette_sotto=True):
+        for a in anni:
+            ax.plot(x[a], y[a], marker="o", markersize=11, linestyle="none",
+                    color=colori[a], markeredgecolor=SFONDO, markeredgewidth=2.0, zorder=5)
+            ax.annotate(a, xy=(x[a], y[a]), xytext=(0, -18 if etichette_sotto else 12),
+                        textcoords="offset points", ha="center", fontsize=10,
+                        color=INCHIOSTRO)
+
+    # --- soglia contro spread
+    punti(sx_alto, sintesi["spread_medio"], sintesi["K_perf_10"])
+    sx_alto.set_xlabel("Spread infragiornaliero medio [€/MWh]")
+    sx_alto.set_ylabel("$K^*$ al 10%, previsione perfetta [MW]")
+    sx_alto.set_title("Più lo spread è ampio, più la soglia è BASSA:\n"
+                      "l'attesa era il contrario", fontsize=10.5)
+
+    # --- soglia contro ripidita'
+    punti(dx_alto, 100 * sintesi["pavimento_mediano"], sintesi["K_perf_10"])
+    dx_alto.set_xlabel("Pavimento a 1 MW [% di erosione] — ripidità della curva")
+    dx_alto.set_ylabel("$K^*$ al 10%, previsione perfetta [MW]")
+    dx_alto.set_title("La grandezza che spiega il meccanismo:\n"
+                      "dove un MW pesa di più, basta meno capacità", fontsize=10.5)
+
+    # --- errore in livello contro errore in ordinamento
+    #
+    # Le due grandezze hanno unita' incommensurabili — euro contro un coefficiente fra zero
+    # e uno — e su due assi verticali distinti il confronto sarebbe arbitrario: cambiando la
+    # scala di uno dei due si potrebbe far sembrare qualunque cosa. Si indicizzano quindi
+    # entrambe all'anno di riferimento e si mettono su UN SOLO asse: cosi' il confronto e'
+    # fra le loro VARIAZIONI, che e' esattamente cio' che il pannello deve mostrare.
+    riferimento = "2024" if "2024" in anni else anni[-1]
+    larghezza = 0.35
+    posizioni = np.arange(len(anni))
+    rmse_rel = [sintesi.loc[a, "rmse"] / sintesi.loc[riferimento, "rmse"] for a in anni]
+    rango_rel = [sintesi.loc[a, "rango_mediano"] / sintesi.loc[riferimento, "rango_mediano"]
+                 for a in anni]
+    sx_basso.bar(posizioni - larghezza / 2, rmse_rel, larghezza, color=INCHIOSTRO_TENUE,
+                 label="errore in livello (RMSE)")
+    sx_basso.bar(posizioni + larghezza / 2, rango_rel, larghezza, color=COLORE_OFFERTA,
+                 label="errore in ordinamento (corr. di rango)")
+    sx_basso.axhline(1.0, color=INCHIOSTRO_TENUE, linewidth=0.9, linestyle=(0, (4, 3)))
+    for x, (r, g) in enumerate(zip(rmse_rel, rango_rel)):
+        sx_basso.annotate(f"{r:.2f}x", xy=(x - larghezza / 2, r), xytext=(0, 3),
+                          textcoords="offset points", ha="center", fontsize=9)
+        sx_basso.annotate(f"{g:.2f}x", xy=(x + larghezza / 2, g), xytext=(0, 3),
+                          textcoords="offset points", ha="center", fontsize=9)
+    sx_basso.set_xticks(posizioni)
+    sx_basso.set_xticklabels(anni)
+    sx_basso.set_ylabel(f"Rapporto rispetto al {riferimento}")
+    sx_basso.set_title("L'errore in livello cambia di un fattore tre,\n"
+                       "l'ordinamento quasi per nulla", fontsize=10.5)
+    sx_basso.legend(loc="upper right", fontsize=8.5)
+
+    # --- le curve di erosione
+    for a in anni:
+        c = curve[a]
+        dx_basso.plot(c.index, c[("perfetta", "q90")], color=colori[a], linewidth=2.0,
+                      label=f"{a}")
+    dx_basso.axhline(0.10, color=INCHIOSTRO_TENUE, linewidth=0.9, linestyle=(0, (4, 3)))
+    dx_basso.axhline(0.20, color=INCHIOSTRO_TENUE, linewidth=0.9, linestyle=(0, (4, 3)))
+    dx_basso.set_xscale("log")
+    dx_basso.set_xlabel("Capacità aggregata [MW]")
+    dx_basso.set_ylabel("Erosione netta, 90° percentile")
+    dx_basso.set_ylim(0, 0.6)
+    dx_basso.set_title("Le curve intere, non solo le soglie:\n"
+                       "l'ordinamento non dipende dal livello scelto", fontsize=10.5)
+    dx_basso.legend(loc="upper left")
+
+    # I due pannelli superiori annotano l'anno SOTTO il punto: senza margine l'etichetta
+    # dell'anno con K* piu' bassa finisce tagliata dal bordo, e il taglio non si vede
+    # finche' non si apre il PNG.
+    for ax in (sx_alto, dx_alto):
+        ax.margins(x=0.12, y=0.18)
+
+    for ax in (sx_alto, dx_alto, sx_basso, dx_basso):
+        ax.grid(True, linewidth=0.7)
+        ax.set_axisbelow(True)
+        for lato in ("top", "right"):
+            ax.spines[lato].set_visible(False)
+
+    figura.tight_layout()
+    return figura
+
+
+
 def salva(figura: plt.Figure, nome: str) -> str:
     """Salva una figura in `output/figure/` in PNG e PDF, e restituisce il path del PNG."""
     config.assicura_cartelle()

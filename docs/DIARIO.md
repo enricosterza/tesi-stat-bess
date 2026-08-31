@@ -3656,6 +3656,156 @@ eseguendo `biber main` esplicitamente e poi ricompilando. Da ricordare: quando s
 voci al `.bib`, una sola esecuzione di `latexmk` può non bastare, e il sintomo è una
 citazione irrisolta **senza** messaggio di biber.
 
+
+---
+
+## 2026-08-31 — Il confronto fra regimi: la soglia segue la ripidità, non la volatilità
+
+Completati 2022 e 2023 con la pipeline del 2024 e una sola modifica — finestra di stima
+**mobile** di 365 giorni invece che crescente — e prodotto il confronto trasversale.
+`scripts/18_anno_completo.py` per i due anni, `scripts/19_confronto_regimi.py` per la
+lettura. Costo: 4,72 ore il 2022, 4,34 il 2023, contro le 7h14 della sola fase 1 del 2024.
+
+I tre anni sono **tre casi, non un campione**: con tre punti non si stima una relazione, si
+osserva un ordinamento e si verifica se i meccanismi trovati su un anno reggano sugli altri.
+La stocasticità della tesi resta la propagazione dell'errore *dentro* ciascun anno.
+
+### Il quadro
+
+| | 2022 | 2023 | 2024 |
+|---|---|---|---|
+| Spread infragiornaliero medio | **161,71** | 78,42 | 65,51 |
+| Pavimento a 1 MW (mediana) | **2,45%** | 1,07% | 0,69% |
+| RMSE della previsione | **50,07** | 20,81 | 14,75 |
+| Correlazione di rango mediana | 0,865 | 0,868 | 0,884 |
+| Copertura al 90% nominale | **78,0%** | **98,2%** | 93,6% |
+| **K\* perfetta, 10%** | **35,7** | 40,9 | **75,9** |
+| **K\* previsione, 10%** | **23,2** | 30,5 | **50,1** |
+| K\* perfetta, 20% | 106,7 | 112,7 | 173,1 |
+| K\* previsione, 20% | 70,2 | 83,4 | 129,3 |
+| Calo di K\* al 10% | −35,1% | −25,5% | −34,0% |
+| Efficienza pesata per profitto | 82,6% | 88,6% | 89,6% |
+| Efficienza equipesata | 81,8% | 87,3% | 88,8% |
+
+Verifica di non-monotonia: **0,0% di ricampionamenti con attraversamenti multipli** in tutte
+e dodici le combinazioni dei tre anni, scarto ultimo-primo 0,00 MW. Nessuna correzione.
+
+### 1. La soglia è governata dalla ripidità della curva, non dalla volatilità del prezzo
+
+L'attesa era che più volatilità significasse spread più ampi e quindi soglia più alta. **È il
+contrario**, e in modo netto: il 2022 ha spread 2,5 volte il 2024 e soglia **meno della
+metà**.
+
+* per spread: 2022 (161,7) > 2023 (78,4) > 2024 (65,5)
+* per pavimento a 1 MW: 2022 (2,45%) > 2023 (1,07%) > 2024 (0,69%)
+* per K\*: 2022 (35,7) < 2023 (40,9) < 2024 (75,9)
+
+Il pavimento è un **termometro della ripidità**: misura di quanto si muove il prezzo quando si
+aggiunge una capacità troppo piccola per contare economicamente. Nel 2022 un solo megawatt si
+sentiva quasi quattro volte più che nel 2024, perché la crisi del gas spingeva l'equilibrio
+in una regione molto più ripida della curva d'offerta.
+
+Lo si vede anche a capacità fissata: l'erosione netta mediana a 400 MW vale 0,305 nel 2022,
+0,287 nel 2023 e 0,230 nel 2024. Non è un effetto della soglia scelta, è la curva intera che
+si sposta.
+
+**Un limite di identificazione da dichiarare.** Fra questi tre anni spread e ripidità sono
+perfettamente co-ordinati, quindi la correlazione non separa le due spiegazioni — e con tre
+punti non separerebbe nulla comunque. È il **meccanismo** a farlo: il pavimento misura
+direttamente ciò che K\* misura, cioè quanto la capacità sposta il prezzo, mentre lo spread
+misura quanto vale l'arbitraggio, che è un'altra cosa. Le due grandezze coincidono nel
+segno per caso, non per costruzione.
+
+### 2. Il risultato ordinale regge, ed è la verifica più forte che si potesse avere
+
+| | Variazione fra i tre anni |
+|---|---|
+| RMSE della previsione | **×3,4** (14,75 → 50,07) |
+| Correlazione di rango mediana | **2,3%** (0,884 → 0,865) |
+
+L'errore in livello cambia di un fattore tre fra i regimi; l'ordinamento delle ore **quasi
+per nulla**. Il risultato trovato sul 2024 — l'arbitraggio è un problema ordinale, non
+cardinale — non era una proprietà di quell'anno.
+
+**Ma l'efficienza non è funzione della sola mediana del rango**, e questo raffina il
+risultato:
+
+| | Rango mediano | Rango 10° perc. | Efficienza equipesata |
+|---|---|---|---|
+| 2022 | 0,865 | **0,514** | 81,8% |
+| 2023 | 0,868 | 0,650 | 87,3% |
+| 2024 | 0,884 | 0,696 | 88,8% |
+
+Il 2022 e il 2023 hanno **mediana quasi identica** (0,865 e 0,868) ed efficienza molto diversa
+(81,8% e 87,3%). Ciò che le distingue è la **coda bassa**: nel 2022 il decimo percentile del
+rango scende a 0,514 contro 0,650. Non conta solo quanto il modello azzecchi l'ordinamento di
+norma, ma **quante giornate lo sbaglia in modo grave**. È la stessa struttura leptocurtica
+vista nell'errore, letta sul rango.
+
+### 3. Il calo di K\* NON è una costante strutturale
+
+Con due anni sembrava esserlo: −35,1% nel 2022 e −34,0% nel 2024 alla soglia del 10%. Il
+terzo punto lo smentisce.
+
+| | Soglia 10% | Soglia 20% |
+|---|---|---|
+| 2022 | −35,1% | −34,2% |
+| 2023 | −25,5% | −26,0% |
+| 2024 | −34,0% | −25,3% |
+
+Sei valori fra −25,3% e −35,1%, mediana −30,0%. L'escursione **dentro** un anno arriva a 8,7
+punti (il 2024 fra le due soglie) e **fra** anni a 9,7 punti: sono dello stesso ordine. Va
+riportato come **intervallo fra un quarto e un terzo**, non come costante — e la coincidenza
+fra 2022 e 2024 alla soglia del 10% era appunto una coincidenza.
+
+### Un effetto del disegno, non del mercato: la finestra mobile ritarda sul regime
+
+La copertura degli intervalli al 90% nominale non è né stabile né monotona nella volatilità:
+**78,0% nel 2022, 98,2% nel 2023, 93,6% nel 2024**. Nel regime estremo gli intervalli sono
+troppo **stretti**, in quello successivo troppo **larghi**.
+
+L'ipotesi, formulata prima di guardare il dettaglio mensile: la finestra di stima è di 365
+giorni, quindi ogni modello dichiara l'incertezza dell'**anno precedente**. Il 2022 è stimato
+su un 2021 tranquillo e risulta troppo sicuro; il 2023 su un 2022 estremo e risulta troppo
+prudente; il 2024 su un 2023 moderato e risulta calibrato.
+
+I dati mensili la sostengono. Nel 2022 la copertura passa da **76% nel primo trimestre a 89%
+nell'ultimo**, man mano che la finestra si riempie di dati dello stesso regime. Nel 2023 resta
+invece attorno al 98% per tutto l'anno — e anche questo è coerente, perché con finestra di
+365 giorni la stima contiene ancora una parte del 2022 fino a dicembre, e dicembre 2022 è
+stato il mese più estremo dell'anno più estremo.
+
+**È un effetto del disegno e va dichiarato come tale**: gli intervalli di previsione sono
+affidabili solo a regime stabile, e nell'anno successivo a una transizione di regime sono
+sistematicamente sbagliati, in un verso o nell'altro. Non intacca i risultati sulla soglia,
+che non usano gli intervalli, ma intacca qualunque uso degli intervalli per dimensionare un
+margine di rischio.
+
+### Note di metodo
+
+**`start_params` tolto dalle ristime**, dopo verifica. Ripartire dai coefficienti del mese
+precedente porta alla **stessa** verosimiglianza (scarto relativo 8·10⁻⁸, quindi non due
+ottimi locali) ma a coefficienti **esogeni** diversi fino al 2,5%, mentre quelli ARMA restano
+identici alla quinta cifra. È una cresta piatta: i termini di Fourier a 168 ore e le
+indicatrici di sabato e domenica descrivono lo stesso ciclo settimanale e si compensano,
+quindi il blocco esogeno è **debolmente identificato**. Il 10% di tempo risparmiato non vale
+coefficienti che dipendono dall'ordine delle ristime. La docstring, che dichiarava un
+comportamento che il codice non aveva, ora racconta la verifica.
+
+**La collinearità del blocco esogeno** è un difetto di parsimonia della specifica, emerso da
+questa verifica. Non si tocca — ordine ed esogene sono congelati (D-39) e cambiarli
+invaliderebbe i tre anni — ma va dichiarato fra i limiti, accanto ai residui non bianchi.
+
+**Un difetto misurativo ripetuto.** La prima misura dei costi di ristima dava 24 mesi più
+veloce di 12 a parità di iterazioni, il che è impossibile: era girata mentre l'estrazione dei
+prezzi occupava otto processi. È la seconda volta in tre giorni, dopo lo speedup superlineare
+del 28/08. Regola: **i benchmark non si lanciano in parallelo ad altro lavoro**, nemmeno
+quando l'altro sembra I/O-bound — il parsing degli XML non lo è affatto.
+
+**Coerenza fra i due percorsi.** Il 2024 è stato rigenerato con `scripts/18` a partire dagli
+stessi dati già prodotti da `scripts/16` e `17`: i quattro K\* coincidono esattamente
+(75,95 / 173,05 / 50,11 / 129,29).
+
 ---
 
 ## Prossimi passi
