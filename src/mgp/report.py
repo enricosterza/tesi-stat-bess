@@ -48,6 +48,43 @@ _INLINE = re.compile(
 )
 
 
+#: Sequenze di escape Markdown: una barra rovesciata davanti a un carattere di
+#: punteggiatura significa "questo carattere e' letterale, non un delimitatore".
+#: Nei report ricorre soprattutto in `K\*`, dove serve a impedire che l'asterisco
+#: apra un corsivo.
+_ESCAPE = re.compile(r"\\([\\`*_{}\[\]()#+\-.!])")
+
+#: Base dell'area a uso privato di Unicode, dove il carattere protetto viene
+#: temporaneamente spostato.
+#:
+#: Non basta togliere la barra rovesciata e lasciare il carattere dov'e': l'asterisco
+#: di `K\*` resterebbe un delimitatore e due occorrenze sulla stessa riga verrebbero
+#: lette come un corsivo. Il carattere va quindi **nascosto per intero** finche' la
+#: formattazione inline non e' stata riconosciuta. La punteggiatura che Markdown
+#: ammette dopo la barra e' tutta ASCII, quindi `_PUA + ord(c)` resta dentro l'area
+#: a uso privato (E000-F8FF) e la trasformazione e' invertibile.
+_PUA = 0xE000
+
+
+def _proteggi_escape(testo: str) -> str:
+    """Sposta i caratteri protetti da `\\` nell'area a uso privato di Unicode."""
+    return _ESCAPE.sub(lambda m: chr(_PUA + ord(m.group(1))), testo)
+
+
+def _scioglie_escape(pezzo: str, dentro_codice: bool = False) -> str:
+    """
+    Riporta i caratteri protetti al loro valore, dopo il riconoscimento inline.
+
+    Dentro il codice inline si ripristina anche la barra rovesciata, perche' in
+    Markdown gli escape non agiscono in un blocco di codice: chi ha scritto `\\*` fra
+    apici inversi voleva vedere proprio quei due caratteri.
+    """
+    prefisso = "\\" if dentro_codice else ""
+    return "".join(
+        prefisso + chr(ord(c) - _PUA) if _PUA <= ord(c) < _PUA + 128 else c for c in pezzo
+    )
+
+
 def _aggiungi_testo(paragrafo, testo: str) -> None:
     """
     Aggiunge a un paragrafo Word il testo Markdown, traducendo la formattazione inline.
@@ -55,26 +92,26 @@ def _aggiungi_testo(paragrafo, testo: str) -> None:
     Il testo viene spezzato in "run" (frammenti con formattazione omogenea), perche' in
     Word grassetto e corsivo sono proprieta' del run, non del paragrafo.
     """
-    for pezzo in _INLINE.split(testo):
+    for pezzo in _INLINE.split(_proteggi_escape(testo)):
         if not pezzo:
             continue
         if pezzo.startswith("`") and pezzo.endswith("`"):
-            run = paragrafo.add_run(pezzo[1:-1])
+            run = paragrafo.add_run(_scioglie_escape(pezzo[1:-1], dentro_codice=True))
             run.font.name = "Consolas"
             run.font.size = Pt(9.5)
             run.font.color.rgb = RGBColor(0xB0, 0x30, 0x30)
         elif pezzo.startswith("**") and pezzo.endswith("**"):
-            paragrafo.add_run(pezzo[2:-2]).bold = True
+            paragrafo.add_run(_scioglie_escape(pezzo[2:-2])).bold = True
         elif pezzo.startswith("*") and pezzo.endswith("*"):
-            paragrafo.add_run(pezzo[1:-1]).italic = True
+            paragrafo.add_run(_scioglie_escape(pezzo[1:-1])).italic = True
         elif pezzo.startswith("[") and "](" in pezzo:
             etichetta, url = pezzo[1:-1].split("](", 1)
-            paragrafo.add_run(etichetta)
-            run = paragrafo.add_run(f" ({url})")
+            paragrafo.add_run(_scioglie_escape(etichetta))
+            run = paragrafo.add_run(f" ({_scioglie_escape(url)})")
             run.font.size = Pt(8.5)
             run.font.color.rgb = RGBColor(0x60, 0x60, 0x60)
         else:
-            paragrafo.add_run(pezzo)
+            paragrafo.add_run(_scioglie_escape(pezzo))
 
 
 def _sfondo(paragrafo, colore_hex: str) -> None:
@@ -118,7 +155,9 @@ def _tabella(doc: Document, righe: list[str]) -> None:
     tabella.style = "Light Grid Accent 1"
     for cella, testo in zip(tabella.rows[0].cells, intestazione):
         # La cella nasce con un paragrafo vuoto: ci si scrive dentro direttamente.
-        run = cella.paragraphs[0].add_run(testo.replace("**", ""))
+        run = cella.paragraphs[0].add_run(
+            _scioglie_escape(_proteggi_escape(testo).replace("**", ""))
+        )
         run.bold = True
         run.font.size = Pt(9.5)
     for riga in corpo:

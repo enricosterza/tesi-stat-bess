@@ -3924,3 +3924,75 @@ del 19/08 sostiene NORD come zona principale con SUD come confronto documentato 
 di spread al Sud è 1,23× e stagionale, CSUD non si distingue dal Nord, e il vantaggio viene dal
 picco serale più che dal ventre solare. Le due decisioni interagiscono: se si scegliesse di
 aggiungere SUD, servirebbe una validazione dedicata su quella zona, che ha un costo.
+
+
+---
+
+## 2026-09-01 — Report per il ricevimento del 4 settembre, e un difetto nel convertitore
+
+Il ricevimento di venerdì è il primo a cui partecipa anche la **correlatrice**, e l'ultimo
+report è dell'11 agosto: da allora sono entrati l'impianto a due fasi, la firma dell'errore, la
+propagazione, K\* definitiva e il confronto fra regimi, cioè il lavoro più sostanzioso della
+tesi. Scritto `docs/report/2026-09-04_report.md`, che copre tre settimane invece di una.
+
+Due scelte di impostazione, dovute al fatto che c'è un lettore nuovo:
+
+* **la Sezione 1 richiama domanda di ricerca e impianto a due fasi** in una pagina, così che il
+  documento si legga senza i report precedenti. Chi ha già il quadro salta alla Sezione 2;
+* **le notazioni della tesi non compaiono**. L'erosione è descritta a parole invece che con la
+  formula: in un documento che si legge una volta sola prima di una chiamata, una formula
+  introdotta senza il contesto del capitolo costa più di quanto renda.
+
+### Le cinque domande
+
+Ordinate per urgenza, non per interesse. Le prime due bloccano il capitolo 5, che è il prossimo
+lavoro.
+
+**D1, il regime regolatorio ($K = 1$ contro $K = 2{,}3$), era già stata posta l'11 agosto e non
+si era fatto in tempo a discuterla.** Allora era una questione di impostazione, ora è
+bloccante: determina tutti i numeri del capitolo economico. Riproposta per prima e marcata come
+tale.
+
+**D3 è la domanda nuova, ed è la più propriamente statistica**: i residui non sono bianchi (ACF
++0,849 a lag 1) e il blocco esogeno è debolmente identificato. La si porta con l'evidenza che la
+rende interessante invece che retorica — fra i tre anni l'RMSE varia di ×3,4 e il rango mediano
+del 2,3%, quindi **migliorare la previsione potrebbe non spostare il risultato**. È il punto su
+cui il parere della correlatrice vale di più, perché un lettore statistico potrebbe leggere come
+rinuncia ciò che qui è una scelta di perimetro.
+
+Registrate come chiuse le tre questioni risolte dall'ultimo ricevimento: perimetro temporale,
+livello di erosione (10% principale, 20% in sensitività), offerte integrative GSE.
+
+### Il difetto trovato: `K\*` arrivava in Word con la barra rovesciata
+
+Il documento generato mostrava `4.3 La soglia K\*, definitiva sul 2024`. Nei report la soglia si
+scrive `K\*` per impedire che l'asterisco apra un corsivo, ma `mgp.report` **non scioglieva gli
+escape Markdown**: 34 occorrenze su tre report, tutte a vista nel `.docx` che va al relatore.
+
+La prima correzione era sbagliata, e **il test l'ha presa**. Sostituivo la barra con un
+segnaposto lasciando l'asterisco al suo posto: ma l'asterisco resta un delimitatore, e due
+occorrenze sulla stessa riga venivano lette come un corsivo — `K\* scende mentre K\* sale`
+diventava «K *scende mentre K* sale». Il carattere protetto va **nascosto per intero** finché la
+formattazione inline non è stata riconosciuta, e la trasformazione dev'essere invertibile: si
+sposta in `0xE000 + ord(c)`, dentro l'area a uso privato di Unicode, e si riporta indietro dopo.
+
+Dentro il codice inline la barra si ripristina, perché in Markdown gli escape non agiscono in un
+blocco di codice: chi scrive `` `\*` `` vuole vedere quei due caratteri.
+
+Nuovo `tests/test_report.py`, otto casi, tutti calcolabili a mano. L'ultimo è un controllo di
+regressione sui report **veri**: converte quelli presenti in `docs/report/` e fallisce se resta
+una barra rovesciata fuori dal codice. Un difetto di formattazione si vede solo aprendo il file,
+quindi senza quel test tornerebbe. **130 test verdi.**
+
+Nota sul perché valesse la pena correggere il modulo invece del testo: gli escape sono sintassi
+Markdown standard, e la stessa svista sarebbe tornata al report successivo.
+
+### Stato
+
+Rigenerati tutti e quattro i `.docx`. Resta il **capitolo 5** come unico pezzo incoerente col
+resto: poggia ancora sul price maker con previsione perfetta e su gennaio 2025, mentre i
+capitoli 3 e 4 hanno stabilito che il piano realistico rende il 10,4% in meno e abbassa K\* di
+un quarto-un terzo. Il vincolo dichiarato nel LaTeX — «richiede il campione annuale, su un solo
+mese invernale l'annualizzazione sarebbe grossolana» — **non esiste più**: con 366 giorni
+l'annualizzazione è esatta. `economia.py` è testato ma non è mai stato chiamato da uno script di
+pipeline, solo dal debug 08.
