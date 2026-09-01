@@ -12,5 +12,7 @@ pulp==3.3.2            # formulazione LP/MILP del dimensionamento della batteria
 jupyter==1.1.1         # notebook di esplorazione
 ipykernel==7.3.0       # kernel del venv per i notebook
 python-docx==1.2.0     # generazione dei report settimanali .docx per il relatore
+pillow==12.3.0         # misura delle figure inserite nei report (arriva con python-docx,
+                       # ma i test la importano direttamente: meglio bloccarla qui)
 pytest==9.1.1          # test delle funzioni di calcolo
 statsmodels==0.15.0    # SARIMAX per la previsione del prezzo a D-1 (fase 1)

@@ -21,19 +21,23 @@ Sintassi supportata
 * citazioni (`> `);
 * linee orizzontali (`---`);
 * formattazione inline: `**grassetto**`, `*corsivo*`, `` `codice` ``,
-  link `[testo](url)` (resi come "testo (url)").
+  link `[testo](url)` (resi come "testo (url)");
+* immagini `![didascalia](file.png)` su riga propria (vedi `_immagine`).
 """
 
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Pt, RGBColor
+from docx.shared import Emu, Pt, RGBColor
+
+from mgp import config
 
 # --------------------------------------------------------------------------------------
 # Formattazione inline
@@ -112,6 +116,89 @@ def _aggiungi_testo(paragrafo, testo: str) -> None:
             run.font.color.rgb = RGBColor(0x60, 0x60, 0x60)
         else:
             paragrafo.add_run(_scioglie_escape(pezzo))
+
+
+# --------------------------------------------------------------------------------------
+# Immagini
+# --------------------------------------------------------------------------------------
+#: Immagine Markdown su riga propria: `![didascalia](percorso)`.
+_IMMAGINE = re.compile(r"^!\[([^\]]*)\]\(([^)]+)\)$")
+
+
+def _risolvi_figura(riferimento: str, sorgente: Path) -> Path | None:
+    """
+    Trova il file di una figura citata in un report.
+
+    Si prova, nell'ordine: il percorso relativo alla cartella del report, quello relativo
+    alla radice del progetto, e infine il nome nudo dentro `output/figure/`. L'ultima
+    forma e' quella comoda da scrivere — `![...](15_errore_orario.png)` — perche' evita
+    i `../..` che renderebbero il sorgente Markdown illeggibile.
+
+    Word non sa incorporare un PDF: se il riferimento e' a un `.pdf` si cerca il `.png`
+    di pari nome, che gli script di questo progetto producono sempre insieme.
+
+    Returns
+    -------
+    Path | None
+        Il file trovato, oppure None se non esiste: la conversione non si interrompe,
+        perche' un report a meta' e' peggio di un report con una figura mancante
+        segnalata (vedi `_immagine`).
+    """
+    candidati = [Path(riferimento)] if not Path(riferimento).is_absolute() else []
+    if Path(riferimento).suffix.lower() == ".pdf":
+        candidati.append(Path(riferimento).with_suffix(".png"))
+
+    for candidato in list(candidati) or [Path(riferimento)]:
+        for base in (sorgente.parent, config.PROJECT_ROOT, config.FIGURE_DIR):
+            percorso = (base / candidato).resolve()
+            if percorso.is_file():
+                return percorso
+    return None
+
+
+def _immagine(doc: Document, didascalia: str, riferimento: str, sorgente: Path) -> None:
+    """
+    Inserisce una figura, ridimensionata alla larghezza della colonna di testo.
+
+    L'immagine non viene mai ingrandita: una figura piu' stretta del testo resta della
+    sua dimensione naturale, perche' scalarla in su la sfoca. La didascalia, se c'e',
+    va sotto in corsivo piccolo.
+
+    Se il file non si trova, al suo posto compare un segnaposto rosso con il nome
+    cercato e viene stampato un avviso. Fallire in silenzio sarebbe il caso peggiore:
+    il documento va al relatore, e una figura assente deve vedersi sia in fase di
+    generazione sia nel documento stesso.
+    """
+    percorso = _risolvi_figura(riferimento, sorgente)
+    if percorso is None:
+        print(f"  ATTENZIONE: figura non trovata, '{riferimento}'", file=sys.stderr)
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = p.add_run(f"[FIGURA MANCANTE: {riferimento}]")
+        run.bold = True
+        run.font.color.rgb = RGBColor(0xC0, 0x00, 0x00)
+        return
+
+    sezione = doc.sections[0]
+    larghezza_utile = sezione.page_width - sezione.left_margin - sezione.right_margin
+
+    figura = doc.add_picture(str(percorso))
+    if figura.width > larghezza_utile:
+        # Si scala anche l'altezza a mano: fissare la sola larghezza deformerebbe.
+        figura.height = Emu(int(figura.height * larghezza_utile / figura.width))
+        figura.width = Emu(int(larghezza_utile))
+    doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    if didascalia:
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        # Passa dal riconoscimento inline come ogni altro testo: una didascalia puo'
+        # contenere un `K\*` da sciogliere o un nome di file fra apici inversi.
+        _aggiungi_testo(p, didascalia)
+        for run in p.runs:
+            run.italic = True
+            run.font.size = Pt(9)
+            run.font.color.rgb = RGBColor(0x50, 0x50, 0x50)
 
 
 def _sfondo(paragrafo, colore_hex: str) -> None:
@@ -227,6 +314,14 @@ def markdown_to_docx(sorgente: Path, destinazione: Path) -> Path:
             _tabella(doc, blocco)
             continue
 
+        # --- immagine -----------------------------------------------------------------
+        # Va riconosciuta prima dei paragrafi: `![...](...)` non e' testo corrente.
+        figura = _IMMAGINE.match(spoglia)
+        if figura:
+            _immagine(doc, figura.group(1).strip(), figura.group(2).strip(), sorgente)
+            i += 1
+            continue
+
         # --- riga vuota / separatore --------------------------------------------------
         if not spoglia:
             i += 1
@@ -274,8 +369,12 @@ def markdown_to_docx(sorgente: Path, destinazione: Path) -> Path:
         # --- paragrafo ----------------------------------------------------------------
         blocco = [spoglia]
         i += 1
-        while i < len(righe) and righe[i].strip() and not righe[i].strip().startswith(
-            ("#", "-", "*", ">", "|", "```")
+        while (
+            i < len(righe)
+            and righe[i].strip()
+            and not righe[i].strip().startswith(("#", "-", "*", ">", "|", "```"))
+            # Un'immagine interrompe il paragrafo anche senza riga vuota davanti.
+            and not _IMMAGINE.match(righe[i].strip())
         ):
             blocco.append(righe[i].strip())
             i += 1

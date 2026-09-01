@@ -3996,3 +3996,59 @@ un quarto-un terzo. Il vincolo dichiarato nel LaTeX — «richiede il campione a
 mese invernale l'annualizzazione sarebbe grossolana» — **non esiste più**: con 366 giorni
 l'annualizzazione è esatta. `economia.py` è testato ma non è mai stato chiamato da uno script di
 pipeline, solo dal debug 08.
+
+
+---
+
+## 2026-09-01 — Le figure dentro il report, e una didascalia che il test ha salvato
+
+Il `.docx` per il relatore citava le figure per nome ma non le conteneva: andavano mostrate a
+schermo durante la chiamata. Aggiunto il supporto immagini a `mgp.report`, con la sintassi
+Markdown standard `![didascalia](file.png)` su riga propria.
+
+Quattro scelte di comportamento, tutte con una ragione:
+
+* **il nome nudo basta**: si scrive `![...](15_errore_orario.png)` e il file si cerca prima
+  accanto al report, poi dalla radice del progetto, infine in `output/figure/`. Senza l'ultimo
+  passaggio servirebbe `../../output/figure/...`, che renderebbe illeggibile il sorgente
+  Markdown — che è versionato e si rilegge;
+* **un riferimento a `.pdf` ricade sul `.png` di pari nome**. Word non incorpora PDF e gli
+  script del progetto salvano sempre entrambi i formati: senza la ricaduta, scrivere `.pdf` per
+  distrazione darebbe una figura mancante senza motivo apparente;
+* **l'immagine si riduce alla colonna ma non si ingrandisce mai**. Scalare in su una figura
+  piccola la sfoca, e nessuna figura di questo progetto ha bisogno di essere ingrandita.
+  L'altezza si scala a mano insieme alla larghezza: fissare la sola larghezza deformerebbe;
+* **una figura mancante lascia un segnaposto rosso nel documento** e stampa un avviso, invece
+  di interrompere la conversione o di essere ignorata. Il documento va al relatore: l'assenza
+  deve vedersi sia quando si genera sia quando si legge. Interrompere sarebbe peggio, perché
+  lascerebbe senza report a poche ore dal ricevimento.
+
+### Il test di regressione ha ripreso un difetto introdotto adesso
+
+`test_nessuna_barra_rovesciata_residua_nei_report_veri`, scritto stamattina per il difetto
+degli escape, è fallito **su codice nuovo**: nella didascalia della curva di erosione avevo
+scritto `K\*` e arrivava in Word con la barra, perché `_immagine` scriveva la didascalia con un
+`add_run` diretto invece di passarla dal riconoscimento inline.
+
+Correzione giusta e non aggiramento: la didascalia ora passa da `_aggiungi_testo` come ogni
+altro testo, e la formattazione (corsivo, 9 punti, grigio) si applica ai run risultanti. Così
+una didascalia può contenere anche grassetto o un nome di file fra apici inversi.
+
+Vale la pena registrarlo perché è il caso in cui un test di regressione **paga entro la stessa
+giornata**: era stato scritto per un difetto e ne ha preso un altro, in una funzione che allora
+non esisteva.
+
+### Verifiche
+
+Otto casi nuovi su immagini, tutti su PNG generati al volo di dimensioni note: riduzione alla
+colonna con rapporto conservato (2:1 in partenza, 2:1 all'arrivo), nessun ingrandimento,
+didascalia, escape nella didascalia, ricaduta PDF→PNG, segnaposto per la figura mancante,
+ricerca in `output/figure/`, e l'immagine che interrompe il paragrafo precedente anche senza
+riga vuota davanti. **138 test verdi.**
+
+`pillow` aggiunto a `requirements.txt`: arriva già come dipendenza di `python-docx`, ma i test
+la importano direttamente e affidarsi alla transitività è fragile.
+
+Report rigenerato: cinque figure incorporate, tutte a 6,00 pollici di larghezza — errore per
+ora del giorno, forma della distribuzione, errore contro spread, curva di erosione nelle due
+varianti, confronto fra regimi. 817 KB.

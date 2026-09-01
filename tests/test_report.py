@@ -82,6 +82,100 @@ def test_codice_inline_non_viene_interpretato():
     assert [t for t, _, _ in _run("vedi `a * b` nel testo")] == ["vedi ", "a * b", " nel testo"]
 
 
+# --- immagini -------------------------------------------------------------------------
+
+
+def _png(percorso: Path, larghezza: int, altezza: int) -> Path:
+    """Scrive un PNG reale delle dimensioni volute (serve un file che python-docx sappia leggere)."""
+    from PIL import Image
+
+    Image.new("RGB", (larghezza, altezza), "white").save(percorso)
+    return percorso
+
+
+def _con_immagine(tmp_path: Path, riga: str) -> Document:
+    sorgente = tmp_path / "2026-01-01_report.md"
+    sorgente.write_text(f"# Prova\n\n{riga}\n", encoding="utf-8")
+    return Document(markdown_to_docx(sorgente, tmp_path / "prova.docx"))
+
+
+def test_immagine_larga_viene_ridotta_alla_colonna(tmp_path):
+    """Una figura piu' larga del testo si scala, mantenendo le proporzioni."""
+    _png(tmp_path / "larga.png", 3000, 1500)
+    doc = _con_immagine(tmp_path, "![](larga.png)")
+
+    (figura,) = doc.inline_shapes
+    sezione = doc.sections[0]
+    utile = sezione.page_width - sezione.left_margin - sezione.right_margin
+    assert figura.width == utile
+    # 2:1 in partenza, 2:1 all'arrivo: la scalatura non ha deformato.
+    assert abs(figura.width / figura.height - 2.0) < 0.01
+
+
+def test_immagine_stretta_non_viene_ingrandita(tmp_path):
+    """Scalare in su sfoca: una figura piccola resta della sua dimensione naturale."""
+    _png(tmp_path / "stretta.png", 96, 96)
+    doc = _con_immagine(tmp_path, "![](stretta.png)")
+
+    (figura,) = doc.inline_shapes
+    sezione = doc.sections[0]
+    assert figura.width < sezione.page_width - sezione.left_margin - sezione.right_margin
+    assert abs(figura.width / figura.height - 1.0) < 0.01
+
+
+def test_didascalia_sotto_la_figura(tmp_path):
+    _png(tmp_path / "f.png", 400, 300)
+    doc = _con_immagine(tmp_path, "![Errore per ora del giorno](f.png)")
+
+    assert len(doc.inline_shapes) == 1
+    testi = [p.text for p in doc.paragraphs if p.text.strip()]
+    assert "Errore per ora del giorno" in testi
+
+
+def test_didascalia_scioglie_gli_escape(tmp_path):
+    """La didascalia e' testo come un altro: `K\\*` deve arrivare come `K*`."""
+    _png(tmp_path / "f.png", 400, 300)
+    doc = _con_immagine(tmp_path, r"![Le soglie K\* a confronto](f.png)")
+
+    assert any("Le soglie K* a confronto" == p.text for p in doc.paragraphs)
+
+
+def test_figura_mancante_lascia_un_segnaposto_visibile(tmp_path):
+    """Non deve interrompere la conversione, ma non deve nemmeno passare inosservata."""
+    doc = _con_immagine(tmp_path, "![](inesistente.png)")
+
+    assert not doc.inline_shapes
+    assert any("FIGURA MANCANTE: inesistente.png" in p.text for p in doc.paragraphs)
+
+
+def test_riferimento_pdf_ricade_sul_png(tmp_path):
+    """Word non incorpora PDF; gli script del progetto salvano sempre anche il PNG."""
+    _png(tmp_path / "figura.png", 400, 300)
+    doc = _con_immagine(tmp_path, "![](figura.pdf)")
+
+    assert len(doc.inline_shapes) == 1
+
+
+def test_immagine_interrompe_il_paragrafo_precedente(tmp_path):
+    """Senza riga vuota davanti, `![...]()` non deve finire dentro il testo corrente."""
+    _png(tmp_path / "f.png", 400, 300)
+    sorgente = tmp_path / "2026-01-01_report.md"
+    sorgente.write_text("# Prova\n\nTesto che precede.\n![](f.png)\n", encoding="utf-8")
+    doc = Document(markdown_to_docx(sorgente, tmp_path / "prova.docx"))
+
+    assert len(doc.inline_shapes) == 1
+    assert any(p.text == "Testo che precede." for p in doc.paragraphs)
+
+
+def test_figura_cercata_anche_in_output_figure(tmp_path):
+    """Il nome nudo basta: evita i `../..` che renderebbero illeggibile il Markdown."""
+    from mgp import config
+
+    nome = next(config.FIGURE_DIR.glob("*.png")).name
+    doc = _con_immagine(tmp_path, f"![]({nome})")
+    assert len(doc.inline_shapes) == 1
+
+
 # --- documento completo -------------------------------------------------------------
 
 
