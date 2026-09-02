@@ -48,3 +48,7 @@ CLAUDE.md
 # --- Varie ---
 .Rhistory
 *.log
+
+# Letteratura scientifica: PDF di articoli soggetti a copyright, ~100 MB.
+# Non vanno su GitHub: si tengono in locale come materiale di lavoro.
+scientific literature/
