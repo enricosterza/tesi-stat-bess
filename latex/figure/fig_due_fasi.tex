@@ -1,0 +1,74 @@
+% Schema concettuale della struttura a due fasi (Sezione~\ref{sec:due-fasi}).
+%
+% Figura d'orientamento, non un diagramma tecnico: otto blocchi in due file, con due
+% fasce di sfondo che raggruppano visivamente la Fase 1 (previsione) e la Fase 2
+% (impatto sul mercato), e un blocco di esito in fondo. Le due fasce si distinguono per
+% tono di grigio e stile del bordo (continuo/tratteggiato), non solo per colore, cosi'
+% la figura resta leggibile anche stampata in bianco e nero.
+%
+% Richiede nel preambolo (main.tex, fuori dal perimetro dei capitoli 3-5):
+%   \usepackage{tikz}
+%   \usetikzlibrary{arrows.meta, positioning, fit, backgrounds}
+
+\begin{tikzpicture}[
+  node distance=7mm and 9mm,
+  every node/.style={font=\small},
+  block/.style={
+    rectangle, rounded corners=3pt, draw=black!70, thick,
+    minimum height=1.05cm, text width=2.5cm, align=center,
+    inner sep=4pt
+  },
+  esito/.style={
+    rectangle, rounded corners=3pt, draw=black, very thick,
+    fill=black!12, minimum height=1.2cm, text width=6.6cm, align=center,
+    inner sep=5pt, font=\small\bfseries
+  },
+  freccia/.style={-{Latex[length=2.6mm, width=1.8mm]}, thick}
+]
+
+% --- Fase 1: previsione e pianificazione ------------------------------------------
+\node[block, fill=black!5]                              (storici) {Prezzi storici};
+\node[block, fill=black!5, right=of storici]             (sarimax) {Modello di previsione SARIMAX};
+\node[block, fill=black!5, right=of sarimax]             (previsti) {Prezzi previsti};
+\node[block, fill=black!5, right=of previsti,
+      text width=2.7cm]                                  (piano) {Piano di carica/scarica della batteria};
+
+\draw[freccia] (storici) -- (sarimax);
+\draw[freccia] (sarimax) -- (previsti);
+\draw[freccia] (previsti) -- (piano);
+
+% --- Fase 2: impatto sul mercato --------------------------------------------------
+\node[block, fill=white, below=15mm of storici]          (curve)   {Inserimento nelle curve d'asta reali GME};
+\node[block, fill=white, right=of curve]                 (equilib) {Ricalcolo dell'equilibrio};
+\node[block, fill=white, right=of equilib]                (nuovop)  {Nuovo prezzo di equilibrio};
+
+\draw[freccia] (curve) -- (equilib);
+\draw[freccia] (equilib) -- (nuovop);
+
+% Continuazione della catena fra le due file: dal piano della batteria all'inserimento
+% nelle curve reali.
+\draw[freccia] (piano.south) -- ++(0,-4mm) -| (curve.north);
+
+% --- Esito: erosione e soglia K* --------------------------------------------------
+\node[esito, below=13mm of equilib] (esito) {Erosione dello spread e soglia $K^*$\\(price-taker $\rightarrow$ price-maker)};
+
+\draw[freccia] (nuovop.south) -- ++(0,-4mm) -| (esito.north);
+
+% --- Fasce di sfondo che raggruppano le due fasi ----------------------------------
+\begin{pgfonlayer}{background}
+  \node[fit=(storici)(sarimax)(previsti)(piano),
+        inner sep=8pt, rounded corners=6pt,
+        fill=black!4, draw=black!45, thick]              (fascia1) {};
+  \node[fit=(curve)(equilib)(nuovop),
+        inner sep=8pt, rounded corners=6pt,
+        fill=white, draw=black!45, thick, dashed]         (fascia2) {};
+\end{pgfonlayer}
+
+\node[anchor=south west, font=\footnotesize\bfseries,
+      fill=black!4, draw=black!45, rounded corners=2pt, inner sep=3pt]
+      at ([xshift=2pt,yshift=1pt]fascia1.north west) {Fase 1 --- Previsione};
+\node[anchor=south west, font=\footnotesize\bfseries,
+      fill=white, draw=black!45, rounded corners=2pt, inner sep=3pt]
+      at ([xshift=2pt,yshift=1pt]fascia2.north west) {Fase 2 --- Impatto sul mercato};
+
+\end{tikzpicture}
