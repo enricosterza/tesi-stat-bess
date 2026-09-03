@@ -327,12 +327,42 @@ senza di essa l'accumulo potrebbe svuotarsi il primo giorno e mostrare un ricavo
 ripetibile --- ma preclude l'arbitraggio fra giorni consecutivi, che un operatore reale pu\`o
 invece praticare.
 
-Il costo di questa scelta \`e quantificato dalla fonte: un orizzonte di tre giorni cattura
-oltre il \SI{99}{\percent} del profitto ottenibile con cinque. Il rendimento decrescente
-dell'orizzonte \`e quindi rapido, e il troncamento alla giornata singola sottostima il
-profitto in misura contenuta. Resta un limite dichiarato, e va tenuto presente che agisce sul
-\emph{livello} del profitto e non sull'ordinamento delle ore all'interno della giornata, da
-cui dipende invece il risultato centrale del lavoro (Sezione~\ref{sec:ordinale}).
+Il costo di questa scelta \`e quantificato dalla fonte, e non \`e trascurabile.
+\textcite{alonsoperez2026storage} confrontano orizzonti di uno, tre e cinque giorni sul
+mercato spagnolo: un orizzonte di tre giorni cattura oltre il \SI{99}{\percent} del reddito
+netto ottenibile con cinque, ma la \textbf{giornata singola ne cattura fra l'\SI{82,8}{\percent}
+e il \SI{92,4}{\percent}} a seconda della capacit\`a installata. Gli autori scrivono che
+l'ottimizzazione giornaliera \emph{performs poorly}, e richiamano il risultato per cui i
+modelli a ciclo giornaliero sottostimano sistematicamente i ricavi dell'accumulo. Il
+troncamento adottato qui lascia quindi sul tavolo fra il \SI{7,6}{\percent} e il
+\SI{17,2}{\percent} del reddito conseguibile con un orizzonte lungo.
+
+La scelta resta motivata, per tre ragioni che il confronto sui ricavi non cattura. La prima
+\`e che l'orizzonte giornaliero \`e l'\textbf{unit\`a di decisione effettiva} su questo
+mercato: le offerte per tutte le ore del giorno~$D$ si presentano entro il mezzogiorno
+di~$D-1$ e si risolvono insieme, e un operatore che partecipa al solo \ac{MGP} non pu\`o
+impegnarsi su un'asta non ancora aperta. La seconda \`e che il ciclo chiuso \`e ci\`o che
+rende i profitti giornalieri \textbf{omogenei e sommabili}, e quindi ricampionabili per
+l'inferenza su~$K^*$. La terza \`e che l'orizzonte giornaliero coincide con quello della
+previsione a $D-1$ (Sezione~\ref{sec:due-fasi}): estenderlo a tre giorni richiederebbe una
+previsione a settantadue passi, il cui errore andrebbe caratterizzato da capo, e
+modificherebbe l'oggetto statistico del lavoro anzich\'e soltanto il suo costo di calcolo.
+
+\`E inoltre il vincolo da cui discende una propriet\`a su cui il risultato centrale si
+appoggia: con stato di carica iniziale nullo e ciclo chiuso, un errore di previsione pu\`o
+spostare \emph{quando} l'accumulo opera, mai l'\emph{ordine} carica-scarica, perch\'e
+scaricare prima di aver caricato non \`e ammissibile (Sezione~\ref{sec:ordinale}).
+
+Quanto alla portata del limite, va distinto dove agisce. Sul \textbf{livello} del profitto la
+sottostima \`e quella misurata sopra, e si riflette per intero sulla valutazione economica del
+Capitolo~\ref{cap:valutazione}, in senso prudenziale: il progetto rende pi\`u di quanto il
+modello dichiari. Sull'\textbf{erosione} l'effetto \`e invece di secondo ordine, per la stessa
+ragione algebrica della Sezione~\ref{sec:cosa-determina}: il piano fisico \`e identico a
+numeratore e denominatore del rapporto~\eqref{eq:erosione}, e un troncamento che cambia
+\emph{quale} piano si costruisce lo cambia in entrambi i termini. Non si annulla del tutto ---
+un piano pluri-giornaliero distribuirebbe l'operativit\`a fra le giornate in modo diverso,
+quindi con un diverso impatto sul prezzo --- ma le soglie $K^*$ ne risentono assai meno del
+margine assoluto.
 
 \section{Modellazione del degrado}
 \label{sec:degrado}

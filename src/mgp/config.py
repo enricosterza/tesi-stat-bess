@@ -216,10 +216,14 @@ PARAMETRI_BESS: dict[str, float] = {
     #: il dimensionamento del convertitore smette di essere vincolante.
     "durata_ore": 4.0,
 
-    #: Orizzonte di ottimizzazione, in giorni. Gli autori misurano che un orizzonte di 3
-    #: giorni cattura oltre il 99% del profitto ottenibile con 5 giorni: il rendimento
-    #: decrescente dell'orizzonte e' quindi rapido, e la giornata singola adottata qui (con
-    #: ciclo chiuso, D-22) e' un troncamento accettabile. Resta un limite dichiarato.
+    #: Orizzonte di ottimizzazione, in giorni (D-41). La giornata singola con ciclo chiuso
+    #: coincide con l'unita' di decisione del MGP e con l'orizzonte della previsione a D-1
+    #: (D-37), e rende i profitti giornalieri omogenei e sommabili.
+    #: NON e' gratis, e il numero va ricordato: secondo la fonte dei parametri (Tab. 2) un
+    #: orizzonte di 3 giorni cattura oltre il 99% del reddito netto ottenibile con 5, ma la
+    #: giornata singola ne cattura solo l'82,8-92,4%. Il troncamento agisce sul LIVELLO del
+    #: profitto (capitolo 5, in senso prudenziale) e molto meno sull'erosione, dove il piano
+    #: e' identico a numeratore e denominatore.
     "orizzonte_giorni": 1.0,
 
     #: Il parametro K: rapporto fra il prezzo pagato sull'energia PRELEVATA dalla rete e

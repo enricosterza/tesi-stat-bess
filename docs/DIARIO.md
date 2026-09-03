@@ -4052,3 +4052,86 @@ la importano direttamente e affidarsi alla transitività è fragile.
 Report rigenerato: cinque figure incorporate, tutte a 6,00 pollici di larghezza — errore per
 ora del giorno, forma della distribuzione, errore contro spread, curva di erosione nelle due
 varianti, confronto fra regimi. 817 KB.
+
+
+---
+
+## 2026-09-03 — L'orizzonte giornaliero: una citazione che diceva il contrario, e la decisione mancante
+
+Lo studente ha caricato in `scientific literature/` i PDF della letteratura, fra cui
+Alonso-Perez e Arcos-Vargas — la fonte dei parametri tecnici (D-32). Prima verifica diretta
+sulla fonte invece che sulla memoria, e ha prodotto due correzioni.
+
+### La citazione sull'orizzonte usava la riga sbagliata della tabella
+
+Il capitolo 3 scriveva: «il costo di questa scelta è quantificato dalla fonte: un orizzonte di
+tre giorni cattura oltre il 99% del profitto ottenibile con cinque». **Il numero esiste** — la
+fonte dice 99,5% — ma «questa scelta» è l'orizzonte di **un giorno**, e la stessa Tabella 2
+quantifica anche quello:
+
+| Orizzonte | 2.000 MWh | 8.000 | 14.000 | 20.000 |
+|---|---|---|---|---|
+| **1 giorno** | **82,8%** | **92,4%** | **92,1%** | **92,3%** |
+| 3 giorni | 99,3% | 99,8% | 99,9% | 99,5% |
+| 5 giorni | 100% | 100% | 100% | 100% |
+
+Il troncamento costa fra il **7,6% e il 17,2%** del reddito netto, non meno dell'1%. E gli
+autori scrivono testualmente che «daily optimization performs poorly», richiamando
+Dufo-López e Bernal-Agustín (2015) per cui i modelli a ciclo giornaliero **sottostimano
+sistematicamente** i ricavi.
+
+La citazione sosteneva quindi l'opposto di ciò che la fonte misura. Il diario dell'11 agosto
+era più prudente («resta un'estrapolazione»): l'irrigidimento è avvenuto nel passaggio al
+LaTeX, dove «sostiene» è diventato «è quantificato».
+
+**Lezione di metodo, la seconda in due settimane sullo stesso tema**: un numero letto una
+volta e trascritto senza l'artefatto a fianco non è verificabile. Finché il PDF non era nel
+progetto, né io né lo studente potevamo ricontrollarlo — ed è esattamente lo stato in cui una
+citazione sbagliata sopravvive fino alla discussione.
+
+### Il paragrafo riscritto
+
+Riporta i numeri veri e sposta la difesa dove regge davvero, cioè su tre ragioni che il
+confronto sui ricavi non cattura: l'orizzonte giornaliero è l'**unità di decisione effettiva**
+del MGP (le offerte del giorno D si presentano tutte entro mezzogiorno di D−1); il ciclo chiuso
+rende i profitti **omogenei e sommabili**, quindi ricampionabili per l'inferenza su K\*;
+l'orizzonte coincide con quello della **previsione a D−1** (D-37), e allungarlo a tre giorni
+richiederebbe una previsione a 72 passi, cambiando l'oggetto statistico del lavoro e non solo
+il suo costo di calcolo.
+
+Aggiunta la distinzione su **dove** il limite agisce: sul livello del profitto per intero, e
+quindi sul capitolo 5 in senso **prudenziale** (il progetto rende più di quanto il modello
+dichiari); sull'erosione di secondo ordine, per la stessa ragione algebrica della
+Sezione 3.1.3 — il piano fisico è identico a numeratore e denominatore, quindi un troncamento
+che cambia *quale* piano si costruisce lo cambia in entrambi i termini.
+
+### D-41 · la decisione che non era mai stata registrata
+
+Cercando l'ID da citare si è scoperto che **non esisteva**. D-22 riguarda la previsione
+perfetta ed è superata da D-37; fra le quaranta decisioni nessuna copriva l'orizzonte. Era
+l'assunzione più strutturale del modello — orizzonte, stato iniziale nullo e ciclo chiuso,
+tre vincoli che stanno insieme — e viveva solo nel codice e in un paragrafo del capitolo 3.
+
+Registrata come **D-41**, con il costo misurato dentro la voce. Aggiornato anche il commento
+di `config.PARAMETRI_BESS["orizzonte_giorni"]`, che ripeteva la citazione sbagliata.
+
+### Altro emerso dalla stessa verifica, non ancora sistemato
+
+* **Il rendimento del 92% non è qualificato AC o DC nella fonte.** Il modello richiede per
+  costruzione l'AC-AC, perché $c_t$ e $s_t$ sono le quantità valorizzate al prezzo di mercato
+  e inserite nelle curve d'asta. La fonte dice solo «round-trip». Da dichiarare come limite.
+  La sua sensitività quantifica la posta: da 90% a 80% il reddito netto cala del **17,7%**.
+* **Il costo variabile della fonte è 12,3 €/MWh**, non 12,0 come in `config`.
+* **La voce bibliografica è del preprint** (SSRN 2025); il PDF è la versione pubblicata,
+  *Energy Reports* 15 (2026) 108991. Fuori perimetro: segnalato allo studente.
+* La fonte àncora le proprie equazioni a **Sioshansi et al. (2022)**, «minimum set of
+  desirable storage model characteristics»: è il riferimento giusto per la formulazione
+  di §3.2, oggi priva di citazione.
+
+### Manutenzione
+
+`scientific literature/` aggiunta al `.gitignore`: 101 MB di PDF sotto copyright, e il
+repository è pubblico. Prima della riorganizzazione fatta dallo studente, **13 PDF su 36
+avevano percorsi oltre i 260 caratteri** di `MAX_PATH` ed erano illeggibili da Python (la
+cartella e il file ripetevano lo stesso titolo lungo). Dopo l'appiattimento: 22 PDF, **0
+problematici**.
