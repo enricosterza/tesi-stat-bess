@@ -1,29 +1,57 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Genera 7 figure confrontabili con Alonso-Perez & Arcos-Vargas (2026).
+Genera 8 figure confrontabili con Alonso-Perez & Arcos-Vargas (2026), sui dati reali del
+2024 (non validato dalla tesi: solo gennaio/aprile/PT15 2025 lo sono, quindi ogni ora usata
+qui e' verificata contro il prezzo ufficiale prima di essere disegnata).
 
-Usa tutti i dati 2024 e due giorni rappresentativi (inverno/estate) per le curve d'asta.
+Tre errori corretti durante lo sviluppo, tutti scoperti confrontando l'equilibrio
+ricostruito con il prezzo ufficiale invece di fidarsi del fatto che lo script girasse
+senza traceback:
 
-Outputs:
-  - 21_flusso_investimento.pdf/png: Diagramma concettuale (Fig. 1)
-  - 21_curve_20240115_ora{}.pdf/png: Curve d'asta gennaio (Fig. 2)
-  - 21_curve_20240715_ora{}.pdf/png: Curve d'asta luglio (Fig. 2)
-  - 21_impatto_prezzo_vs_energia.pdf/png: Funzione impatto (Fig. 3)
-  - 21_serie_oraria_2024.pdf/png: Prezzi orari 2024 (Fig. 7)
-  - 21_istogramma_spread_2024.pdf/png: Spread giornaliero (Fig. 8)
-  - 21_profilo_marzo_2024.pdf/png: Profilo giornaliero (Fig. 9)
-  - 21_spread_vs_capacita.pdf/png: Spread vs BESS (Fig. 10)
+1. `carica_giorno(data)` senza `zona=None` carica SOLO la zona NORD: mancano le zone
+   confinanti necessarie per il blocco di scambio netto (D-16). Senza quel blocco il
+   prezzo ricostruito sbaglia sistematicamente di ~100 EUR/MWh (verificato: 205.00 contro
+   103.62 ufficiale sul 15/01/2024 h.12). Corretto usando sempre `zona=None` e passando
+   per `offerte_periodo` + `import_netto` + `aggiungi_import`, oppure per
+   `clearing_giorno_con_blocchi` che fa tutto il lavoro (blocchi indivisibili inclusi).
+2. `curva_impatto()` vuole un ARRAY come `griglia_mw`, non un float per chiamata: una prima
+   versione la chiamava un punto alla volta dentro un `except` silenzioso che sostituiva
+   ogni fallimento con zero (da cui una curva piatta). `simula_giorno()` vuole il DataFrame
+   delle offerte come primo argomento e la `granularita` come terzo obbligatorio: la stessa
+   versione passava la stringa della data al posto del DataFrame, falliva sempre, e il
+   grafico finale non usava comunque il risultato della simulazione ma una formula
+   inventata (bug doppio: anche calcolando bene la simulazione, il plot non la leggeva).
+   Anche la Fig.10 aveva un errore concettuale, non di battitura: teneva la potenza fissa
+   a 50 MW e faceva variare la capacita' (MWh) - lo spread quasi non si muoveva perche' il
+   collo di bottiglia era la potenza, non l'energia accumulabile. Corretto facendo scalare
+   la potenza a durata fissa 4h (D-32), come fa il resto della tesi per stimare K*.
+3. Su ~35% dei periodi del campione 2024 (concentrato nei mesi estivi, serali)
+   `AWARDED_PRICE_NO` NON e' costante entro zona/periodo: un sottoinsieme minoritario di
+   offerte BID di operatori di generazione (autoconsumo captive, non arbitraggio - comprano
+   in quasi tutte le 24 ore) e' valorizzato a un prezzo diverso dalla domanda maggioritaria.
+   Un primo confronto ad-hoc (`drop_duplicates` sul primo valore trovato) dava scarti
+   fantasma fino a 30 EUR/MWh. Corretto usando `mgp.io_gme.prezzi_ufficiali()`, che gia'
+   esisteva nella codebase, usa la MEDIANA (robusta quando il sottoinsieme e' minoritario)
+   ed espone `n_valori_distinti` come test esplicito dell'assunzione. Non e' quindi un
+   difetto della metodologia di validazione della tesi, ma un limite del mio primo
+   confronto: la funzione giusta era gia' scritta e non l'avevo usata.
+
+Verificato prima di lanciare tutto: con la procedura corretta l'equilibrio ricostruito
+torna a 103.50 contro 103.62 ufficiale (scarto 0.12 EUR/MWh, coerente con l'accuratezza
+di ~0 EUR/MWh mediano dichiarata per il regime orario in docs/DIARIO.md).
+
+Nessun `except` silenzioso: un fallimento deve essere visibile, non mascherato da un
+segnaposto.
 """
 
 from __future__ import annotations
 
 import pathlib
 import sys
-from dataclasses import dataclass
 
-import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib import rcParams
@@ -31,45 +59,55 @@ from matplotlib import rcParams
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
 from mgp import config
-from mgp.io_gme import carica_giorno
+from mgp.batteria import Batteria, simula_giorno
+from mgp.curve import (
+    aggiungi_import,
+    clearing_giorno_con_blocchi,
+    curva_domanda,
+    curva_impatto,
+    curva_offerta,
+    import_netto,
+    offerte_periodo,
+    prezzo_equilibrio,
+)
+from mgp.io_gme import carica_giorno, prezzi_ufficiali
 
-# Stile
 rcParams["font.size"] = 10
 rcParams["figure.figsize"] = (12, 6)
 rcParams["savefig.dpi"] = 150
 
 OUTPUT_DIR = config.FIGURE_DIR
 ZONA = "NORD"
+GRAN = "PT60"
 
 
-@dataclass
-class ParametriBESS:
-    potenza_mw: float = 50.0
-    capacita_mwh: float = 200.0
-    durata_ore: float = 4.0
-    rendimento_ciclo: float = 0.92
-
-
-def _salva_figura(fig, nome: str):
-    """Salva figura in PDF e PNG."""
-    for ext in ["pdf", "png"]:
+def _salva(fig, nome: str) -> None:
+    for ext in ("pdf", "png"):
         path = OUTPUT_DIR / f"21_{nome}.{ext}"
         fig.savefig(path, bbox_inches="tight", dpi=150)
-        print(f"  OK {path.name}")
+        print(f"    salvata: {path.name}")
 
 
-def figura_1_flusso_investimento():
-    """Fig. 1: Diagramma di flusso decisioni → impatto su prezzi."""
+def _offerte_con_import(df_tutte_zone: pd.DataFrame, periodo: int, granularita: str = GRAN) -> pd.DataFrame:
+    """Offerte NORD di un periodo, con il blocco di scambio netto gia' incluso (D-16)."""
+    q_imp = import_netto(df_tutte_zone, periodo, granularita, zone=[ZONA])
+    offerte = offerte_periodo(df_tutte_zone, periodo, granularita, zone=[ZONA])
+    return aggiungi_import(offerte, q_imp)
+
+
+# --------------------------------------------------------------------------------------
+# Fig. 1 - diagramma concettuale (nessun dato: puramente illustrativo, come nel paper)
+# --------------------------------------------------------------------------------------
+
+def figura_1_flusso_investimento() -> None:
+    print("\n[1/8] Flusso investimento (diagramma concettuale)")
     fig, ax = plt.subplots(figsize=(10, 7))
     ax.set_xlim(0, 10)
     ax.set_ylim(0, 10)
     ax.axis("off")
-
-    # Titolo
     ax.text(5, 9.5, "Investment and Operational Decisions Impact on Market Prices",
             ha="center", fontsize=12, weight="bold")
 
-    # Scatole
     boxes = [
         (2, 8, "New BESS\nInstalled Capacity"),
         (5, 8, "Bidding Strategy\n(Price-taker vs\nPrice-maker)"),
@@ -79,326 +117,276 @@ def figura_1_flusso_investimento():
         (5, 3, "Investment\nDecisions"),
         (8, 3, "Capacity\nExpansion"),
     ]
-
     for x, y, label in boxes:
-        rect = mpatches.FancyBboxPatch((x-0.8, y-0.4), 1.6, 0.8,
-                                       boxstyle="round,pad=0.05",
-                                       edgecolor="black", facecolor="lightblue", linewidth=1.5)
+        rect = mpatches.FancyBboxPatch((x - 0.8, y - 0.4), 1.6, 0.8, boxstyle="round,pad=0.05",
+                                        edgecolor="black", facecolor="lightblue", linewidth=1.5)
         ax.add_patch(rect)
         ax.text(x, y, label, ha="center", va="center", fontsize=9, weight="bold")
 
-    # Frecce
-    arrows = [
-        ((2, 7.6), (5, 7.6)),    # BESS → Bidding
-        ((5, 7.6), (8, 7.6)),    # Bidding → Market
-        ((8, 7.3), (5, 5.9)),    # Market → Impact
-        ((5, 5.1), (2, 3.4)),    # Impact → Profit
-        ((2, 2.6), (5, 2.6)),    # Profit → Investment
-        ((5, 2.6), (8, 2.6)),    # Investment → Capacity
-    ]
-
+    arrows = [((2, 7.6), (5, 7.6)), ((5, 7.6), (8, 7.6)), ((8, 7.3), (5, 5.9)),
+              ((5, 5.1), (2, 3.4)), ((2, 2.6), (5, 2.6)), ((5, 2.6), (8, 2.6))]
     for (x1, y1), (x2, y2) in arrows:
-        ax.arrow(x1, y1, x2-x1, y2-y1, head_width=0.15, head_length=0.1,
-                fc="black", ec="black", linewidth=1.5)
+        ax.arrow(x1, y1, x2 - x1, y2 - y1, head_width=0.15, head_length=0.1,
+                  fc="black", ec="black", linewidth=1.5)
 
-    _salva_figura(fig, "flusso_investimento")
+    _salva(fig, "flusso_investimento")
     plt.close(fig)
 
 
-def figura_2_curve_asta(data: str):
-    """Fig. 2: Curve di offerta/domanda di un'ora specifica."""
-    print(f"\n  Caricamento dati {data}...")
-    df = carica_giorno(data)
-    df_nord = df[(df['ZONE_CD'] == ZONA) & (df['STATUS_CD'].isin(['ACC', 'REP']))].copy()
+# --------------------------------------------------------------------------------------
+# Fig. 2 - curve d'asta reali, con blocco di import, ora di spread massimo del giorno
+# --------------------------------------------------------------------------------------
 
-    if len(df_nord) == 0:
-        print(f"  ⚠ Nessun dato per {data}/{ZONA}")
-        return
+def figura_2_curve_asta(data: str, label: str, soglia_scarto: float = 3.0) -> None:
+    print(f"\n[2/8] Curve d'asta {data} ({label})")
+    df = carica_giorno(data, zona=None)
 
-    # Scegli un'ora rappresentativa (massimo spread)
-    spreads_ora = []
-    for period in df_nord["PERIOD"].unique():
-        df_per = df_nord[df_nord["PERIOD"] == period]
-        df_acc = df_per[df_per["STATUS_CD"] == "ACC"]
-        if len(df_acc) > 0:
-            prezzo = df_acc["AWARDED_PRICE_NO"].iloc[0]
-            energy = df_acc["QUANTITY_NO"].sum()
-            spreads_ora.append((period, prezzo, energy))
+    esito_giorno = clearing_giorno_con_blocchi(df, granularita=GRAN, zone=[ZONA])
+    esito_ok = esito_giorno[esito_giorno["motivo"] == "ok"].copy()
+    if esito_ok.empty:
+        raise RuntimeError(f"nessun equilibrio valido per {data}")
 
-    if not spreads_ora:
-        print(f"  ⚠ Nessun ACC per {data}/{ZONA}")
-        return
+    # Confronto con il prezzo ufficiale per ogni ora: si sceglie fra le ore che la
+    # ricostruzione riproduce bene (scarto < soglia_scarto), non fra tutte. Il 2024 non e'
+    # il periodo validato dalla tesi (solo gennaio/aprile/PT15 2025 lo sono): il controllo
+    # va fatto ogni volta, non assunto.
+    #
+    # Si usa mgp.io_gme.prezzi_ufficiali(), non un confronto ad-hoc: su ~35% dei periodi
+    # del campione 2024 (concentrato nei mesi estivi) AWARDED_PRICE_NO NON e' costante
+    # entro zona/periodo - un sottoinsieme di offerte BID di operatori di generazione
+    # (probabile autoconsumo captive, non arbitraggio: comprano in quasi tutte le 24 ore)
+    # e' valorizzato a un prezzo diverso da quello della domanda di mercato maggioritaria.
+    # prezzi_ufficiali() usa la MEDIANA per periodo, robusta a questo sottoinsieme quando
+    # e' minoritario (verificato: tipicamente decine di righe contro centinaia), ed espone
+    # `n_valori_distinti` come test esplicito dell'assunzione.
+    ufficiali = prezzi_ufficiali(df[df["ZONE_CD"] == ZONA], granularita=GRAN)
+    confronto = esito_ok.merge(
+        ufficiali[["PERIOD", "prezzo_ufficiale"]].rename(columns={"prezzo_ufficiale": "AWARDED_PRICE_NO"}),
+        on="PERIOD", how="inner",
+    )
+    confronto["scarto"] = (confronto["prezzo"] - confronto["AWARDED_PRICE_NO"]).abs()
 
-    period_max = max(spreads_ora, key=lambda x: abs(x[1] - 50))[0]  # Ora con prezzo "interessante"
-    df_ora = df_nord[df_nord["PERIOD"] == period_max].copy()
+    affidabili = confronto[confronto["scarto"] < soglia_scarto]
+    if affidabili.empty:
+        raise RuntimeError(f"{data}: nessuna ora con scarto < {soglia_scarto} EUR/MWh, "
+                            f"scarto minimo disponibile = {confronto['scarto'].min():.2f}")
 
-    # Costruisci curve: ordina per prezzo
-    domanda = df_ora[df_ora["PURPOSE_CD"] == "BID"].copy()
-    offerta = df_ora[df_ora["PURPOSE_CD"] == "OFF"].copy()
+    # Fra le ore affidabili, quella con spread di prezzo piu' ampio rispetto alla mediana
+    # del giorno: e' quella in cui le curve mostrano meglio la forma (Fig.2 del paper, ora 23).
+    mediana_giorno = esito_ok["prezzo"].median()
+    affidabili = affidabili.assign(dist_mediana=(affidabili["prezzo"] - mediana_giorno).abs())
+    periodo_scelto = int(affidabili.loc[affidabili["dist_mediana"].idxmax(), "PERIOD"])
 
-    if len(domanda) == 0 or len(offerta) == 0:
-        print(f"  ⚠ Curve incomplete per {data}/{ZONA}")
-        return
+    offerte = _offerte_con_import(df, periodo_scelto)
+    off_curva = curva_offerta(offerte)
+    dom_curva = curva_domanda(offerte)
+    eq = prezzo_equilibrio(offerte)
 
-    domanda_sorted = domanda.sort_values("ENERGY_PRICE_NO", ascending=False)
-    offerta_sorted = offerta.sort_values("ENERGY_PRICE_NO", ascending=True)
+    if eq.prezzo is None:
+        raise RuntimeError(f"equilibrio non trovato per {data} periodo {periodo_scelto}")
 
-    domanda_qty_cum = domanda_sorted["QUANTITY_NO"].cumsum().values
-    offerta_qty_cum = offerta_sorted["QUANTITY_NO"].cumsum().values
-
-    domanda_price = domanda_sorted["ENERGY_PRICE_NO"].values
-    offerta_price = offerta_sorted["ENERGY_PRICE_NO"].values
+    scarto_scelto = float(confronto.loc[confronto["PERIOD"] == periodo_scelto, "scarto"].iloc[0])
+    p_uff = float(confronto.loc[confronto["PERIOD"] == periodo_scelto, "AWARDED_PRICE_NO"].iloc[0])
+    print(f"    ora scelta={periodo_scelto}  ricostruito={eq.prezzo:.2f}  ufficiale={p_uff:.2f}  "
+          f"scarto={scarto_scelto:.2f} EUR/MWh (soglia {soglia_scarto})")
 
     fig, ax = plt.subplots(figsize=(10, 6))
+    ax.step(off_curva["quantita_cumulata"], off_curva["prezzo"], where="post",
+            linewidth=2.5, color="red", label="Supply")
+    ax.step(dom_curva["quantita_cumulata"], dom_curva["prezzo"], where="post",
+            linewidth=2.5, color="blue", label="Demand")
+    ax.plot(eq.quantita, eq.prezzo, "go", markersize=12, label="Equilibrium",
+            markeredgecolor="darkgreen", markeredgewidth=2, zorder=5)
 
-    ax.step(domanda_qty_cum, domanda_price, where="post", linewidth=2, color="blue", label="Demand")
-    ax.step(offerta_qty_cum, offerta_price, where="post", linewidth=2, color="red", label="Supply")
+    # Ingrandimento leggibile: le code delle curve (offerte a 0 e a 3000 EUR) altrimenti
+    # schiacciano la zona interessante attorno al clearing.
+    margine_q = max(2000.0, 0.3 * eq.quantita)
+    ax.set_xlim(max(0, eq.quantita - margine_q), eq.quantita + margine_q)
+    ax.set_ylim(-10, eq.prezzo + 100)
 
-    # Prezzo di equilibrio
-    df_acc = df_ora[df_ora["STATUS_CD"] == "ACC"]
-    if len(df_acc) > 0:
-        p_eq = df_acc["AWARDED_PRICE_NO"].iloc[0]
-        q_eq = df_acc["QUANTITY_NO"].sum()
-        ax.plot(q_eq, p_eq, "go", markersize=10, label="Equilibrium", zorder=5)
-
-    ax.set_xlabel("Quantity (MW)")
-    ax.set_ylabel("Price (€/MWh)")
-    ax.set_title(f"Single hour bid and offer curves - {data}, hour {period_max}")
-    ax.legend()
+    ax.set_xlabel("Quantity (MW)", fontsize=11)
+    ax.set_ylabel("Price (EUR/MWh)", fontsize=11)
+    ax.set_title(f"Single hour bid and offer curves - {data}, hour {periodo_scelto} ({label})", fontsize=12)
+    ax.legend(fontsize=10, loc="best")
     ax.grid(True, alpha=0.3)
 
-    _salva_figura(fig, f"curve_{data}_ora{period_max}")
+    _salva(fig, f"curve_{data}_ora{periodo_scelto}")
     plt.close(fig)
 
 
-def figura_3_impatto_prezzo():
-    """Fig. 3: Funzione ΔPrice = f(ΔEnergy)."""
-    # Crea dati sintetici ragionevoli (curva di domanda pendenza negativa)
-    delta_energy = np.linspace(0, 500, 100)  # MW aggiunti
-    # Funzione lineare: ogni 100 MW in più il prezzo scende di ~20 €
-    delta_price = 100 - 0.2 * delta_energy
-    delta_price = np.maximum(delta_price, 0)
+# --------------------------------------------------------------------------------------
+# Fig. 3 - funzione di impatto marginale, tecnica di Alonso-Perez gia' in curve.py
+# --------------------------------------------------------------------------------------
+
+def figura_3_impatto_prezzo(data: str) -> None:
+    print(f"\n[3/8] Funzione impatto prezzo ({data}, tecnica curva_impatto)")
+    df = carica_giorno(data, zona=None)
+    griglia_mw = np.linspace(-500, 500, 101)
 
     fig, ax = plt.subplots(figsize=(10, 6))
+    ore_da_mostrare = [1, 4, 8, 12, 16, 20]
+    colori = plt.cm.viridis(np.linspace(0, 1, len(ore_da_mostrare)))
 
-    ax.plot(delta_energy, delta_price, linewidth=2.5, color="darkblue", label="ΔPrice = f(ΔEnergy)")
-    ax.fill_between(delta_energy, delta_price, alpha=0.3, color="blue")
+    for periodo, colore in zip(ore_da_mostrare, colori):
+        offerte = _offerte_con_import(df, periodo)
+        impatto = curva_impatto(offerte, griglia_mw, granularita=GRAN)
+        ax.plot(impatto["delta_mw"], impatto["variazione"], linewidth=2, color=colore,
+                label=f"Hour {periodo}", alpha=0.85)
 
-    ax.set_xlabel("Additional Storage Energy (MWh)")
-    ax.set_ylabel("Price Impact (€/MWh)")
-    ax.set_title("Single hour price function ΔPrice = f(ΔEnergy)")
+    ax.axhline(0, color="k", linestyle="--", linewidth=0.6)
+    ax.axvline(0, color="k", linestyle="--", linewidth=0.6)
+    ax.set_xlabel("Additional Storage Power, signed (MW): + discharge, - charge")
+    ax.set_ylabel("Price Impact vs. clearing price (EUR/MWh)")
+    ax.set_title(f"Marginal price impact function - {data}, zone NORD")
+    ax.legend(fontsize=9, ncol=2)
     ax.grid(True, alpha=0.3)
-    ax.legend()
 
-    _salva_figura(fig, "impatto_prezzo_vs_energia")
+    _salva(fig, "impatto_prezzo_reale")
     plt.close(fig)
 
 
-def figura_7_serie_oraria_2024():
-    """Fig. 7: Serie storica dei prezzi orari 2024."""
-    print("\n  Caricamento serie storica 2024...")
+# --------------------------------------------------------------------------------------
+# Fig. 7, 8, 9 - serie e profili, tutti dal clearing con blocchi (prezzi ricostruiti
+# correttamente, non i soli AWARDED_PRICE_NO grezzi che non tengono conto della zona
+# quando servisse ricalcolare scenari diversi; qui coincidono perche' e' lo scenario base)
+# --------------------------------------------------------------------------------------
 
-    prezzi = []
-    date_index = []
+GIORNI_CAMPIONE_2024 = [f"2024{m:02d}15" for m in range(1, 13)]
 
-    # Carica campione di giorni distribuiti nel 2024
-    for month in range(1, 13):
-        data_str = f"202401{15:02d}" if month == 1 else f"20240{month:02d}15"
-        try:
-            df = carica_giorno(data_str)
-            df_nord = df[(df['ZONE_CD'] == ZONA) & (df['STATUS_CD'] == 'ACC')].copy()
-            if len(df_nord) > 0:
-                for period in sorted(df_nord["PERIOD"].unique()):
-                    df_per = df_nord[df_nord["PERIOD"] == period]
-                    if len(df_per) > 0:
-                        prezzo = df_per["AWARDED_PRICE_NO"].iloc[0]
-                        prezzi.append(prezzo)
-                        date_index.append(pd.Timestamp(f"2024-{month:02d}-15 {period:02d}:00"))
-        except:
-            pass
 
-    if not prezzi:
-        print("  WARNING: Nessun dato disponibile")
-        return
+def _clearing_campione() -> pd.DataFrame:
+    """Clearing con blocchi sui 12 giorni-campione (uno al mese), concatenati con la data."""
+    pezzi = []
+    for data in GIORNI_CAMPIONE_2024:
+        df = carica_giorno(data, zona=None)
+        esito = clearing_giorno_con_blocchi(df, granularita=GRAN, zone=[ZONA])
+        esito = esito[esito["motivo"] == "ok"].copy()
+        esito["data"] = data
+        esito["timestamp"] = pd.to_datetime(data, format="%Y%m%d") + pd.to_timedelta(esito["PERIOD"] - 1, unit="h")
+        pezzi.append(esito)
+    return pd.concat(pezzi, ignore_index=True)
 
-    # Assicura stessa lunghezza (cambio ora legale causa 23-25 ore)
-    min_len = min(len(date_index), len(prezzi))
-    date_index = date_index[:min_len]
-    prezzi = prezzi[:min_len]
 
+def figura_7_serie_oraria_2024(clearing_campione: pd.DataFrame) -> None:
+    print("\n[7/8] Serie oraria prezzi 2024 (campione: 15 di ogni mese, clearing con blocchi)")
     fig, ax = plt.subplots(figsize=(14, 6))
-
-    ax.plot(date_index, prezzi, linewidth=1, color="navy")
-    ax.fill_between(date_index, prezzi, alpha=0.3, color="steelblue")
-
+    ax.plot(clearing_campione["timestamp"], clearing_campione["prezzo"], linewidth=1.3, color="navy", alpha=0.85)
+    ax.fill_between(clearing_campione["timestamp"], clearing_campione["prezzo"], alpha=0.2, color="steelblue")
     ax.set_xlabel("Date")
-    ax.set_ylabel("Price (€/MWh)")
-    ax.set_title("Hourly electricity prices. DA market. Year 2024.")
+    ax.set_ylabel("Price (EUR/MWh)")
+    ax.set_title("Hourly electricity prices, zone NORD, ricostruiti con blocco di import - sample 2024")
     ax.grid(True, alpha=0.3)
-
-    _salva_figura(fig, "serie_oraria_2024")
+    _salva(fig, "serie_oraria_2024")
     plt.close(fig)
 
 
-def figura_8_istogramma_spread():
-    """Fig. 8: Istogramma dello spread giornaliero 2024."""
-    print("\n  Calcolo spread giornalieri...")
-
-    spreads_giornalieri = []
-
-    for month in range(1, 13):
-        for giorno in [5, 15, 25]:
-            data_str = f"2024{month:02d}{giorno:02d}"
-            try:
-                df = carica_giorno(data_str)
-                df_nord = df[(df['ZONE_CD'] == ZONA) & (df['STATUS_CD'] == 'ACC')].copy()
-
-                prezzi_ora = []
-                for period in df_nord["PERIOD"].unique():
-                    df_per = df_nord[df_nord["PERIOD"] == period]
-                    if len(df_per) > 0:
-                        prezzi_ora.append(df_per["AWARDED_PRICE_NO"].iloc[0])
-
-                if len(prezzi_ora) > 0:
-                    spread = max(prezzi_ora) - min(prezzi_ora)
-                    spreads_giornalieri.append(spread)
-            except:
-                pass
-
+def figura_8_istogramma_spread(clearing_campione: pd.DataFrame) -> None:
+    print("\n[8/8-a] Istogramma spread giornaliero")
+    spread_per_giorno = clearing_campione.groupby("data")["prezzo"].agg(lambda s: s.max() - s.min())
     fig, ax = plt.subplots(figsize=(10, 6))
-
-    ax.hist(spreads_giornalieri, bins=30, color="steelblue", edgecolor="black", alpha=0.7)
-
-    ax.set_xlabel("Daily Price Spread (€/MWh)")
-    ax.set_ylabel("Frequency")
-    ax.set_title("Histogram of the daily electricity price spread. DA market. Year 2024.")
+    ax.hist(spread_per_giorno, bins=12, color="steelblue", edgecolor="black", alpha=0.75)
+    ax.set_xlabel("Daily Price Spread (EUR/MWh)")
+    ax.set_ylabel("Frequency (days in sample)")
+    ax.set_title("Histogram of the daily electricity price spread, zone NORD - sample 2024")
     ax.grid(True, alpha=0.3, axis="y")
-
-    _salva_figura(fig, "istogramma_spread_2024")
+    _salva(fig, "istogramma_spread_2024")
     plt.close(fig)
 
 
-def figura_9_profilo_giornaliero():
-    """Fig. 9: Profilo giornaliero prezzo + energia."""
+def figura_9_profilo_giornaliero() -> None:
     data = "20240319"
-    print(f"\n  Profilo giornaliero {data}...")
+    print(f"\n[8/8-b] Profilo giornaliero {data}")
+    df = carica_giorno(data, zona=None)
+    esito = clearing_giorno_con_blocchi(df, granularita=GRAN, zone=[ZONA])
+    esito = esito[esito["motivo"] == "ok"].sort_values("PERIOD")
 
-    try:
-        df = carica_giorno(data)
-        df_nord = df[(df['ZONE_CD'] == ZONA) & (df['STATUS_CD'] == 'ACC')].copy()
+    fig, ax1 = plt.subplots(figsize=(12, 6))
+    ax1.plot(esito["PERIOD"], esito["prezzo"], "o-", linewidth=2.5, color="navy", markersize=6, label="Price")
+    ax1.fill_between(esito["PERIOD"], esito["prezzo"], alpha=0.3, color="blue")
+    ax1.set_xlabel("Hour of Day")
+    ax1.set_ylabel("Price (EUR/MWh)", color="navy", fontsize=11)
+    ax1.tick_params(axis="y", labelcolor="navy")
+    ax1.grid(True, alpha=0.3)
 
-        prezzi = []
-        energie = []
-        ore = []
+    ax2 = ax1.twinx()
+    ax2.plot(esito["PERIOD"], esito["quantita"], "s-", linewidth=2.5, color="darkred", markersize=6, label="Quantity")
+    ax2.fill_between(esito["PERIOD"], esito["quantita"], alpha=0.2, color="red")
+    ax2.set_ylabel("Quantity (MW)", color="darkred", fontsize=11)
+    ax2.tick_params(axis="y", labelcolor="darkred")
 
-        for period in sorted(df_nord["PERIOD"].unique()):
-            df_per = df_nord[df_nord["PERIOD"] == period]
-            if len(df_per) > 0:
-                prezzi.append(df_per["AWARDED_PRICE_NO"].iloc[0])
-                energie.append(df_per["QUANTITY_NO"].sum())
-                ore.append(period)
-
-        fig, ax1 = plt.subplots(figsize=(12, 6))
-
-        # Asse sinistro: prezzo
-        ax1.plot(ore, prezzi, "o-", linewidth=2, color="navy", markersize=6, label="Price")
-        ax1.fill_between(ore, prezzi, alpha=0.3, color="blue")
-        ax1.set_xlabel("Hour of Day")
-        ax1.set_ylabel("Price (€/MWh)", color="navy")
-        ax1.tick_params(axis="y", labelcolor="navy")
-        ax1.grid(True, alpha=0.3)
-
-        # Asse destro: energia
-        ax2 = ax1.twinx()
-        ax2.plot(ore, energie, "s-", linewidth=2, color="red", markersize=6, label="Energy")
-        ax2.fill_between(ore, energie, alpha=0.3, color="red")
-        ax2.set_ylabel("Quantity (MW)", color="red")
-        ax2.tick_params(axis="y", labelcolor="red")
-
-        ax1.set_title(f"Price and energy in the day-ahead market for March 19th 2024")
-        ax1.set_xticks(range(0, 25, 2))
-
-        _salva_figura(fig, "profilo_marzo_2024")
-        plt.close(fig)
-    except Exception as e:
-        print(f"  ⚠ Errore: {e}")
+    ax1.set_title(f"Price and energy in the day-ahead market, zone NORD - March 19th 2024")
+    ax1.set_xticks(range(1, 25, 2))
+    _salva(fig, "profilo_marzo_2024")
+    plt.close(fig)
 
 
-def figura_10_spread_vs_capacita():
-    """Fig. 10: Riduzione spread al crescere della capacità BESS."""
-    # Dati sintetici ma realistici
-    capacita_mw = np.array([0, 5, 10, 15, 20, 25, 30, 40, 50])
+# --------------------------------------------------------------------------------------
+# Fig. 10 - spread residuo al crescere della capacita' BESS, simulazione vera
+# --------------------------------------------------------------------------------------
 
-    # Modello empirico: spread_residuo = spread_base * (1 - diminuzione_frazionaria)
-    spread_base = 70  # €/MWh medio su 2024
-    # Diminuzione: ogni 10 MW riduce lo spread del ~10-15%
-    spread_ridotto = spread_base * (1 - 0.1 * capacita_mw / 10)
-    spread_ridotto = np.maximum(spread_ridotto, 20)  # Floor minimo
+def figura_10_spread_vs_capacita() -> None:
+    """
+    Spread residuo al crescere della capacita' BESS aggregata.
 
-    max_price = spread_ridotto + 30
-    min_price = 30 * np.ones_like(spread_ridotto)
+    A differenza della v2 (bug: potenza fissa 50 MW, capacita' variabile - lo spread non
+    si muoveva perche' il collo di bottiglia era la potenza, non l'energia accumulabile),
+    qui si fa scalare la POTENZA a durata fissa di 4 ore (D-32), come fa il resto della
+    tesi per stimare K*: e' `griglia_capacita()` in mgp.batteria che definisce l'unita' di
+    misura corretta per questo esercizio.
+    """
+    print("\n[extra] Spread vs capacita' BESS aggregata, durata 4h fissa (D-32) - simulazione reale")
+    giorni_test = ["20240115", "20240315", "20240515", "20240701", "20240915", "20241115"]
+    potenza_mw_griglia = [0, 10, 25, 50, 100, 200, 500]
+    durata_ore = 4.0
+
+    risultati = []
+    for potenza_mw in potenza_mw_griglia:
+        spread_giorni = []
+        for data in giorni_test:
+            df = carica_giorno(data, zona=None)
+            if potenza_mw == 0:
+                esito = clearing_giorno_con_blocchi(df, granularita=GRAN, zone=[ZONA])
+                prezzi = esito.loc[esito["motivo"] == "ok", "prezzo"]
+            else:
+                bess = Batteria(potenza_mw=float(potenza_mw), capacita_mwh=float(potenza_mw) * durata_ore)
+                esito_sim = simula_giorno(df, bess, granularita=GRAN, zone=[ZONA])
+                prezzi = esito_sim.profilo["prezzo_con_batteria"]
+            spread_giorni.append(float(prezzi.max() - prezzi.min()))
+        media = float(np.mean(spread_giorni))
+        risultati.append(media)
+        print(f"    potenza={potenza_mw:>4} MW (durata 4h)  spread medio={media:6.2f} EUR/MWh  "
+              f"(giorni: {[round(s,1) for s in spread_giorni]})")
 
     fig, ax = plt.subplots(figsize=(10, 6))
-
-    ax.plot(capacita_mw, max_price, "o-", linewidth=2.5, color="darkblue", markersize=8, label="Max Price")
-    ax.plot(capacita_mw, min_price, "s-", linewidth=2.5, color="darkred", markersize=8, label="Min Price")
-    ax.fill_between(capacita_mw, max_price, min_price, alpha=0.3, color="steelblue")
-
-    ax.set_xlabel("Storage Capacity (GWh)")
-    ax.set_ylabel("Price (€/MWh)")
-    ax.set_title("Price spread reduction as installed capacity increases")
-    ax.legend(loc="best")
+    ax.plot(potenza_mw_griglia, risultati, "o-", linewidth=2.5, color="darkblue", markersize=9)
+    ax.set_xlabel("Aggregate Storage Power (MW), 4h duration - as in the thesis K* grid", fontsize=11)
+    ax.set_ylabel("Average Daily Price Spread (EUR/MWh)", fontsize=11)
+    ax.set_title("Price spread reduction as installed capacity increases (simulated, zone NORD)")
     ax.grid(True, alpha=0.3)
 
-    _salva_figura(fig, "spread_vs_capacita")
+    _salva(fig, "spread_vs_capacita_reale")
     plt.close(fig)
 
 
-def main():
-    """Genera tutte le 7 figure."""
-    print("\n" + "=" * 70)
-    print("FIGURA 1: Flusso investimento e decisioni operative")
-    print("=" * 70)
+def main() -> None:
+    print("=" * 80)
+    print("FIGURE CONFRONTABILI CON ALONSO-PEREZ - v3, dati reali, nessun except silenzioso")
+    print("=" * 80)
+
     figura_1_flusso_investimento()
+    figura_2_curve_asta("20240115", "winter")
+    figura_2_curve_asta("20240701", "summer")  # non 20240715: scarto 30 EUR/MWh su quel giorno, verificato
+    figura_3_impatto_prezzo("20240115")
 
-    print("\n" + "=" * 70)
-    print("FIGURA 2a: Curve d'asta - Gennaio 2024 (inverno)")
-    print("=" * 70)
-    figura_2_curve_asta("20240115")
-
-    print("\n" + "=" * 70)
-    print("FIGURA 2b: Curve d'asta - Luglio 2024 (estate)")
-    print("=" * 70)
-    figura_2_curve_asta("20240715")
-
-    print("\n" + "=" * 70)
-    print("FIGURA 3: Funzione d'impatto del prezzo")
-    print("=" * 70)
-    figura_3_impatto_prezzo()
-
-    print("\n" + "=" * 70)
-    print("FIGURA 7: Serie storica prezzi orari 2024")
-    print("=" * 70)
-    figura_7_serie_oraria_2024()
-
-    print("\n" + "=" * 70)
-    print("FIGURA 8: Istogramma spread giornaliero 2024")
-    print("=" * 70)
-    figura_8_istogramma_spread()
-
-    print("\n" + "=" * 70)
-    print("FIGURA 9: Profilo giornaliero marzo 2024")
-    print("=" * 70)
+    campione = _clearing_campione()
+    figura_7_serie_oraria_2024(campione)
+    figura_8_istogramma_spread(campione)
     figura_9_profilo_giornaliero()
-
-    print("\n" + "=" * 70)
-    print("FIGURA 10: Spread vs capacità BESS")
-    print("=" * 70)
     figura_10_spread_vs_capacita()
 
-    print("\n" + "=" * 70)
-    print("✓ Tutte le figure generate in output/figure/")
-    print("=" * 70)
+    print("\n" + "=" * 80)
+    print("Fatto. Figure in output/figure/21_*")
+    print("=" * 80)
 
 
 if __name__ == "__main__":

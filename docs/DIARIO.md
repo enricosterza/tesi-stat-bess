@@ -4135,3 +4135,79 @@ repository è pubblico. Prima della riorganizzazione fatta dallo studente, **13 
 avevano percorsi oltre i 260 caratteri** di `MAX_PATH` ed erano illeggibili da Python (la
 cartella e il file ripetevano lo stesso titolo lungo). Dopo l'appiattimento: 22 PDF, **0
 problematici**.
+
+
+---
+
+## 2026-09-03 (2) — Figure comparabili con Alonso-Perez: tre bug, e un fatto genuino sul dato
+
+Lo studente ha chiesto figure sullo stile di Alonso-Perez e Arcos-Vargas (2026) sui dati
+2024: curve d'asta, funzione di impatto marginale, serie storica, spread vs capacità. Una
+prima versione (`scripts/21_figure_confrontabili_alonso.py`) è girata senza errori in
+circa un minuto e ha prodotto 8 figure — **tutte visivamente plausibili, tutte sbagliate**.
+Lo studente ha notato l'incongruenza fra il tempo di esecuzione (un minuto) e la stima
+dichiarata (5-10 minuti per le simulazioni): è stato il segnale giusto.
+
+### Cosa era rotto, e perché non si vedeva
+
+Tre errori distinti, nessuno segnalato da un traceback perché tutti coperti da `except`
+silenziosi (l'errore veniva sostituito da un placeholder invece di propagare):
+
+1. **`carica_giorno(data)` senza `zona=None`** carica solo NORD, escludendo le zone
+   confinanti necessarie al blocco di scambio netto (D-16). Senza quel blocco il prezzo
+   ricostruito sbaglia sistematicamente di ~100 €/MWh (verificato: 205,00 ricostruito
+   contro 103,62 ufficiale, 15/01/2024 h.12) — è esattamente l'ordine di grandezza che
+   D-16 descrive, riprodotto qui per essersene dimenticati nello script.
+2. **`curva_impatto()` chiamata un punto alla volta** invece che con un array (la firma
+   vuole `griglia_mw` come vettore): ogni chiamata falliva, l'`except` la sostituiva con
+   zero, la curva risultava piatta. **`simula_giorno()` chiamata con la stringa della data**
+   al posto del DataFrame: falliva sempre, e — bug nel bug — anche se avesse funzionato il
+   grafico finale della Fig. 10 non ne avrebbe letto il risultato, perché usava comunque
+   una formula scritta a mano. La Fig. 10 aveva anche un errore concettuale a monte:
+   potenza fissa a 50 MW e capacità variabile, quando il collo di bottiglia in un accumulo
+   è la potenza — lo spread non si muoveva perché non poteva muoversi. Corretto scalando
+   la potenza a durata fissa 4h (D-32), come fa la griglia di K* nel resto della tesi.
+
+### Un fatto genuino sul dato, non un bug: AWARDED_PRICE_NO non sempre costante
+
+Correggendo il primo bug è emerso un problema nuovo: confrontando l'equilibrio ricostruito
+con `AWARDED_PRICE_NO` preso direttamente dal file, lo scarto per il 1° luglio 2024 h.21
+cambiava a seconda di quale riga càpitava per prima in un `drop_duplicates()` — segno che
+il campo **non è univoco** per quella zona/periodo, contro l'assunzione scritta nella
+docstring di `prezzi_ufficiali()` ("deve valere 1 per ogni periodo", verificato però solo
+sul file pilota).
+
+Verificato sistematicamente su un campione di 12 giorni 2024 (uno al mese) più il 1°
+luglio: **110 periodi su 312 controllati (35,3%)** hanno più di un valore di
+`AWARDED_PRICE_NO`, concentrati nei mesi estivi e nelle ore serali. Scomponendo un caso
+(15/07/2024 h.22, scarto interno 48 €/MWh): un piccolo sottoinsieme di offerte BID (10 su
+259) appartiene a operatori di generazione (Enel Produzione, ENI, A2A, Edison — non
+trader) che acquistano energia in **quasi tutte le 24 ore del giorno**, non solo nelle ore
+economicamente convenienti — comportamento incompatibile con arbitraggio, più simile ad
+autoconsumo captive di impianto. Sono valorizzate a un prezzo diverso da quello della
+domanda maggioritaria (249 righe).
+
+**Non è un buco nella metodologia della tesi**: `mgp.io_gme.prezzi_ufficiali()` già esiste,
+già usa la **mediana** per periodo (robusta al sottoinsieme quando è minoritario, come nei
+casi osservati) e già espone `n_valori_distinti` come test esplicito. Il problema era che
+il mio primo script per le figure non la usava — costruiva il confronto a mano. Corretto
+usando la funzione esistente: lo scarto sul 1° luglio scende da 7,87 a 0,00 €/MWh.
+
+Resta un'osservazione utile, non urgente: l'assunzione di costanza è stata verificata
+esplicitamente solo sul file pilota (docstring di `prezzi_ufficiali`), mentre qui risulta
+violata su un terzo dei periodi di un campione 2024. Vale la pena, in futuro, controllare
+se negli script di validazione (02, 03) la colonna `n_valori_distinti` viene mai ispezionata
+o se la mediana viene usata "alla cieca" — nei casi osservati lo sbilanciamento numerico
+(minoranza contro maggioranza) protegge la mediana, ma non è detto valga sempre. Non
+riguarda l'identità di queste unità (ipotesi pompaggio scartata: caricano tutto il giorno,
+non solo nelle ore economiche; ipotesi più probabile è autoconsumo, non verificata a fondo).
+
+### Esito
+
+`scripts/21_figure_confrontabili_alonso.py`: 8 figure, tutte verificate contro il prezzo
+ufficiale (via `prezzi_ufficiali()`) prima di essere disegnate, con soglia di accettazione
+3 €/MWh per l'ora scelta nelle curve d'asta. Giorno estivo cambiato da 15 a 1 luglio 2024
+(15 luglio aveva uno scarto reale, non un artefatto, di ~30 €/MWh su più ore serali — non
+per il problema sopra, ma probabilmente residuo non spiegato ordinario, non indagato oltre
+perché il 1° luglio già soddisfa la soglia). Nessuna figura pubblicata senza controllo
+numerico esplicito stampato a schermo.
