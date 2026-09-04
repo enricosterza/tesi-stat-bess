@@ -4211,3 +4211,95 @@ ufficiale (via `prezzi_ufficiali()`) prima di essere disegnate, con soglia di ac
 per il problema sopra, ma probabilmente residuo non spiegato ordinario, non indagato oltre
 perché il 1° luglio già soddisfa la soglia). Nessuna figura pubblicata senza controllo
 numerico esplicito stampato a schermo.
+
+
+---
+
+## 2026-09-04 — BESS reali nei dati grezzi: 13 impianti, comparsi dal 17/06/2024, già oltre K\*
+
+Domanda diretta dello studente: nei dati GME ci sono già BESS reali, identificabili come
+tali? Lo schema non ha un campo tecnologia (verificato sul glossario e sulle colonne lette
+da `io_gme`), ma il campo `UNIT_REFERENCE_NO` sì: cercando la stringa `BESS` (provate anche
+`BATT`, `STOR`, `ACCUM`, `SDA`, `SDR` — zero risultati, `BESS` è l'unico marcatore) emergono
+**13 unità di produzione** con il nome che le dichiara esplicitamente. `OPERATORE` non aiuta:
+è vuoto su queste righe, come sulla maggior parte del dataset.
+
+### I 13 impianti, per zona (31/03/2026)
+
+| Zona | Impianti |
+|---|---|
+| NORD | CARPIBESS, DNESUDBESS, FSINABESS1, LSPZABESS1, TRINOBESS1, TRINOBESS2 (6) |
+| SARD | OTTANABESS, QRTCCUBESS, SLCISBESS1, SSMNIBESS1 (4) |
+| CSUD | MNTLTBESS1, PNDGRGBESS (2) |
+| SICI | VICARIBESS (1) |
+
+Ogni impianto offre **sia in acquisto (`BID`) sia in vendita (`OFF`)**: è l'arbitraggio puro
+che il modello simula, non un'astrazione. Un fatto che conforta la costruzione del piano
+fisico più che i suoi numeri.
+
+### Il volume, in zona NORD: già 8-13 volte K\*
+
+Sommando gli scaglioni di prezzo per periodo (non le righe grezze, che sovracontano) e
+prendendo il picco simultaneo dei sei impianti NORD nel giorno pilota (31/03/2026):
+**667 MW in carica, 487 MW in scarica**. Un solo impianto, DNESUDBESS, arriva da solo a
+394 MW di carica. Contro K\* ≈ 50-76 MW (§4.6, Tabella `tab:soglia`) — **8-13 volte la
+soglia stimata**.
+
+Cautela d'obbligo: questi sei impianti sono unità **indipendenti** nella tassonomia GME, non
+necessariamente coordinate come un'unica flotta price maker — il confronto con K\*, che
+presuppone una flotta aggregata, non è quindi una verifica diretta del risultato. Resta però
+un fatto di rilevanza pratica difficile da liquidare: la capacità che il modello tratta come
+soglia teorica è già, oggi, ampiamente superata sul campo.
+
+### La cronologia: non un salto a metà 2025, una crescita che parte dal 17/06/2024
+
+Prima risposta (campione annuale a giugno) aveva suggerito "zero fino al 2024, poi undici a
+metà 2025" — un salto netto. Bisection giorno per giorno nella finestra 15/06-15/07/2024 ha
+smentito il salto e trovato la data vera:
+
+**17 giugno 2024 — prima comparsa assoluta**: `UP_TRINOBESS1_1`, zona NORD, unico impianto.
+Confermato con controllo giorno per giorno (15 e 16 giugno: zero; 17 giugno: uno). Il 2023
+e il primo semestre 2024, controllati a campione, non mostrano nulla — il 17/06/2024 non è
+un artefatto di campionamento, è l'inizio vero del fenomeno nei dati.
+
+Da lì la crescita è **graduale**, non a scatto:
+
+| Data | Unità totali | di cui NORD | Novità |
+|---|---|---|---|
+| 17/06/2024 | 1 | 1 | TRINOBESS1 (prima comparsa) |
+| 15/07/2024 | 2 | 2 | + LSPZABESS1 |
+| 15/09/2024 | 3 | 3 | + CARPIBESS |
+| 15/10/2024 | 6 | 5 | + DNESUDBESS, SSMNIBESS1, TRINOBESS2 |
+| 15/11/2024 | 4 | 3 | CARPIBESS e DNESUDBESS temporaneamente assenti |
+| 15/12/2024 | 8 | **6** | + FSINABESS1, MNTLTBESS1; NORD raggiunge l'assetto attuale |
+| 15/03/2025 | 9 | 6 | + PNDGRGBESS (CSUD) |
+| 15/05/2025 | 10 | 6 | + SLCISBESS1 (SARD) |
+| 15/06/2025 | 11 | 6 | + OTTANABESS (SARD) |
+| 31/03/2026 | 13 | 6 | + QRTCCUBESS, VICARIBESS |
+
+**La zona NORD si stabilizza a sei impianti entro dicembre 2024 e non cambia più** fino
+all'ultimo dato disponibile (marzo 2026): la crescita successiva è tutta nelle altre zone
+(SARD in particolare, che passa da zero a quattro fra inizio e metà 2025).
+
+### Perché conta per la tesi
+
+Il periodo di studio del confronto regimi (2022-2024) **non contiene BESS con questo nome**
+per undici dei suoi dodici mesi in campione (fino a metà giugno 2024): il modello simula un
+accumulo ipotetico in un periodo in cui, per la quasi totalità, non esisteva ancora
+realmente. Rafforza — non indebolisce — l'inquadramento della tesi come esercizio di
+simulazione: la batteria è aggiunta alle curve osservate, non stimata da un comportamento
+già presente nei dati che si starebbe involontariamente ri-descrivendo.
+
+Nel 2025-2026 il fenomeno che la tesi stima come soglia teorica **si sta già materializzando
+sul campo**, a volumi che la superano ampiamente. Corrobora — e rende concreta, con un nome
+di impianto e una data — la proiezione TYNDP 2024 già annotata a memoria (14,9 GW nazionali
+al 2030): qui non è una proiezione al 2030, è oggi, in zona NORD, a 667 MW.
+
+### Metodo, per la riproducibilità
+
+Ricerca svolta interattivamente, non da script dedicato: `carica_giorno(data, zona=None)`,
+filtro `UNIT_REFERENCE_NO.str.contains('BESS')`, aggregazione per periodo con `groupby` e
+`sum` sugli scaglioni di prezzo, poi `max` sul giorno per il picco. La bisection temporale è
+un ciclo su `pd.date_range('2024-06-15', '2024-07-15')` che si ferma al primo giorno con
+almeno un'unità trovata. Nessuno script nuovo prodotto: se questa linea di indagine prosegue
+(es. per una nota nelle conclusioni), va formalizzata in `scripts/`.
